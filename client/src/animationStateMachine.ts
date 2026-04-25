@@ -19,7 +19,7 @@ export class AnimationStateMachine {
         const currentAction = this.currentStateName ? this.actions[this.currentStateName] : null;
 
         if (currentAction && currentAction.isRunning() && currentAction !== targetAction) {
-            // Устанавливаем вес целевого действия в 1 перед кроссфейдом
+            // Явно устанавливаем вес целевого действия в 1 для гарантированного кроссфейда
             targetAction.setEffectiveWeight(1);
             currentAction.crossFadeTo(targetAction, fadeDuration, false);
         } else {
@@ -35,13 +35,10 @@ export class AnimationStateMachine {
         const action = this.actions[stateName];
         if (!action || (action.isRunning() && action.loop === THREE.LoopOnce)) return;
 
-        // Приостанавливаем циклические действия
+        // Полностью останавливаем все циклические анимации для чистого воспроизведения
         Object.values(this.actions).forEach(a => {
-            if (a && a.isRunning() && a.loop === THREE.LoopRepeat) a.paused = true;
+            if (a && a.isRunning() && a.loop === THREE.LoopRepeat) a.stop();
         });
-
-        // Если анимация слишком быстрая, можно изменить timeScale
-        // if (stateName === 'death') action.timeScale = 0.5; // пример
 
         action.reset();
         action.setLoop(THREE.LoopOnce, 1);
@@ -51,10 +48,15 @@ export class AnimationStateMachine {
         const onFinishedLocal = () => {
             this.mixer.removeEventListener('finished', onFinishedLocal);
             if (stateName === 'death') {
-                // Полный сброс после смерти
+                // После смерти сбрасываем все действия (rest-поза)
                 Object.values(this.actions).forEach(a => a?.stop());
+                // Даем небольшую задержку перед колбэком, чтобы поза точно применилась
+                setTimeout(() => {
+                    onFinished?.();
+                }, 100);
+            } else {
+                onFinished?.();
             }
-            onFinished?.();
         };
         this.mixer.addEventListener('finished', onFinishedLocal);
     }
