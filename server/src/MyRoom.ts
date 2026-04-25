@@ -9,6 +9,7 @@ class Player extends Schema {
     @type("string") name: string = "";
     @type("number") hp: number = 100;
     @type("number") maxHp: number = 100;
+    @type("number") level: number = 1;
 }
 
 class MyRoomState extends Schema {

@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { camera } from './scene';
 import { localModel, otherPlayers, fsm } from './player';
 import { room } from './network';
+import { setSelectedTarget, getSelectedTarget } from './selection';
+import { showTargetUI, hideTargetUI } from './targetUI';
 console.log('[INTERACTION] Module loaded');
 
 // Служебные переменные для различения клика и удержания ПКМ
@@ -67,10 +69,23 @@ window.addEventListener('mouseup', (event) => {
     if (event.button === 0) { // ЛКМ
         const intersections = getIntersections(event);
         if (intersections.length > 0) {
-            console.log('[LCLICK] Выделена цель:', intersections[0].object);
-        } else {
-            console.log('[LCLICK] Выделение снято');
+            const clickedMesh = intersections[0].object as THREE.Mesh;
+            const targetId = clickedMesh.userData?.sessionId;
+            if (targetId && room) {
+                // Получаем данные из состояния комнаты
+                const player = room.state?.players.get(targetId);
+                if (player) {
+                    setSelectedTarget(targetId);
+                    showTargetUI(player.name, player.level, player.hp, player.maxHp);
+                    console.log('[LCLICK] Выделена цель:', targetId);
+                    return;
+                }
+            }
         }
+        // Клик по земле или не по игроку – снимаем выделение
+        setSelectedTarget(null);
+        hideTargetUI();
+        console.log('[LCLICK] Выделение снято');
     }
 });
 

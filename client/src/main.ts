@@ -10,6 +10,8 @@ import { cleanUpScene } from './startupCleanup';
 import { updateAnimations } from './animationUtils';
 import './interaction';
 import { renderLabels } from './renderers';
+import { createPlayerUI, updatePlayerUI } from './playerUI';
+import { createTargetUI } from './targetUI';
 
 let playerName = localStorage.getItem(STORAGE_KEY) || '';
 if (!playerName) {
@@ -28,6 +30,8 @@ modelReady.then(() => {
     setTimeout(() => {
         fsm['local']?.transitionTo('idle');
     }, 500);
+    createPlayerUI(playerName, 1); // начальный уровень
+    createTargetUI();
 });
 setTimeout(() => renderer.domElement.focus({ preventScroll: true }), 100);
 

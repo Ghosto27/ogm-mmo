@@ -7,6 +7,9 @@ import {
 } from './player';
 import { setTargetPosition } from './animationUtils';
 import { updateHpBarSprite } from './utils';
+import { updatePlayerUI } from './playerUI';
+import { getSelectedTarget } from './selection';
+import { updateTargetHP } from './targetUI';
 
 export const client = new Client(SERVER_URL);
 export let room: any = null;
@@ -102,6 +105,7 @@ function join(playerName: string) {
                 // Отображение HP-бара
                 if (alive) {
                     showLocalHpBar(myPlayer.x, myPlayer.z, myPlayer.hp, myPlayer.maxHp);
+                    updatePlayerUI(myPlayer.hp, myPlayer.maxHp, myPlayer.level);
                 } else {
                     hideLocalHpBar();
                 }
@@ -137,6 +141,11 @@ function join(playerName: string) {
                     fsm[sessionId]?.playOneShot('recievehit', 0.1);
                 }
                 prevHp[sessionId] = player.hp;
+
+                // Если этот игрок — текущая цель, обновляем его HP в панели
+                if (sessionId === getSelectedTarget()) {
+                    updateTargetHP(player.hp, player.maxHp);
+                }
 
                 // Смерть
                 if (player.hp <= 0 && !deathAnimating[sessionId]) {
