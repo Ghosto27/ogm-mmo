@@ -97,7 +97,10 @@ function createModelInstance(sessionId?: string): THREE.Group {
         const act = actions[id][key];
         if (act) filteredActions[key] = act;
     }
+    // В функции createModelInstance, после создания fsm[id]:
     fsm[id] = new AnimationStateMachine(mixer, filteredActions);
+    // Явно запускаем Idle, чтобы FSM знал своё начальное состояние
+    fsm[id].transitionTo('idle');
 
     return model;
 }
@@ -146,8 +149,13 @@ export function updateOtherPlayer(
     if (alive) {
         if (!otherPlayers[sessionId]) {
             otherPlayers[sessionId] = createOtherPlayerModel(sessionId);
+            // Запускаем Idle для нового игрока
+            if (fsm[sessionId]) {
+                fsm[sessionId].transitionTo('idle');
+            }
         }
         otherPlayers[sessionId].visible = true;
+
         if (!hpBars[sessionId]) {
             hpBars[sessionId] = createHpBar();
             scene.add(hpBars[sessionId]);
