@@ -10,6 +10,8 @@ class Player extends Schema {
     @type("number") hp: number = 100;
     @type("number") maxHp: number = 100;
     @type("number") level: number = 1;
+    @type("number") exp: number = 0;
+    @type("number") expToLevel: number = 100;
 }
 
 class MyRoomState extends Schema {
@@ -35,6 +37,8 @@ export class MyRoom extends Room<MyRoomState> {
             }
         });
 
+        
+
         this.onMessage("attack", (client, message) => {
             const attacker = this.state.players.get(client.sessionId);
             if (!attacker || attacker.hp <= 0) return;
@@ -48,6 +52,7 @@ export class MyRoom extends Room<MyRoomState> {
             if (Math.sqrt(dx*dx + dz*dz) > 2.5) return;
 
             target.hp -= 10;
+            this.addExperience(attacker, 10);
             console.log(`[ATTACK] ${attacker.name} -> ${target.name} (HP: ${target.hp})`);
 
             // Рассылаем анимацию атаки всем клиентам
@@ -107,5 +112,25 @@ export class MyRoom extends Room<MyRoomState> {
             console.log(`[LEAVE] ${player.name} сохранён.`);
         }
         this.state.players.delete(client.sessionId);
+    }
+
+    private addExperience(player: Player, amount: number) {
+        player.exp += amount;
+        console.log(`[EXP] ${player.name} получил ${amount} опыта (${player.exp}/${player.expToLevel})`);
+
+        // Повышаем уровень, пока достаточно опыта
+        while (player.exp >= player.expToLevel) {
+            player.exp -= player.expToLevel;
+            player.level += 1;
+            // Увеличиваем ёмкость опыта для следующего уровня (простая формула)
+            player.expToLevel = Math.floor(player.expToLevel * 1.5);
+            // Увеличиваем максимальное HP
+            player.maxHp += 10;
+            player.hp = player.maxHp;   // полное восстановление при левелапе
+
+            console.log(`[LEVEL UP] ${player.name} теперь ${player.level} уровня!`);
+            // Можно отправить отдельное сообщение клиенту для спецэффекта
+            // this.broadcast("levelUp", { sessionId: client.sessionId, level: player.level });
+        }
     }
 }

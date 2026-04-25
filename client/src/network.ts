@@ -105,7 +105,7 @@ function join(playerName: string) {
                 // Отображение HP-бара
                 if (alive) {
                     showLocalHpBar(myPlayer.x, myPlayer.z, myPlayer.hp, myPlayer.maxHp);
-                    updatePlayerUI(myPlayer.hp, myPlayer.maxHp, myPlayer.level);
+                    updatePlayerUI(myPlayer.hp, myPlayer.maxHp, myPlayer.level, myPlayer.exp, myPlayer.expToLevel);
                 } else {
                     hideLocalHpBar();
                 }

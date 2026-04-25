@@ -12,6 +12,8 @@ import './interaction';
 import { renderLabels } from './renderers';
 import { createPlayerUI, updatePlayerUI } from './playerUI';
 import { createTargetUI } from './targetUI';
+import { createMinimap, updateMinimap } from './minimap';
+import { createWorldMap, updateWorldMap, toggleWorldMap } from './worldMap';
 
 let playerName = localStorage.getItem(STORAGE_KEY) || '';
 if (!playerName) {
@@ -26,13 +28,24 @@ cleanUpScene();
 
 modelReady.then(() => {
     startConnection(playerName);
-    // Запускаем idle сразу после создания модели
     setTimeout(() => {
         fsm['local']?.transitionTo('idle');
     }, 500);
-    createPlayerUI(playerName, 1); // начальный уровень
+    createPlayerUI(playerName, 1);
     createTargetUI();
+    createMinimap();
+    createWorldMap();
 });
+
+window.addEventListener('keydown', (e) => {
+    if (e.key.toLowerCase() === 'm') {
+        // Чтобы не открывать карту, когда игрок вводит что-то в поле ввода (если появится)
+        if (document.activeElement === document.body) {
+            toggleWorldMap();
+        }
+    }
+});
+
 setTimeout(() => renderer.domElement.focus({ preventScroll: true }), 100);
 
 let lastSend = 0;
@@ -106,6 +119,26 @@ function loop() {
         setCameraTarget(center.x, center.y, center.z);
     }
     updateCamera();
+
+    // Обновление миникарты
+    if (localModel) {
+        const othersForMap: { x: number; z: number; rotationY: number; visible: boolean }[] = [];
+        for (const id in otherPlayers) {
+            const model = otherPlayers[id];
+            if (model) {
+                othersForMap.push({
+                    x: model.position.x,
+                    z: model.position.z,
+                    rotationY: model.rotation.y,
+                    visible: model.visible,
+                });
+            }
+        }
+        updateMinimap(localModel.position.x, localModel.position.z, localModel.rotation.y, othersForMap);
+        updateWorldMap(localModel.position.x, localModel.position.z, localModel.rotation.y, othersForMap);
+    }
+
+    
 
     const IDLE_TIMEOUT = 500;
     for (const sessionId in otherPlayers) {
