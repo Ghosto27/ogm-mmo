@@ -85,7 +85,8 @@ export class AnimationStateMachine {
             //this.log(`  -> finished "${stateName}"`);
 
             if (stateName === 'death') {
-                action.timeScale = 1; // сбрасываем замедление, чтобы не влиять на другие анимации
+                // Полный сброс скелета в rest‑позу перед колбеком
+                Object.values(this.actions).forEach(a => a?.stop());
                 onFinished?.();
             } else {
                 // Возвращаемся к предыдущему состоянию
@@ -102,13 +103,4 @@ export class AnimationStateMachine {
         this.mixer.addEventListener('finished', onFinishedLocal);
     }
 
-    resetToIdle() {
-        Object.values(this.actions).forEach(a => a?.stop());
-        const idleAction = this.actions['idle'] || this.actions['idle_weapon'] || this.actions['idle_attacking'];
-        if (idleAction) {
-            idleAction.reset().play();
-            idleAction.weight = 1;
-            this.currentStateName = 'idle';
-        }
-    }
 }

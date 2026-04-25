@@ -53,7 +53,7 @@ function join(playerName: string) {
                 if (firstSync && alive) {
                     localModel.position.x = myPlayer.x;
                     localModel.position.z = myPlayer.z;
-                    localModel.rotation.y = myPlayer.rotationY;
+                    localModel.rotation.y = myPlayer.rotationY ?? 0;
                     firstSync = false;
                     console.log('[SYNC] Позиция восстановлена:', myPlayer.x, myPlayer.z);
                 }
@@ -76,7 +76,7 @@ function join(playerName: string) {
                     wasDead = false;
                     localModel!.position.x = myPlayer.x;
                     localModel!.position.z = myPlayer.z;
-                    fsm['local']?.resetToIdle();   // ← теперь полностью сбрасываем позу
+                    fsm['local']?.transitionTo('idle');
                 }
 
                 // Получение урона
@@ -117,7 +117,7 @@ function join(playerName: string) {
                 if (player.hp > 0 && playerWasDead[sessionId]) {
                     playerWasDead[sessionId] = false;
                     if (otherPlayers[sessionId]) otherPlayers[sessionId].visible = true;
-                    if (fsm[sessionId]) fsm[sessionId].resetToIdle();
+                    if (fsm[sessionId]) fsm[sessionId].transitionTo('idle');
                 }
 
                 // Определяем движение
@@ -215,7 +215,6 @@ function join(playerName: string) {
                     model.rotation.y = data.rotationY;
                 }
                 model.visible = true;
-            } else {
                 // Модели ещё нет, но координаты реальные – создаём
                 const player = room.state.players.get(data.sessionId);
                 if (player) {
