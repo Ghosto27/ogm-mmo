@@ -5,7 +5,7 @@ import { scene } from './scene';
 import { createHpBar, updateHpBarSprite } from './utils';
 import { createLocalToonMaterial, createEnemyToonMaterial } from './materials';
 import { AnimationStateMachine } from './animationStateMachine';
-import { createNameTag, attachNameTag } from './nameTags';
+import { createNameTag, attachNameTag, removeNameTag } from './nameTags';
 
 export const fsm: { [id: string]: AnimationStateMachine } = {};
 
@@ -183,10 +183,12 @@ export function updateOtherPlayer(
 }
 
 export function removeOtherPlayerVisuals(sessionId: string) {
-    if (deathAnimating[sessionId]) return; // ждём окончания анимации смерти
+    if (deathAnimating[sessionId]) return;
     if (otherPlayers[sessionId]) {
+        removeNameTag(otherPlayers[sessionId]); // <-- чистим тег
         scene.remove(otherPlayers[sessionId]);
         delete otherPlayers[sessionId];
+        console.log(`[CLEANUP] Удалён игрок ${sessionId}`); // временный лог
     }
     if (hpBars[sessionId]) {
         scene.remove(hpBars[sessionId]);
@@ -195,4 +197,5 @@ export function removeOtherPlayerVisuals(sessionId: string) {
     if (mixers[sessionId]) delete mixers[sessionId];
     if (actions[sessionId]) delete actions[sessionId];
     if (deathAnimating[sessionId]) delete deathAnimating[sessionId];
+    if (fsm[sessionId]) delete fsm[sessionId];
 }
