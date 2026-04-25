@@ -5,6 +5,7 @@ import { loadPlayer, savePlayer } from "./storage";
 class Player extends Schema {
     @type("number") x: number = 0;
     @type("number") z: number = 0;
+    @type("number") rotationY: number = 0;
     @type("string") name: string = "";
     @type("number") hp: number = 100;
     @type("number") maxHp: number = 100;
@@ -27,6 +28,9 @@ export class MyRoom extends Room<MyRoomState> {
             if (message && typeof message.x === "number" && typeof message.z === "number") {
                 player.x = message.x;
                 player.z = message.z;
+                if (typeof message.r === "number") {
+                    player.rotationY = message.r;
+                }
             }
         });
 

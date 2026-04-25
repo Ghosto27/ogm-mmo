@@ -2,10 +2,10 @@ import * as THREE from 'three';
 import { camera, renderer } from './scene';
 
 // --- Храним состояние камеры в сферических координатах относительно игрока ---
-let distance = 10;           // дистанция до персонажа
 let minDistance = 2;
 let maxDistance = 20;
-let theta = 0;               // горизонтальный угол (радианы)
+let theta = Math.PI / 2;    // начинаем строго позади персонажа (вид со спины)
+let distance = 12;          // чуть отодвинем для лучшего обзора
 let phi = Math.PI / 4;       // вертикальный угол (от 0 до PI)
 
 const rotationSpeed = 0.005; // чувствительность мыши
@@ -13,7 +13,7 @@ const zoomSpeed = 0.5;       // скорость зума колёсиком
 const targetPosition = new THREE.Vector3(); // позиция игрока (цель)
 
 // Флаги и переменные для управления мышью
-let isRightDragging = false;
+export let isRightDragging = false;
 let lastMouseX = 0;
 let lastMouseY = 0;
 

@@ -25,7 +25,9 @@ function join(playerName: string) {
     client.joinOrCreate('world', { name: playerName }).then(roomInstance => {
         room = roomInstance;
         console.log('[JOIN] Успех, sessionId:', room.sessionId);
-
+        if (localModel) {
+            room.send("move", { x: localModel.position.x, z: localModel.position.z, r: localModel.rotation.y });
+        }
         if (reconnectTimer) {
             clearTimeout(reconnectTimer);
             reconnectTimer = null;
@@ -145,6 +147,9 @@ function join(playerName: string) {
                 // Позиция и видимость
                 setTargetPosition(sessionId, player.x, player.z);
                 updateOtherPlayer(sessionId, player.x, player.z, player.hp, player.maxHp, player.hp > 0);
+                if (otherPlayers[sessionId]) {
+                    otherPlayers[sessionId].rotation.y = player.rotationY ?? 0;
+                }
 
                 if (moving && fsm[sessionId]) {
                     fsm[sessionId].transitionTo('walk');
