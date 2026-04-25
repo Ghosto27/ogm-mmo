@@ -36,7 +36,7 @@ function join(playerName: string) {
         firstSync = true;
         wasDead = false;
 
-        if (!localModel) initLocalModel();
+        if (!localModel) initLocalModel(playerName);
 
         // Принудительно запускаем idle для локального игрока (если FSM уже готов)
         if (fsm['local']) fsm['local'].transitionTo('idle');
@@ -202,6 +202,6 @@ function join(playerName: string) {
 }
 
 export function startConnection(playerName: string) {
-    if (!localModel) initLocalModel();
+    if (!localModel) initLocalModel(playerName);
     join(playerName);
 }
