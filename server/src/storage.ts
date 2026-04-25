@@ -6,6 +6,7 @@ const DATA_FILE = path.join(__dirname, '..', 'players.json');
 interface PlayerRecord {
     x: number;
     z: number;
+    ry: number;
 }
 
 let data: { [name: string]: PlayerRecord } = {};
@@ -28,16 +29,15 @@ function save() {
     }
 }
 
-export function loadPlayer(name: string): { x: number; z: number } | null {
+export function loadPlayer(name: string): { x: number; z: number; ry: number } | null {
     const record = data[name];
     if (record) {
-        console.log(`[STORAGE] Найдена запись для ${name}: x=${record.x}, z=${record.z}`);
-        return { x: record.x, z: record.z };
+        return { x: record.x, z: record.z, ry: record.ry || 0 };
     }
     return null;
 }
 
-export function savePlayer(name: string, x: number, z: number) {
-    data[name] = { x, z };
+export function savePlayer(name: string, x: number, z: number, ry: number) {
+    data[name] = { x, z, ry };
     save();
 }

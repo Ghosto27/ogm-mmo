@@ -53,6 +53,7 @@ function join(playerName: string) {
                 if (firstSync && alive) {
                     localModel.position.x = myPlayer.x;
                     localModel.position.z = myPlayer.z;
+                    localModel.rotation.y = myPlayer.rotationY;
                     firstSync = false;
                     console.log('[SYNC] Позиция восстановлена:', myPlayer.x, myPlayer.z);
                 }
@@ -109,6 +110,7 @@ function join(playerName: string) {
             // ---------- Другие игроки ----------
             state.players.forEach((player: any, sessionId: string) => {
                 if (sessionId === room.sessionId) return;
+                console.log(`[STATE] sessionId=${sessionId}, x=${player.x}, z=${player.z}, hp=${player.hp}`);
                 console.log(`[NET] Игрок ${sessionId} – x=${player.x}, z=${player.z}, hp=${player.hp}`);
 
                 // Возрождение после смерти (сброс позы)
@@ -196,11 +198,34 @@ function join(playerName: string) {
             }
         });
 
-        room.onMessage("initialPosition", (data: { sessionId: string, x: number, z: number }) => {
+        room.onMessage("initialPosition", (data: { sessionId: string, x: number, z: number, rotationY?: number }) => {
+            // Игнорируем сообщения для самого себя
+            if (data.sessionId === room.sessionId) return;
+
+            // Если координаты нулевые — ждём реальных данных, не создаём модель
+            if (data.x === 0 && data.z === 0) return;
+
             const model = otherPlayers[data.sessionId];
+
             if (model) {
+                // Модель уже существует – обновляем и показываем
                 model.position.set(data.x, 0, data.z);
                 setTargetPosition(data.sessionId, data.x, data.z);
+                if (typeof data.rotationY === 'number') {
+                    model.rotation.y = data.rotationY;
+                }
+                model.visible = true;
+            } else {
+                // Модели ещё нет, но координаты реальные – создаём
+                const player = room.state.players.get(data.sessionId);
+                if (player) {
+                    updateOtherPlayer(data.sessionId, data.x, data.z, player.hp, player.maxHp, true, player.name);
+                    // После создания модель точно будет в otherPlayers, применяем поворот
+                    const freshModel = otherPlayers[data.sessionId];
+                    if (freshModel && typeof data.rotationY === 'number') {
+                        freshModel.rotation.y = data.rotationY;
+                    }
+                }
             }
         });
 

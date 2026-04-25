@@ -160,7 +160,6 @@ export function updateOtherPlayer(
 ) {
     if (alive) {
         if (!otherPlayers[sessionId]) {
-            // Модель создаём всегда, но показываем только когда координаты не нулевые
             otherPlayers[sessionId] = createOtherPlayerModel(sessionId);
             if (name) {
                 const tag = createNameTag(name);
@@ -168,12 +167,8 @@ export function updateOtherPlayer(
             }
             otherPlayers[sessionId].position.set(x, 0, z);
             setTargetPosition(sessionId, x, z);
+            // Показываем модель только если координаты уже не нулевые
             otherPlayers[sessionId].visible = !(x === 0 && z === 0);
-        } else {
-            // Если модель была невидимой из-за нулевых координат, а теперь пришли реальные – показываем
-            if (!otherPlayers[sessionId].visible && (x !== 0 || z !== 0)) {
-                otherPlayers[sessionId].visible = true;
-            }
         }
         otherPlayers[sessionId].visible = true;
 

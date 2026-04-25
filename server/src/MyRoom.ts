@@ -79,30 +79,30 @@ export class MyRoom extends Room<MyRoomState> {
         player.name = name;
         player.hp = player.maxHp = 100;
 
-        // Восстанавливаем позицию из хранилища
         const saved = loadPlayer(name);
         if (saved) {
             player.x = saved.x;
             player.z = saved.z;
+            player.rotationY = saved.ry;
         }
 
-        // Немедленно добавляем игрока в состояние комнаты
-        this.state.players.set(client.sessionId, player);
-
-        // Гарантированно оповещаем всех о точных координатах нового игрока
-        this.broadcast("initialPosition", {
-            sessionId: client.sessionId,
-            x: player.x,
-            z: player.z
-        });
-
-        console.log(`[SERVER] Игрок ${name} добавлен в стейт с x=${player.x}, z=${player.z}`);
+        // Небольшая задержка, чтобы координаты точно были готовы
+        setTimeout(() => {
+            this.state.players.set(client.sessionId, player);
+            this.broadcast("initialPosition", {
+                sessionId: client.sessionId,
+                x: player.x,
+                z: player.z,
+                rotationY: player.rotationY   // берём текущее значение (по умолчанию 0)
+            });
+            console.log(`[SERVER] Игрок ${name} добавлен в стейт с x=${player.x}, z=${player.z}`);
+        }, 20);
     }
 
     onLeave(client: Client) {
         const player = this.state.players.get(client.sessionId);
         if (player) {
-            savePlayer(player.name, player.x, player.z);
+            savePlayer(player.name, player.x, player.z, player.rotationY);
             console.log(`[LEAVE] ${player.name} сохранён.`);
         }
         this.state.players.delete(client.sessionId);
