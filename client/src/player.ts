@@ -87,12 +87,8 @@ function createModelInstance(sessionId?: string): THREE.Group {
         actions[id][clip.name.toLowerCase()] = action;
     });
 
-    if (actions[id]['idle']) {
-        actions[id]['idle']!.play();
-        currentLoopAnim[id] = 'idle';
-    } else if (actions[id]['idle_weapon']) {
-        actions[id]['idle_weapon']!.play();
-        currentLoopAnim[id] = 'idle_weapon';
+    if (fsm[id]) {
+        fsm[id].transitionTo('idle');  // FSM сам установит currentStateName
     }
 
     // Создаём FSM, отфильтровывая null из actions

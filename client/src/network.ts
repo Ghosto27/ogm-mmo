@@ -107,11 +107,6 @@ function join(playerName: string) {
                 prevPositions[sessionId] = { x: player.x, z: player.z };
                 lastMoveTimes[sessionId] = Date.now();
 
-                // Запускаем анимацию ходьбы только при движении и если FSM существует
-                if (moving && fsm[sessionId]) {
-                    fsm[sessionId].transitionTo('walk');
-                }
-
                 // Урон
                 const oldHp = prevHp[sessionId] ?? player.hp;
                 if (player.hp < oldHp) {
@@ -132,6 +127,10 @@ function join(playerName: string) {
                 // Позиция и видимость
                 setTargetPosition(sessionId, player.x, player.z);
                 updateOtherPlayer(sessionId, player.x, player.z, player.hp, player.maxHp, player.hp > 0);
+
+                if (moving && fsm[sessionId]) {
+                    fsm[sessionId].transitionTo('walk');
+                }
             });
 
             // Удаление вышедших игроков
