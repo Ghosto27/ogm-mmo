@@ -1,6 +1,8 @@
 import { Room, Client } from "colyseus";
 import { Schema, MapSchema, type } from "@colyseus/schema";
 import { loadPlayer, savePlayer } from "./storage";
+import { Mob } from "./Mob";
+import { MobSpawner } from "./MobSpawner";
 
 class Player extends Schema {
     @type("number") x: number = 0;
@@ -12,15 +14,18 @@ class Player extends Schema {
     @type("number") level: number = 1;
     @type("number") exp: number = 0;
     @type("number") expToLevel: number = 100;
+    
 }
 
 class MyRoomState extends Schema {
     @type({ map: Player }) players = new MapSchema<Player>();
+    @type({ map: Mob }) mobs = new MapSchema<Mob>();
 }
 
 export class MyRoom extends Room<MyRoomState> {
     allowReconnectionTime = 10;
     maxClients = 100;
+    spawner!: MobSpawner;
 
     onCreate() {
         this.setState(new MyRoomState());
@@ -76,8 +81,80 @@ export class MyRoom extends Room<MyRoomState> {
             }
         });
 
+        this.spawner = new MobSpawner(this);
+
+        this.onMessage("attackMob", (client, message) => {
+            const attacker = this.state.players.get(client.sessionId);
+            if (!attacker || attacker.hp <= 0) return;
+
+            const mobId = message.mobId;
+            const mob = this.state.mobs.get(mobId);
+            if (!mob || mob.hp <= 0) return;
+
+            const dx = attacker.x - mob.x;
+            const dz = attacker.z - mob.z;
+            if (Math.sqrt(dx*dx + dz*dz) > 2.5) return;
+
+            mob.hp -= 10;
+            mob.state = 'walk'; // заставляем идти к атакующему
+            mob.targetId = client.sessionId;
+            console.log(`[ATTACK] ${attacker.name} ударил волка ${mobId} (HP: ${mob.hp})`);
+
+            if (mob.hp <= 0) {
+                this.spawner.onMobDied(mobId);
+            }
+        });
+
+        // Игровой цикл мобов (каждые 500 мс)
+        this.setInterval(() => {
+            this.state.mobs.forEach((mob, mobId) => {
+                if (mob.hp <= 0) return;
+
+                // Ищем ближайшего живого игрока в радиусе 12
+                let closestPlayer: Player | null = null;
+                let closestDist = 12;
+                this.state.players.forEach((player) => {
+                    if (player.hp <= 0) return;
+                    const d = Math.sqrt((mob.x - player.x) ** 2 + (mob.z - player.z) ** 2);
+                    if (d < closestDist) {
+                        closestDist = d;
+                        closestPlayer = player;
+                    }
+                });
+
+                if (closestPlayer) {
+                    // Двигаемся к игроку
+                    mob.state = 'walk';
+                    const angle = Math.atan2(closestPlayer.z - mob.z, closestPlayer.x - mob.x);
+                    const speed = 3;
+                    mob.x += Math.cos(angle) * speed * 0.5;
+                    mob.z += Math.sin(angle) * speed * 0.5;
+                    mob.rotationY = angle;
+
+                    // Если достигли радиуса атаки – бьём
+                    if (closestDist < 2.5) {
+                        mob.state = 'attack';
+                        closestPlayer.hp -= 5;
+                        this.broadcast("mobAttackAnim", { mobId });
+                        // Проверка смерти игрока
+                        if (closestPlayer.hp <= 0) {
+                            // Обработка смерти игрока уже есть в attack
+                        }
+                    }
+                } else {
+                    // Простое случайное блуждание
+                    mob.state = 'walk';
+                    mob.x += (Math.random() - 0.5) * 2;
+                    mob.z += (Math.random() - 0.5) * 2;
+                    mob.rotationY += (Math.random() - 0.5) * 0.5;
+                }
+            });
+        }, 500);
+
         console.log("Комната 'world' создана");
     }
+
+    
 
     onJoin(client: Client, options: { name: string }) {
         const name = options.name || "Гость";

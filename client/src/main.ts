@@ -8,6 +8,7 @@ import { composer, outlinePass } from './postprocessing';
 import { setCameraTarget, updateCamera, isRightDragging } from './cameraControls'; // Импорт флага ПКМ
 import { cleanUpScene } from './startupCleanup';
 import { updateAnimations } from './animationUtils';
+import { updateMobAnimations } from './mobPlayer';
 import './interaction';
 import { renderLabels } from './renderers';
 import { createPlayerUI, updatePlayerUI } from './playerUI';
@@ -156,6 +157,7 @@ function loop() {
     outlinePass.selectedObjects = selectedObjects;
 
     updateAnimations(deltaTime);
+    updateMobAnimations(deltaTime);
     composer.render();
     renderLabels(scene, camera);
 }

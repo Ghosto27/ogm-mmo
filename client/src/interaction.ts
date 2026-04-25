@@ -1,95 +1,123 @@
 import * as THREE from 'three';
 import { camera } from './scene';
 import { localModel, otherPlayers, fsm } from './player';
+import { mobModels } from './mobPlayer';
 import { room } from './network';
-import { setSelectedTarget, getSelectedTarget } from './selection';
+import { setSelectedTarget } from './selection';
 import { showTargetUI, hideTargetUI } from './targetUI';
+
 console.log('[INTERACTION] Module loaded');
 
-// Служебные переменные для различения клика и удержания ПКМ
 let rightButtonDownTime = 0;
-const CLICK_THRESHOLD_MS = 200; // если короче – считаем кликом, иначе вращение камеры
+const CLICK_THRESHOLD_MS = 200;
 
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 
-// ---------- Вспомогательная функция поиска пересечений ----------
-function getIntersections(event: MouseEvent): THREE.Intersection[] {
+function getIntersections(event: MouseEvent, targets: THREE.Object3D[]): THREE.Intersection[] {
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
     mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
     raycaster.setFromCamera(mouse, camera);
-
-    const interactiveObjects: THREE.Object3D[] = [];
-    for (const sessionId in otherPlayers) {
-        const model = otherPlayers[sessionId];
-        if (model && model.visible) {
-            interactiveObjects.push(model);
-        }
-    }
-    return raycaster.intersectObjects(interactiveObjects, true);
+    return raycaster.intersectObjects(targets, true);
 }
 
 // ---------- Обработка нажатия кнопок мыши ----------
 window.addEventListener('mousedown', (event) => {
-    if (event.button === 2) { // ПКМ
+    if (event.button === 2) {
         rightButtonDownTime = Date.now();
     }
 });
 
 window.addEventListener('mouseup', (event) => {
-    if (event.button === 2) { // ПКМ
+    if (event.button === 2) {
+        // Правая кнопка: атака (короткий клик)
         const duration = Date.now() - rightButtonDownTime;
         if (duration < CLICK_THRESHOLD_MS) {
-            const intersections = getIntersections(event);
-            if (intersections.length > 0) {
-                const clickedMesh = intersections[0].object as THREE.Mesh;
-                const targetId = clickedMesh.userData.sessionId;
+            // Сначала проверяем попадание в игроков
+            const playerTargets = Object.values(otherPlayers).filter(m => m.visible);
+            const playerInters = getIntersections(event, playerTargets);
+            if (playerInters.length > 0) {
+                const mesh = playerInters[0].object as THREE.Mesh;
+                const targetId = mesh.userData.sessionId;
                 if (targetId && room && localModel) {
                     const targetModel = otherPlayers[targetId];
                     if (!targetModel) return;
-
-                    const localPos = localModel.position;
-                    const targetPos = targetModel.position;
-                    const dist = Math.sqrt(
-                        (localPos.x - targetPos.x) ** 2 + (localPos.z - targetPos.z) ** 2
-                    );
-                    const ATTACK_RANGE = 2.5;
-                    if (dist <= ATTACK_RANGE) {
+                    const dist = targetModel.position.distanceTo(localModel.position);
+                    if (dist <= 2.5) {
                         room.send("attack", { target: targetId });
                         fsm['local']?.playOneShot('sword_attack', 0.1);
-                        console.log(`[ATTACK] Атака на ${targetId} (дистанция ${dist.toFixed(2)})`);
+                        console.log(`[ATTACK] Игрок ${targetId} (дист. ${dist.toFixed(2)})`);
                     } else {
-                        console.log(`[ATTACK] Цель слишком далеко (${dist.toFixed(2)} > ${ATTACK_RANGE})`);
+                        console.log(`[ATTACK] Игрок далеко (${dist.toFixed(2)})`);
                     }
                 }
+                return;
+            }
+
+            // Затем проверяем мобов
+            const mobTargets: THREE.Object3D[] = Object.values(mobModels).filter(m => m.visible);
+            const mobInters = getIntersections(event, mobTargets);
+            if (mobInters.length > 0) {
+                const mesh = mobInters[0].object as THREE.Mesh;
+                const mobId = Object.keys(mobModels).find(id => {
+                    let found = false;
+                    mobModels[id].traverse(child => { if (child === mesh) found = true; });
+                    return found;
+                });
+                if (mobId && room) {
+                    room.send("attackMob", { mobId });
+                    console.log(`[ATTACK] Моб ${mobId}`);
+                }
+                return;
             }
         }
     }
 
-    if (event.button === 0) { // ЛКМ
-        const intersections = getIntersections(event);
-        if (intersections.length > 0) {
-            const clickedMesh = intersections[0].object as THREE.Mesh;
-            const targetId = clickedMesh.userData?.sessionId;
+    if (event.button === 0) {
+        // Левая кнопка: выделение
+        const playerTargets = Object.values(otherPlayers).filter(m => m.visible);
+        const playerInters = getIntersections(event, playerTargets);
+        if (playerInters.length > 0) {
+            const mesh = playerInters[0].object as THREE.Mesh;
+            const targetId = mesh.userData.sessionId;
             if (targetId && room) {
-                // Получаем данные из состояния комнаты
                 const player = room.state?.players.get(targetId);
                 if (player) {
                     setSelectedTarget(targetId);
                     showTargetUI(player.name, player.level, player.hp, player.maxHp);
-                    console.log('[LCLICK] Выделена цель:', targetId);
+                    console.log('[LCLICK] Выделен игрок', targetId);
                     return;
                 }
             }
         }
-        // Клик по земле или не по игроку – снимаем выделение
+
+        const mobTargets: THREE.Object3D[] = Object.values(mobModels).filter(m => m.visible);
+        const mobInters = getIntersections(event, mobTargets);
+        if (mobInters.length > 0) {
+            const mesh = mobInters[0].object as THREE.Mesh;
+            const mobId = Object.keys(mobModels).find(id => {
+                let found = false;
+                mobModels[id].traverse(child => { if (child === mesh) found = true; });
+                return found;
+            });
+            if (mobId && room) {
+                const mob = room.state?.mobs.get(mobId);
+                if (mob) {
+                    setSelectedTarget(mobId);
+                    showTargetUI('Волк', mob.level, mob.hp, mob.maxHp);
+                    console.log('[LCLICK] Выделен моб', mobId);
+                }
+                return;
+            }
+        }
+
+        // Клик по земле – сброс выделения
         setSelectedTarget(null);
         hideTargetUI();
         console.log('[LCLICK] Выделение снято');
     }
 });
 
-// Запрещаем стандартное контекстное меню на всей странице
 window.addEventListener('contextmenu', (event) => {
     event.preventDefault();
 });
