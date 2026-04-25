@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { PLAYER_SPEED, STORAGE_KEY } from './config';
-import { camera, renderer } from './scene';
+import { scene, camera, renderer } from './scene';
 import { getMovementInput, getCameraRelativeMovement } from './input'; // Импорт новой функции
 import { localModel, otherPlayers, modelReady, fsm } from './player';
 import { room, startConnection, lastMoveTimes } from './network';
@@ -9,6 +9,7 @@ import { setCameraTarget, updateCamera, isRightDragging } from './cameraControls
 import { cleanUpScene } from './startupCleanup';
 import { updateAnimations } from './animationUtils';
 import './interaction';
+import { renderLabels } from './renderers';
 
 let playerName = localStorage.getItem(STORAGE_KEY) || '';
 if (!playerName) {
@@ -119,6 +120,7 @@ function loop() {
 
     updateAnimations(deltaTime);
     composer.render();
+    renderLabels(scene, camera);
 }
 
 loop();

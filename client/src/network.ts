@@ -146,7 +146,7 @@ function join(playerName: string) {
 
                 // Позиция и видимость
                 setTargetPosition(sessionId, player.x, player.z);
-                updateOtherPlayer(sessionId, player.x, player.z, player.hp, player.maxHp, player.hp > 0);
+                updateOtherPlayer(sessionId, player.x, player.z, player.hp, player.maxHp, player.hp > 0, player.name);
                 if (otherPlayers[sessionId]) {
                     otherPlayers[sessionId].rotation.y = player.rotationY ?? 0;
                 }

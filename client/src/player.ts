@@ -5,6 +5,7 @@ import { scene } from './scene';
 import { createHpBar, updateHpBarSprite } from './utils';
 import { createLocalToonMaterial, createEnemyToonMaterial } from './materials';
 import { AnimationStateMachine } from './animationStateMachine';
+import { createNameTag, attachNameTag } from './nameTags';
 
 export const fsm: { [id: string]: AnimationStateMachine } = {};
 
@@ -110,9 +111,15 @@ function createModelInstance(sessionId?: string): THREE.Group {
 // ---------- ЛОКАЛЬНЫЙ ИГРОК ----------
 export let localModel: THREE.Group | null = null;
 
-export function initLocalModel(): THREE.Group {
+export function initLocalModel(playerName?: string): THREE.Group {
     localModel = createModelInstance();
-    scene.add(localModel);
+    if (localModel) {
+        scene.add(localModel);
+        if (playerName) {
+            const tag = createNameTag(playerName);
+            attachNameTag(localModel, tag);
+        }
+    }
     return localModel!;
 }
 
@@ -120,9 +127,16 @@ export function initLocalModel(): THREE.Group {
 export const otherPlayers: { [sessionId: string]: THREE.Group } = {};
 export const hpBars: { [sessionId: string]: THREE.Sprite } = {};
 
-export function createOtherPlayerModel(sessionId: string): THREE.Group {
+export function createOtherPlayerModel(sessionId: string, name?: string): THREE.Group {
     const model = createModelInstance(sessionId);
     scene.add(model);
+
+    // Если передано имя, создаём и прикрепляем метку
+    if (name) {
+        const tag = createNameTag(name);
+        attachNameTag(model, tag);
+    }
+
     return model;
 }
 
@@ -146,14 +160,15 @@ export function hideLocalHpBar() {
 
 export function updateOtherPlayer(
     sessionId: string,
-    x: number, z: number, hp: number, maxHp: number, alive: boolean
+    x: number, z: number, hp: number, maxHp: number, alive: boolean,
+    name?: string   // <-- новый параметр
 ) {
     if (alive) {
         if (!otherPlayers[sessionId]) {
             otherPlayers[sessionId] = createOtherPlayerModel(sessionId);
-            // Запускаем Idle для нового игрока
-            if (fsm[sessionId]) {
-                fsm[sessionId].transitionTo('idle');
+            if (name) {
+                const tag = createNameTag(name);
+                attachNameTag(otherPlayers[sessionId], tag);
             }
         }
         otherPlayers[sessionId].visible = true;
