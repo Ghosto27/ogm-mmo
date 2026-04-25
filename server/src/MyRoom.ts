@@ -61,22 +61,26 @@ export class MyRoom extends Room<MyRoomState> {
 
             // Рассылаем анимацию атаки всем клиентам
             this.broadcast("attackAnim", { attacker: client.sessionId });
-
+            console.log(`[DEBUG] target.hp = ${target.hp}, target.name = ${target.name}`);
             if (target.hp <= 0) {
                 console.log(`[DEATH] ${target.name} погиб. Возрождение через 5 сек.`);
                 // Запускаем таймер возрождения
-                const deadName = target.name;
+                const deadTargetId = targetId;
                 setTimeout(() => {
-                    // Проверяем, что игрок всё ещё мёртв и находится в состоянии
-                    const deadPlayer = this.state.players.get(targetId);
+                    
+                    
+                    const deadPlayer = this.state.players.get(deadTargetId);
                     if (deadPlayer && deadPlayer.hp <= 0) {
                         deadPlayer.hp = deadPlayer.maxHp;
-                        // Всегда телепортируем в центр для теста (позже можно вернуть сохранённую позицию)
                         deadPlayer.x = 0;
                         deadPlayer.z = 0;
-                        console.log(`[RESPAWN] ${deadName} возрождён в центре`);
+                        // Принудительно обновляем состояние, чтобы клиенты увидели изменения
+                        this.state.players.set(deadTargetId, deadPlayer);
+                        console.log(`[RESPAWN] ${deadPlayer.name} возрождён в центре`);
+                        //console.log(`[DEBUG] Попытка возродить ${deadTargetId}, deadPlayer =`, deadPlayer);
                     }
                 }, 5000);
+                //console.log(`[DEBUG] Таймер возрождения запущен для ${deadTargetId}`);
             }
         });
 
@@ -97,7 +101,7 @@ export class MyRoom extends Room<MyRoomState> {
             mob.hp -= 10;
             mob.state = 'walk'; // заставляем идти к атакующему
             mob.targetId = client.sessionId;
-            console.log(`[ATTACK] ${attacker.name} ударил волка ${mobId} (HP: ${mob.hp})`);
+            //console.log(`[ATTACK] ${attacker.name} ударил волка ${mobId} (HP: ${mob.hp})`);
 
             if (mob.hp <= 0) {
                 this.spawner.onMobDied(mobId);
@@ -132,6 +136,30 @@ export class MyRoom extends Room<MyRoomState> {
                         mob.state = 'attack';
                         target.hp -= 5;
                         this.broadcast("mobAttackAnim", { mobId });
+
+                        // Проверка смерти игрока от моба
+                        if (target.hp <= 0) {
+                            console.log(`[DEATH] ${target.name} убит волком. Возрождение через 5 сек.`);
+                            const deadSessionId = (() => {
+                                for (const [sid, player] of this.state.players) {
+                                    if (player === target) return sid;
+                                }
+                                return null;
+                            })();
+                            if (deadSessionId) {
+                                setTimeout(() => {
+                                    const deadPlayer = this.state.players.get(deadSessionId);
+                                    if (deadPlayer && deadPlayer.hp <= 0) {
+                                        deadPlayer.hp = deadPlayer.maxHp;
+                                        deadPlayer.x = 0;
+                                        deadPlayer.z = 0;
+                                        // Явно обновляем состояние
+                                        this.state.players.set(deadSessionId, deadPlayer);
+                                        console.log(`[RESPAWN] ${deadPlayer.name} возрождён в центре`);
+                                    }
+                                }, 5000);
+                            }
+                        }
                     }
                 } else {
                     mob.state = 'walk';

@@ -37,6 +37,9 @@ export const mobActions: { [mobId: string]: Record<string, THREE.AnimationAction
 export const mobFSM: { [mobId: string]: AnimationStateMachine } = {};
 export const mobHpBars: { [mobId: string]: THREE.Sprite } = {};
 
+const mobTargetPositions: { [mobId: string]: THREE.Vector3 } = {};
+const MOB_INTERPOLATION_SPEED = 10.0;
+
 // ---------- ФУНКЦИЯ СОЗДАНИЯ ЭКЗЕМПЛЯРА МОБА ----------
 function createWolfInstance(mobId: string): THREE.Group {
     if (!wolfTemplate) throw new Error('Шаблон волка ещё не загружен');
@@ -50,7 +53,7 @@ function createWolfInstance(mobId: string): THREE.Group {
         if (child instanceof THREE.Mesh) {
             const orig = child.material as THREE.MeshStandardMaterial;
             const map = orig.map ?? null;
-            const newMat = createEnemyToonMaterial(map); // можно другой цвет
+            const newMat = createEnemyToonMaterial(map);
             newMat.transparent = orig.transparent;
             newMat.alphaTest = orig.alphaTest;
             newMat.side = orig.side;
@@ -74,7 +77,7 @@ function createWolfInstance(mobId: string): THREE.Group {
     mobMixers[mobId] = mixer;
     mobActions[mobId] = actions;
 
-    // Создаём FSM для моба (пока без передачи управления, просто для анимаций)
+    // Создаём FSM для моба
     const fsm = new AnimationStateMachine(mixer, actions as Record<string, THREE.AnimationAction>, mobId);
     mobFSM[mobId] = fsm;
 
@@ -101,35 +104,43 @@ function createWolfInstance(mobId: string): THREE.Group {
 }
 
 // ---------- ПУБЛИЧНЫЕ ФУНКЦИИ ----------
+export function setMobTargetPosition(mobId: string, x: number, z: number) {
+    if (!mobTargetPositions[mobId]) {
+        mobTargetPositions[mobId] = new THREE.Vector3(x, 0, z);
+    } else {
+        mobTargetPositions[mobId].set(x, 0, z);
+    }
+}
+
 export function spawnMob(mobId: string, x: number, z: number, hp: number, maxHp: number) {
-    if (mobModels[mobId]) return; // уже существует
+    if (mobModels[mobId]) return;
 
     const model = createWolfInstance(mobId);
     model.position.set(x, 0, z);
     mobModels[mobId] = model;
 
-    // Обновляем HP-бар
     updateHpBarSprite(mobHpBars[mobId], hp, maxHp);
+    setMobTargetPosition(mobId, x, z);
 }
 
 export function updateMobState(mobId: string, x: number, z: number, hp: number, maxHp: number, state: string) {
     const model = mobModels[mobId];
     if (!model) return;
 
-    model.position.set(x, 0, z);
+    setMobTargetPosition(mobId, x, z);
     updateHpBarSprite(mobHpBars[mobId], hp, maxHp);
 
     const fsm = mobFSM[mobId];
     if (fsm) {
         const lowerState = state.toLowerCase();
         if (lowerState === 'attack' || lowerState === 'death') {
-            // Одноразовые анимации: запускаем, если ещё не проигрывается
             if (fsm.currentStateName !== lowerState) {
                 fsm.playOneShot(lowerState, 0.1);
             }
         } else {
-            // Циклические (idle, walk) – плавный переход
-            fsm.transitionTo(lowerState);
+            if (fsm.currentStateName !== lowerState) {
+                fsm.transitionTo(lowerState);
+            }
         }
     }
 }
@@ -140,17 +151,27 @@ export function despawnMob(mobId: string) {
         scene.remove(model);
         delete mobModels[mobId];
     }
-    if (mobHpBars[mobId]) {
-        // HP-бар был добавлен как child модели, удалится вместе с моделью
-        delete mobHpBars[mobId];
-    }
+    if (mobHpBars[mobId]) delete mobHpBars[mobId];
     if (mobMixers[mobId]) delete mobMixers[mobId];
     if (mobActions[mobId]) delete mobActions[mobId];
     if (mobFSM[mobId]) delete mobFSM[mobId];
+    delete mobTargetPositions[mobId];
 }
 
 export function updateMobAnimations(deltaTime: number) {
     for (const id in mobMixers) {
         mobMixers[id].update(deltaTime);
+    }
+}
+
+export function interpolateMobPositions(deltaTime: number) {
+    for (const mobId in mobModels) {
+        const target = mobTargetPositions[mobId];
+        if (!target) continue;
+        const model = mobModels[mobId];
+        if (!model) continue;
+        const t = Math.min(MOB_INTERPOLATION_SPEED * deltaTime, 1.0);
+        model.position.x += (target.x - model.position.x) * t;
+        model.position.z += (target.z - model.position.z) * t;
     }
 }
