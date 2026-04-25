@@ -161,13 +161,12 @@ export function updateOtherPlayer(
     if (alive) {
         if (!otherPlayers[sessionId]) {
             otherPlayers[sessionId] = createOtherPlayerModel(sessionId);
+            console.log(`[OTHER] Создана модель для ${sessionId}, x=${x}, z=${z}`); // <-- ВРЕМЕННЫЙ ЛОГ
             if (name) {
                 const tag = createNameTag(name);
                 attachNameTag(otherPlayers[sessionId], tag);
             }
-            // 🔥 Сразу перемещаем модель на актуальную позицию
             otherPlayers[sessionId].position.set(x, 0, z);
-            // Также сбрасываем цель интерполяции (чтобы она стартовала с текущей позиции)
             setTargetPosition(sessionId, x, z);
         }
         otherPlayers[sessionId].visible = true;

@@ -83,9 +83,19 @@ export class MyRoom extends Room<MyRoomState> {
         if (saved) {
             player.x = saved.x;
             player.z = saved.z;
-            console.log(`[JOIN] ${name} восстановлен на (${saved.x}, ${saved.z})`);
+            console.log(`[SERVER] Восстановлена позиция для ${name}: (${saved.x}, ${saved.z})`);
+        } else {
+            console.log(`[SERVER] Для ${name} нет сохранения, старт с (0,0)`);
         }
+
         this.state.players.set(client.sessionId, player);
+        // Мгновенно оповещаем всех о точных координатах нового игрока
+        this.broadcast("playerJoined", {
+            sessionId: client.sessionId,
+            x: player.x,
+            z: player.z
+        });
+        console.log(`[SERVER] Игрок ${name} добавлен в стейт с x=${player.x}, z=${player.z}`);
     }
 
     onLeave(client: Client) {

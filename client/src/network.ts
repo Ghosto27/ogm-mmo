@@ -112,6 +112,7 @@ function join(playerName: string) {
             // ---------- Другие игроки ----------
             state.players.forEach((player: any, sessionId: string) => {
                 if (sessionId === room.sessionId) return;
+                console.log(`[NET] Игрок ${sessionId} – x=${player.x}, z=${player.z}, hp=${player.hp}`);
 
                 // Возрождение после смерти (сброс позы)
                 if (player.hp > 0 && playerWasDead[sessionId]) {
@@ -186,6 +187,15 @@ function join(playerName: string) {
         room.onMessage("attackAnim", (message: { attacker: string }) => {
             if (message.attacker !== room.sessionId) {
                 fsm[message.attacker]?.playOneShot('sword_attack', 0.1);
+            }
+        });
+
+        room.onMessage("playerJoined", (data: { sessionId: string, x: number, z: number }) => {
+            if (data.sessionId === room.sessionId) return; // себя пропускаем
+            const model = otherPlayers[data.sessionId];
+            if (model) {
+                model.position.set(data.x, 0, data.z);
+                setTargetPosition(data.sessionId, data.x, data.z);
             }
         });
 
