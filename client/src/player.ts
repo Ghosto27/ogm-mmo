@@ -127,15 +127,9 @@ export function initLocalModel(playerName?: string): THREE.Group {
 export const otherPlayers: { [sessionId: string]: THREE.Group } = {};
 export const hpBars: { [sessionId: string]: THREE.Sprite } = {};
 
-export function createOtherPlayerModel(sessionId: string, name?: string): THREE.Group {
+export function createOtherPlayerModel(sessionId: string): THREE.Group {
     const model = createModelInstance(sessionId);
     scene.add(model);
-
-    // Если передано имя, создаём и прикрепляем метку
-    if (name) {
-        const tag = createNameTag(name);
-        attachNameTag(model, tag);
-    }
 
     return model;
 }
@@ -166,6 +160,7 @@ export function updateOtherPlayer(
     if (alive) {
         if (!otherPlayers[sessionId]) {
             otherPlayers[sessionId] = createOtherPlayerModel(sessionId);
+            // Добавляем тег при первом появлении
             if (name) {
                 const tag = createNameTag(name);
                 attachNameTag(otherPlayers[sessionId], tag);
