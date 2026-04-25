@@ -10,7 +10,7 @@ export class AnimationStateMachine {
         this.actions = playerActions;
     }
 
-    transitionTo(stateName: string, fadeDuration = 0.2, onFinished?: () => void): void {
+    transitionTo(stateName: string, fadeDuration = 0.2): void {
         if (this.currentStateName === stateName) return;
 
         const targetAction = this.actions[stateName];
@@ -19,8 +19,7 @@ export class AnimationStateMachine {
         const currentAction = this.currentStateName ? this.actions[this.currentStateName] : null;
 
         if (currentAction && currentAction.isRunning() && currentAction !== targetAction) {
-            // Явно устанавливаем вес целевого действия в 1 для гарантированного кроссфейда
-            targetAction.setEffectiveWeight(1);
+            // Плавный кроссфейд (вес целевого действия уже 1 по умолчанию)
             currentAction.crossFadeTo(targetAction, fadeDuration, false);
         } else {
             targetAction.reset().play();
@@ -35,7 +34,10 @@ export class AnimationStateMachine {
         const action = this.actions[stateName];
         if (!action || (action.isRunning() && action.loop === THREE.LoopOnce)) return;
 
-        // Полностью останавливаем все циклические анимации для чистого воспроизведения
+        // Запоминаем текущее циклическое состояние, чтобы вернуться после атаки
+        const prevState = this.currentStateName;
+
+        // Останавливаем все циклические анимации
         Object.values(this.actions).forEach(a => {
             if (a && a.isRunning() && a.loop === THREE.LoopRepeat) a.stop();
         });
@@ -48,13 +50,15 @@ export class AnimationStateMachine {
         const onFinishedLocal = () => {
             this.mixer.removeEventListener('finished', onFinishedLocal);
             if (stateName === 'death') {
-                // После смерти сбрасываем все действия (rest-поза)
                 Object.values(this.actions).forEach(a => a?.stop());
-                // Даем небольшую задержку перед колбэком, чтобы поза точно применилась
-                setTimeout(() => {
-                    onFinished?.();
-                }, 100);
+                setTimeout(() => onFinished?.(), 100);
             } else {
+                // После атаки/урона возвращаемся к предыдущему состоянию (обычно idle)
+                if (prevState) {
+                    this.transitionTo(prevState, 0.3);
+                } else {
+                    this.resetToIdle();
+                }
                 onFinished?.();
             }
         };
