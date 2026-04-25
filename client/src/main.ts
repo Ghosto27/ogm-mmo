@@ -1,13 +1,13 @@
 import * as THREE from 'three';
 import { PLAYER_SPEED, STORAGE_KEY } from './config';
-import { scene, camera, renderer } from './scene';
+import { camera, renderer } from './scene';
 import { getMovementInput } from './input';
 import { localModel, otherPlayers, modelReady, fsm } from './player';
 import { room, startConnection, lastMoveTimes } from './network';
 import { composer, outlinePass } from './postprocessing';
-import { updateAnimations } from './animation';
 import { setCameraTarget, updateCamera } from './cameraControls';
 import { cleanUpScene } from './startupCleanup';
+import { updateAnimations } from './animationUtils';
 import './interaction';
 
 let playerName = localStorage.getItem(STORAGE_KEY) || '';

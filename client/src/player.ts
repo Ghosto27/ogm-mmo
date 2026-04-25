@@ -35,7 +35,6 @@ export const modelReady = new Promise<void>((resolve, reject) => {
 export const mixers: { [id: string]: THREE.AnimationMixer } = {};
 export const actions: { [id: string]: Record<string, THREE.AnimationAction | null> } = {};
 export const deathAnimating: { [id: string]: boolean } = {};
-export const currentLoopAnim: { [id: string]: string | null } = {};
 
 // ---------- КЛОНИРОВАНИЕ МАТЕРИАЛА ----------
 function cloneMaterial(original: THREE.MeshStandardMaterial, sessionId?: string): THREE.MeshToonMaterial {
@@ -61,7 +60,7 @@ function cloneMaterial(original: THREE.MeshStandardMaterial, sessionId?: string)
 // ---------- СОЗДАНИЕ ЭКЗЕМПЛЯРА ИГРОКА ----------
 function createModelInstance(sessionId?: string): THREE.Group {
     if (!modelTemplate) throw new Error('Шаблон ещё не загружен');
-    const model = clone(modelTemplate) as THREE.Group;
+    const model = clone(modelTemplate) as unknown as THREE.Group;
     model.visible = true;
     model.matrixAutoUpdate = true;
     model.rotation.set(0, Math.PI, 0); // разворот модели
@@ -186,5 +185,4 @@ export function removeOtherPlayerVisuals(sessionId: string) {
     if (mixers[sessionId]) delete mixers[sessionId];
     if (actions[sessionId]) delete actions[sessionId];
     if (deathAnimating[sessionId]) delete deathAnimating[sessionId];
-    if (currentLoopAnim[sessionId]) delete currentLoopAnim[sessionId];
 }

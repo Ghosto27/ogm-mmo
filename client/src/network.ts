@@ -5,7 +5,7 @@ import {
     showLocalHpBar, hideLocalHpBar, updateOtherPlayer, removeOtherPlayerVisuals,
     deathAnimating, fsm
 } from './player';
-import { setTargetPosition } from './animation';
+import { setTargetPosition } from './animationUtils';
 
 export const client = new Client(SERVER_URL);
 export let room: any = null;
@@ -142,10 +142,8 @@ function join(playerName: string) {
                 updateOtherPlayer(sessionId, player.x, player.z, player.hp, player.maxHp, player.hp > 0);
 
                 if (moving && fsm[sessionId]) {
-                    //console.log(`[NET] player ${sessionId} is moving, walk`);
                     fsm[sessionId].transitionTo('walk');
                 } else if (!moving && fsm[sessionId] && fsm[sessionId].currentStateName !== 'idle') {
-                    //console.log(`[NET] player ${sessionId} stopped, idle`);
                     fsm[sessionId].transitionTo('idle');
                 }
             });

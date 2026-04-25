@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { localModel, otherPlayers, mixers, actions, hpBars, localHpBar, currentLoopAnim } from './player';
+import { localModel, otherPlayers, mixers, hpBars, localHpBar } from './player';
 
 const targetPositions: { [id: string]: THREE.Vector3 } = {};
 const INTERPOLATION_SPEED = 10.0;
@@ -9,11 +9,17 @@ export function setTargetPosition(id: string, x: number, z: number) {
     else targetPositions[id].set(x, 0, z);
 }
 
-function lerp(a: number, b: number, t: number) { return a + (b - a) * t; }
+function lerp(a: number, b: number, t: number) {
+    return a + (b - a) * t;
+}
 
 export function updateAnimations(deltaTime: number) {
-    for (const id in mixers) mixers[id].update(deltaTime);
+    // Обновляем все скелетные миксеры
+    for (const id in mixers) {
+        mixers[id].update(deltaTime);
+    }
 
+    // Интерполяция позиций
     for (const id in targetPositions) {
         const model = id === 'local' ? localModel : otherPlayers[id];
         if (!model) continue;
@@ -23,6 +29,7 @@ export function updateAnimations(deltaTime: number) {
         model.position.z = lerp(model.position.z, target.z, t);
     }
 
+    // Перемещаем HP-бары за моделями
     for (const id of Object.keys(mixers)) {
         const model = id === 'local' ? localModel : otherPlayers[id];
         if (!model) continue;
