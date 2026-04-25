@@ -26,6 +26,7 @@ export class MyRoom extends Room<MyRoomState> {
     allowReconnectionTime = 10;
     maxClients = 100;
     spawner!: MobSpawner;
+    private mobInterval?: NodeJS.Timeout;
 
     onCreate() {
         this.setState(new MyRoomState());
@@ -41,8 +42,6 @@ export class MyRoom extends Room<MyRoomState> {
                 }
             }
         });
-
-        
 
         this.onMessage("attack", (client, message) => {
             const attacker = this.state.players.get(client.sessionId);
@@ -106,14 +105,13 @@ export class MyRoom extends Room<MyRoomState> {
         });
 
         // Игровой цикл мобов (каждые 500 мс)
-        this.setInterval(() => {
+        this.mobInterval = setInterval(() => {
             this.state.mobs.forEach((mob, mobId) => {
                 if (mob.hp <= 0) return;
 
-                // Ищем ближайшего живого игрока в радиусе 12
                 let closestPlayer: Player | null = null;
                 let closestDist = 12;
-                this.state.players.forEach((player) => {
+                this.state.players.forEach((player: Player) => {   // <-- ЯВНОЕ УКАЗАНИЕ ТИПА
                     if (player.hp <= 0) return;
                     const d = Math.sqrt((mob.x - player.x) ** 2 + (mob.z - player.z) ** 2);
                     if (d < closestDist) {
@@ -123,26 +121,18 @@ export class MyRoom extends Room<MyRoomState> {
                 });
 
                 if (closestPlayer) {
-                    // Двигаемся к игроку
                     mob.state = 'walk';
                     const angle = Math.atan2(closestPlayer.z - mob.z, closestPlayer.x - mob.x);
-                    const speed = 3;
-                    mob.x += Math.cos(angle) * speed * 0.5;
-                    mob.z += Math.sin(angle) * speed * 0.5;
+                    mob.x += Math.cos(angle) * 3 * 0.5;
+                    mob.z += Math.sin(angle) * 3 * 0.5;
                     mob.rotationY = angle;
 
-                    // Если достигли радиуса атаки – бьём
                     if (closestDist < 2.5) {
                         mob.state = 'attack';
                         closestPlayer.hp -= 5;
                         this.broadcast("mobAttackAnim", { mobId });
-                        // Проверка смерти игрока
-                        if (closestPlayer.hp <= 0) {
-                            // Обработка смерти игрока уже есть в attack
-                        }
                     }
                 } else {
-                    // Простое случайное блуждание
                     mob.state = 'walk';
                     mob.x += (Math.random() - 0.5) * 2;
                     mob.z += (Math.random() - 0.5) * 2;
@@ -154,7 +144,12 @@ export class MyRoom extends Room<MyRoomState> {
         console.log("Комната 'world' создана");
     }
 
-    
+    onDispose() {
+        if (this.mobInterval) {
+            clearInterval(this.mobInterval);
+            this.mobInterval = undefined;
+        }
+    }
 
     onJoin(client: Client, options: { name: string }) {
         const name = options.name || "Гость";
