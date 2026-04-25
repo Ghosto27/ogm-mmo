@@ -121,15 +121,16 @@ export class MyRoom extends Room<MyRoomState> {
                 });
 
                 if (closestPlayer) {
+                    const target: Player = closestPlayer; // ЯВНОЕ ПРИВЕДЕНИЕ ТИПА
                     mob.state = 'walk';
-                    const angle = Math.atan2(closestPlayer.z - mob.z, closestPlayer.x - mob.x);
+                    const angle = Math.atan2(target.z - mob.z, target.x - mob.x);
                     mob.x += Math.cos(angle) * 3 * 0.5;
                     mob.z += Math.sin(angle) * 3 * 0.5;
                     mob.rotationY = angle;
 
                     if (closestDist < 2.5) {
                         mob.state = 'attack';
-                        closestPlayer.hp -= 5;
+                        target.hp -= 5;
                         this.broadcast("mobAttackAnim", { mobId });
                     }
                 } else {
@@ -186,7 +187,7 @@ export class MyRoom extends Room<MyRoomState> {
         this.state.players.delete(client.sessionId);
     }
 
-    private addExperience(player: Player, amount: number) {
+    public addExperience(player: Player, amount: number) {
         player.exp += amount;
         console.log(`[EXP] ${player.name} получил ${amount} опыта (${player.exp}/${player.expToLevel})`);
 

@@ -1,8 +1,8 @@
 import { Mob } from "./Mob";
-import { MyRoom } from "./MyRoom";
+import type { MyRoom } from "./MyRoom";
 
-const MAX_MOBS = 3;
-const SPAWN_RADIUS = 15; // от центра
+const MAX_MOBS = 1;
+const SPAWN_RADIUS = 30; // от центра
 const RESPAWN_DELAY = 10_000; // 10 секунд
 
 export class MobSpawner {
@@ -49,7 +49,7 @@ export class MobSpawner {
         mob.state = "dead";
         // Даём опыт всем игрокам в комнате (заглушка)
         this.room.state.players.forEach((player, sessionId) => {
-            (this.room as any).addExperience(player, mob.expReward);
+            this.room.addExperience(player, mob.expReward);
         });
         // Удаляем через 5 секунд
         setTimeout(() => {

@@ -10,9 +10,11 @@ import { updateHpBarSprite } from './utils';
 import { getSelectedTarget } from './selection';
 import { updateTargetHP, showTargetUI } from './targetUI';
 import { mobModels, spawnMob, updateMobState, despawnMob, mobFSM } from './mobPlayer';
+import { createPlayerUI, updatePlayerUI } from './playerUI';
 
 export const client = new Client(SERVER_URL);
 export let room: any = null;
+
 
 let reconnectTimer: any = null;
 let firstSync = true;
@@ -28,7 +30,17 @@ function join(playerName: string) {
     client.joinOrCreate('world', { name: playerName }).then(roomInstance => {
         room = roomInstance;
         console.log('[JOIN] Успех, sessionId:', room.sessionId);
+        
+        // Гарантированно создаём локальную модель, если её ещё нет
+        if (!localModel) {
+            const storedName = localStorage.getItem('ogm_playerName') || 'Герой';
+            initLocalModel(storedName);
+            console.log('[NET] localModel принудительно создана с ником', storedName);
+        }
+        // Явно показываем модель (на случай, если она была скрыта)
         if (localModel) {
+            localModel.visible = true;
+            // Отправляем начальное состояние, раз уж модель готова
             room.send("move", { x: localModel.position.x, z: localModel.position.z, r: localModel.rotation.y });
         }
         if (reconnectTimer) {
@@ -88,12 +100,12 @@ function join(playerName: string) {
 
                 if (alive) {
                     showLocalHpBar(myPlayer.x, myPlayer.z, myPlayer.hp, myPlayer.maxHp);
+                    //console.log('[UI] updatePlayerUI', myPlayer.hp, myPlayer.maxHp);
+                    updatePlayerUI(myPlayer.hp, myPlayer.maxHp, myPlayer.level, myPlayer.exp, myPlayer.expToLevel);
+                    localModel.visible = true;
                 } else {
                     hideLocalHpBar();
                 }
-            } else {
-                localModel.visible = false;
-                hideLocalHpBar();
             }
 
             // ---------- Другие игроки ----------

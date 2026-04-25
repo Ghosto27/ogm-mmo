@@ -1,14 +1,11 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone } from 'three/examples/jsm/utils/SkeletonUtils.js';
+import { AnimationStateMachine } from './animationStateMachine';
 import { scene } from './scene';
 import { createHpBar, updateHpBarSprite } from './utils';
 import { createLocalToonMaterial, createEnemyToonMaterial } from './materials';
-import { AnimationStateMachine } from './animationStateMachine';
 import { createNameTag, attachNameTag, removeNameTag } from './nameTags';
-import { setTargetPosition } from './animationUtils';
-
-export const fsm: { [id: string]: AnimationStateMachine } = {};
 
 // ---------- ШАБЛОН ----------
 let modelTemplate: THREE.Group | null = null;
@@ -37,6 +34,7 @@ export const modelReady = new Promise<void>((resolve, reject) => {
 export const mixers: { [id: string]: THREE.AnimationMixer } = {};
 export const actions: { [id: string]: Record<string, THREE.AnimationAction | null> } = {};
 export const deathAnimating: { [id: string]: boolean } = {};
+export const fsm: { [id: string]: AnimationStateMachine } = {};
 
 // ---------- КЛОНИРОВАНИЕ МАТЕРИАЛА ----------
 function cloneMaterial(original: THREE.MeshStandardMaterial, sessionId?: string): THREE.MeshToonMaterial {
@@ -65,7 +63,7 @@ function createModelInstance(sessionId?: string): THREE.Group {
     const model = clone(modelTemplate) as unknown as THREE.Group;
     model.visible = true;
     model.matrixAutoUpdate = true;
-    model.rotation.set(0, Math.PI, 0); // разворот модели
+    model.rotation.set(0, Math.PI, 0);
 
     model.traverse((child: THREE.Object3D) => {
         if (child instanceof THREE.Mesh) {
@@ -79,7 +77,7 @@ function createModelInstance(sessionId?: string): THREE.Group {
     });
 
     const mixer = new THREE.AnimationMixer(model);
-    const id = sessionId || 'local';   // <-- перенесли сюда
+    const id = sessionId || 'local';
     mixers[id] = mixer;
     actions[id] = {};
 
@@ -88,20 +86,13 @@ function createModelInstance(sessionId?: string): THREE.Group {
         actions[id][clip.name.toLowerCase()] = action;
     });
 
-    if (fsm[id]) {
-        fsm[id].transitionTo('idle');  // FSM сам установит currentStateName
-    }
-
-    // Создаём FSM, отфильтровывая null из actions
+    // Создаём FSM
     const filteredActions: Record<string, THREE.AnimationAction> = {};
     for (const key in actions[id]) {
         const act = actions[id][key];
         if (act) filteredActions[key] = act;
     }
-    // В функции createModelInstance, после создания fsm[id]:
     fsm[id] = new AnimationStateMachine(mixer, filteredActions, id);
-    //console.log(`[FSM] created for ${id}, starting idle`);
-    // Запускаем idle, если он ещё не активен (защита от повторного запуска)
     if (!actions[id]['idle']?.isRunning()) {
         fsm[id].transitionTo('idle');
     }
@@ -113,13 +104,31 @@ function createModelInstance(sessionId?: string): THREE.Group {
 export let localModel: THREE.Group | null = null;
 
 export function initLocalModel(playerName?: string): THREE.Group {
+    if (localModel) {
+        console.warn('[PLAYER] localModel уже создана');
+        return localModel;
+    }
+    console.log('[PLAYER] Создаём локальную модель...');
     localModel = createModelInstance();
     if (localModel) {
         scene.add(localModel);
-        if (playerName) {
-            const tag = createNameTag(playerName);
+        localModel.visible = true;
+        (window as any).localModel = localModel;
+
+        // Принудительно создаём тег с именем из localStorage или переданным
+        const displayName = playerName || localStorage.getItem('ogm_playerName') || 'Герой';
+        const existingTag = localModel.getObjectByName('nameTag');
+        if (!existingTag) {
+            const tag = createNameTag(displayName);
             attachNameTag(localModel, tag);
+            console.log('[PLAYER] Тег создан для', displayName);
+        } else {
+            console.log('[PLAYER] Тег уже существует');
         }
+
+        console.log('[PLAYER] Локальная модель создана, visible=', localModel.visible);
+    } else {
+        console.error('[PLAYER] Не удалось создать локальную модель');
     }
     return localModel!;
 }
@@ -131,7 +140,6 @@ export const hpBars: { [sessionId: string]: THREE.Sprite } = {};
 export function createOtherPlayerModel(sessionId: string): THREE.Group {
     const model = createModelInstance(sessionId);
     scene.add(model);
-
     return model;
 }
 
@@ -156,7 +164,7 @@ export function hideLocalHpBar() {
 export function updateOtherPlayer(
     sessionId: string,
     x: number, z: number, hp: number, maxHp: number, alive: boolean,
-    name?: string   // <-- новый параметр
+    name?: string
 ) {
     if (alive) {
         if (!otherPlayers[sessionId]) {
@@ -165,10 +173,15 @@ export function updateOtherPlayer(
                 const tag = createNameTag(name);
                 attachNameTag(otherPlayers[sessionId], tag);
             }
-            otherPlayers[sessionId].position.set(x, 0, z);
-            setTargetPosition(sessionId, x, z);
             // Показываем модель только если координаты уже не нулевые
             otherPlayers[sessionId].visible = !(x === 0 && z === 0);
+            // Сразу устанавливаем позицию
+            otherPlayers[sessionId].position.set(x, 0, z);
+        } else {
+            // Если модель была невидимой, а теперь координаты стали ненулевыми – показываем
+            if (otherPlayers[sessionId].visible === false && (x !== 0 || z !== 0)) {
+                otherPlayers[sessionId].visible = true;
+            }
         }
         otherPlayers[sessionId].visible = true;
 
@@ -187,12 +200,12 @@ export function updateOtherPlayer(
 }
 
 export function removeOtherPlayerVisuals(sessionId: string) {
-    if (deathAnimating[sessionId]) return;
+    if (deathAnimating[sessionId]) return; // ждём окончания анимации смерти
     if (otherPlayers[sessionId]) {
-        removeNameTag(otherPlayers[sessionId]); // <-- чистим тег
+        removeNameTag(otherPlayers[sessionId]); // чистим тег
         scene.remove(otherPlayers[sessionId]);
         delete otherPlayers[sessionId];
-        console.log(`[CLEANUP] Удалён игрок ${sessionId}`); // временный лог
+        console.log(`[CLEANUP] Удалён игрок ${sessionId}`);
     }
     if (hpBars[sessionId]) {
         scene.remove(hpBars[sessionId]);

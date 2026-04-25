@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { PLAYER_SPEED, STORAGE_KEY } from './config';
 import { scene, camera, renderer } from './scene';
 import { getMovementInput, getCameraRelativeMovement } from './input'; // Импорт новой функции
-import { localModel, otherPlayers, modelReady, fsm } from './player';
+import { localModel, otherPlayers, modelReady, fsm, initLocalModel } from './player';
 import { room, startConnection, lastMoveTimes } from './network';
 import { composer, outlinePass } from './postprocessing';
 import { setCameraTarget, updateCamera, isRightDragging } from './cameraControls'; // Импорт флага ПКМ
@@ -15,6 +15,7 @@ import { createPlayerUI, updatePlayerUI } from './playerUI';
 import { createTargetUI } from './targetUI';
 import { createMinimap, updateMinimap } from './minimap';
 import { createWorldMap, updateWorldMap, toggleWorldMap } from './worldMap';
+import { createNameTag, attachNameTag } from './nameTags';
 
 let playerName = localStorage.getItem(STORAGE_KEY) || '';
 if (!playerName) {
@@ -23,9 +24,24 @@ if (!playerName) {
     localStorage.setItem(STORAGE_KEY, playerName);
 }
 
+
 (window as any).fsm = fsm;   // теперь можно обращаться в консоли
+(window as any).scene = scene;
+(window as any).room = room;
+(window as any).localModel = localModel;
+(window as any).createNameTag = createNameTag;
+(window as any).attachNameTag = attachNameTag;
+
 
 cleanUpScene();
+
+// Гарантированно создаём локальную модель, если вдруг modelReady не сработал
+setTimeout(() => {
+    if (!localModel) {
+        console.warn('[MAIN] localModel всё ещё null, принудительно создаём');
+        initLocalModel(playerName);
+    }
+}, 100);
 
 modelReady.then(() => {
     startConnection(playerName);
