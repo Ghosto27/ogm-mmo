@@ -17,6 +17,8 @@ if (!playerName) {
     localStorage.setItem(STORAGE_KEY, playerName);
 }
 
+(window as any).fsm = fsm;   // теперь можно обращаться в консоли
+
 cleanUpScene();
 
 modelReady.then(() => {
@@ -56,10 +58,10 @@ function loop() {
                     lastSend = nowSend;
                 } catch (e) {}
             }
-            console.log('[MAIN] local is moving, calling fsm[\'local\'].transitionTo(\'walk\')');
+            //console.log('[MAIN] local is moving, calling fsm[\'local\'].transitionTo(\'walk\')');
             fsm['local']?.transitionTo('walk')
         } else {
-            console.log('[MAIN] local is idle, calling fsm[\'local\'].transitionTo(\'idle\')');
+            //console.log('[MAIN] local is idle, calling fsm[\'local\'].transitionTo(\'idle\')');
             fsm['local']?.transitionTo('idle')
         }
     }

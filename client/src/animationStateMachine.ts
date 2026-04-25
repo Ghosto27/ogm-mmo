@@ -17,10 +17,10 @@ export class AnimationStateMachine {
     }
 
     transitionTo(stateName: string, fadeDuration = 0.2): void {
-        this.log(`transitionTo("${stateName}"), current="${this.currentStateName}"`);
+        //this.log(`transitionTo("${stateName}"), current="${this.currentStateName}"`);
 
         if (this.currentStateName === stateName) {
-            this.log(`  -> already in state, skip`);
+            //this.log(`  -> already in state, skip`);
             return;
         }
 
@@ -33,21 +33,18 @@ export class AnimationStateMachine {
         const currentAction = this.currentStateName ? this.actions[this.currentStateName] : null;
         this.log(`  -> currentAction=${!!currentAction}, isRunning=${currentAction?.isRunning()}`);
 
-        // Готовим целевое действие (без сброса, чтобы не сломать кроссфейд)
+        // Подготавливаем целевое действие
+        targetAction.reset();
         targetAction.setLoop(THREE.LoopRepeat, Infinity);
         targetAction.clampWhenFinished = false;
 
         if (currentAction && currentAction.isRunning() && currentAction !== targetAction) {
-            // Запускаем целевое действие с весом 0
-            targetAction.play();
-            targetAction.weight = 0;
-            // Плавный переход
+            targetAction.weight = 1;   // обеспечиваем вес для кроссфейда
+            targetAction.play();       // запускаем с весом 1 (или кроссфейд сам изменит? стандартный подход)
             currentAction.crossFadeTo(targetAction, fadeDuration, false);
-            this.log(`  -> crossFadeTo with target weight 0 -> 1`);
+            this.log(`  -> crossFadeTo`);
         } else {
-            targetAction.reset();
             targetAction.play();
-            targetAction.weight = 1;
             this.log(`  -> direct play`);
         }
 
@@ -56,7 +53,7 @@ export class AnimationStateMachine {
     }
 
     playOneShot(stateName: string, fadeDuration = 0.1, onFinished?: () => void): void {
-        this.log(`playOneShot("${stateName}")`);
+        this.log(`playOneShot("${stateName}"), current="${this.currentStateName}"`);
 
         const action = this.actions[stateName];
         if (!action) {
@@ -70,8 +67,9 @@ export class AnimationStateMachine {
         }
 
         const prevState = this.currentStateName;
-        this.currentStateName = null; // сбрасываем, чтобы не мешать
+        this.currentStateName = null;   // сбрасываем текущее состояние
 
+        // Останавливаем только циклические анимации
         Object.values(this.actions).forEach(a => {
             if (a && a.isRunning() && a.loop === THREE.LoopRepeat) a.stop();
         });
@@ -80,18 +78,24 @@ export class AnimationStateMachine {
         action.setLoop(THREE.LoopOnce, 1);
         action.clampWhenFinished = true;
         action.play();
+        this.log(`  -> playing "${stateName}"`);
 
         const onFinishedLocal = () => {
             this.mixer.removeEventListener('finished', onFinishedLocal);
-            this.log(`playOneShot finished: "${stateName}"`);
+            this.log(`  -> finished "${stateName}"`);
 
             if (stateName === 'death') {
-                Object.values(this.actions).forEach(a => a?.stop());
+                // ❗ Не останавливаем все анимации – иначе поза сбросится до скрытия
+                // Просто вызываем колбек, который скроет модель
+                this.log(`  -> death finished, calling onFinished directly (no stop-all)`);
                 onFinished?.();
             } else {
+                // Возвращаемся к предыдущему состоянию
                 if (prevState) {
+                    this.log(`  -> returning to "${prevState}"`);
                     this.transitionTo(prevState, 0.3);
                 } else {
+                    this.log(`  -> no prevState, going to idle`);
                     this.transitionTo('idle', 0.3);
                 }
                 onFinished?.();
@@ -101,6 +105,15 @@ export class AnimationStateMachine {
     }
 
     resetToIdle() {
-        this.transitionTo('idle');
+        this.log(`resetToIdle - force restart`);
+        // Останавливаем все действия (возвращает скелет в rest-позу)
+        Object.values(this.actions).forEach(a => a?.stop());
+        // Запускаем idle заново
+        const idleAction = this.actions['idle'] || this.actions['idle_weapon'] || this.actions['idle_attacking'];
+        if (idleAction) {
+            idleAction.reset().play();
+            idleAction.weight = 1;
+            this.currentStateName = 'idle';
+        }
     }
 }

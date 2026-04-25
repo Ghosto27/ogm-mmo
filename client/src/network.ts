@@ -16,6 +16,7 @@ let wasDead = false;
 
 const prevHp: { [sessionId: string]: number } = {};
 const prevPositions: { [sessionId: string]: { x: number; z: number } } = {};
+const playerWasDead: { [sessionId: string]: boolean } = {};
 export const lastMoveTimes: { [sessionId: string]: number } = {};
 
 function join(playerName: string) {
@@ -60,7 +61,7 @@ function join(playerName: string) {
                     wasDead = false;
                     localModel!.position.x = myPlayer.x;
                     localModel!.position.z = myPlayer.z;
-                    fsm['local']?.resetToIdle();  // <-- Вот правильный вызов
+                    fsm['local']?.resetToIdle();   // ← теперь полностью сбрасываем позу
                 }
 
                 // Получение урона
@@ -73,6 +74,7 @@ function join(playerName: string) {
                 // Смерть
                 if (!alive && !wasDead) {
                     fsm['local']?.playOneShot('death', 0.1, () => {
+                        console.log('[DEATH] local death callback');
                         if (localModel) localModel.visible = false;
                         deathAnimating['local'] = false;
                     });
@@ -96,6 +98,13 @@ function join(playerName: string) {
             state.players.forEach((player: any, sessionId: string) => {
                 if (sessionId === room.sessionId) return;
 
+                // Возрождение после смерти (сброс позы)
+                if (player.hp > 0 && playerWasDead[sessionId]) {
+                    playerWasDead[sessionId] = false;
+                    if (otherPlayers[sessionId]) otherPlayers[sessionId].visible = true;
+                    if (fsm[sessionId]) fsm[sessionId].resetToIdle();
+                }
+
                 // Определяем движение
                 const prev = prevPositions[sessionId];
                 let moving = false;
@@ -109,7 +118,7 @@ function join(playerName: string) {
 
                 // Урон
                 const oldHp = prevHp[sessionId] ?? player.hp;
-                if (player.hp < oldHp) {
+                if (player.hp < oldHp && player.hp > 0) {
                     fsm[sessionId]?.playOneShot('recievehit', 0.1);
                 }
                 prevHp[sessionId] = player.hp;
@@ -117,10 +126,14 @@ function join(playerName: string) {
                 // Смерть
                 if (player.hp <= 0 && !deathAnimating[sessionId]) {
                     deathAnimating[sessionId] = true;
+                    playerWasDead[sessionId] = true;
                     fsm[sessionId]?.playOneShot('death', 0.1, () => {
-                        if (otherPlayers[sessionId]) otherPlayers[sessionId].visible = false;
-                        if (hpBars[sessionId]) hpBars[sessionId].visible = false;
-                        deathAnimating[sessionId] = false;
+                        setTimeout(() => {
+                            if (otherPlayers[sessionId]) otherPlayers[sessionId].visible = false;
+                            if (hpBars[sessionId]) hpBars[sessionId].visible = false;
+                            deathAnimating[sessionId] = false;
+                            console.log(`[DEATH] ${sessionId} model hidden`);
+                        }, 500);
                     });
                 }
 
@@ -129,10 +142,10 @@ function join(playerName: string) {
                 updateOtherPlayer(sessionId, player.x, player.z, player.hp, player.maxHp, player.hp > 0);
 
                 if (moving && fsm[sessionId]) {
-                    console.log(`[NET] player ${sessionId} is moving, walk`);
+                    //console.log(`[NET] player ${sessionId} is moving, walk`);
                     fsm[sessionId].transitionTo('walk');
                 } else if (!moving && fsm[sessionId] && fsm[sessionId].currentStateName !== 'idle') {
-                    console.log(`[NET] player ${sessionId} stopped, idle`);
+                    //console.log(`[NET] player ${sessionId} stopped, idle`);
                     fsm[sessionId].transitionTo('idle');
                 }
             });
@@ -145,6 +158,7 @@ function join(playerName: string) {
                     delete prevPositions[sessionId];
                     delete lastMoveTimes[sessionId];
                     delete deathAnimating[sessionId];
+                    delete playerWasDead[sessionId];
                 }
             }
         });

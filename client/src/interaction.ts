@@ -42,7 +42,7 @@ window.addEventListener('mouseup', (event) => {
             if (intersections.length > 0) {
                 const clickedMesh = intersections[0].object as THREE.Mesh;
                 const targetId = clickedMesh.userData.sessionId;
-                if (targetId && room && localModel) {  // <-- проверяем localModel
+                if (targetId && room && localModel) {
                     const targetModel = otherPlayers[targetId];
                     if (!targetModel) return;
 
