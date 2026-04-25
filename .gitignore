@@ -3,5 +3,4 @@ dist/
 .vite/
 *.log
 .env
-client/public/*
-public/
+client/public/

@@ -26,3 +26,6 @@ dist-ssr
 public
 public/
 public/*
+client/public
+client/public/
+client/public/*
