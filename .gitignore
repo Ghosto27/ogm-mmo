@@ -5,3 +5,4 @@ dist/
 .env
 client/public/
 server/players.json
+server/players.json
