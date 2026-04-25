@@ -56,6 +56,17 @@ function join(playerName: string) {
                     firstSync = false;
                     console.log('[SYNC] Позиция восстановлена:', myPlayer.x, myPlayer.z);
                 }
+                // При первой синхронизации сразу переносим чужие модели на их позиции
+                if (firstSync) {
+                    state.players.forEach((p: any, sid: string) => {
+                        if (sid === room.sessionId) return;
+                        const model = otherPlayers[sid];
+                        if (model) {
+                            model.position.set(p.x, 0, p.z);
+                            setTargetPosition(sid, p.x, p.z); // обновляем цель интерполяции
+                        }
+                    });
+                }
 
                 // Возрождение после смерти
                 if (alive && wasDead) {

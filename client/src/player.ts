@@ -6,6 +6,7 @@ import { createHpBar, updateHpBarSprite } from './utils';
 import { createLocalToonMaterial, createEnemyToonMaterial } from './materials';
 import { AnimationStateMachine } from './animationStateMachine';
 import { createNameTag, attachNameTag, removeNameTag } from './nameTags';
+import { setTargetPosition } from './animationUtils';
 
 export const fsm: { [id: string]: AnimationStateMachine } = {};
 
@@ -160,11 +161,14 @@ export function updateOtherPlayer(
     if (alive) {
         if (!otherPlayers[sessionId]) {
             otherPlayers[sessionId] = createOtherPlayerModel(sessionId);
-            // Добавляем тег при первом появлении
             if (name) {
                 const tag = createNameTag(name);
                 attachNameTag(otherPlayers[sessionId], tag);
             }
+            // 🔥 Сразу перемещаем модель на актуальную позицию
+            otherPlayers[sessionId].position.set(x, 0, z);
+            // Также сбрасываем цель интерполяции (чтобы она стартовала с текущей позиции)
+            setTargetPosition(sessionId, x, z);
         }
         otherPlayers[sessionId].visible = true;
 
