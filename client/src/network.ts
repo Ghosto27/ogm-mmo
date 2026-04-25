@@ -6,6 +6,7 @@ import {
     deathAnimating, fsm
 } from './player';
 import { setTargetPosition } from './animationUtils';
+import { updateHpBarSprite } from './utils';
 
 export const client = new Client(SERVER_URL);
 export let room: any = null;
@@ -80,6 +81,7 @@ function join(playerName: string) {
                     });
                     deathAnimating['local'] = true;
                     wasDead = true;
+                    showLocalHpBar(myPlayer.x, myPlayer.z, 0, myPlayer.maxHp);
                     hideLocalHpBar();
                 }
 
@@ -127,6 +129,9 @@ function join(playerName: string) {
                 if (player.hp <= 0 && !deathAnimating[sessionId]) {
                     deathAnimating[sessionId] = true;
                     playerWasDead[sessionId] = true;
+                    if (hpBars[sessionId]) {
+                        updateHpBarSprite(hpBars[sessionId], 0, player.maxHp);
+                    }
                     fsm[sessionId]?.playOneShot('death', 0.1, () => {
                         setTimeout(() => {
                             if (otherPlayers[sessionId]) otherPlayers[sessionId].visible = false;
