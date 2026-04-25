@@ -8,8 +8,11 @@ export function createPlayerUI(playerName: string, level: number) {
     container.style.left = '20px';
     container.style.color = 'white';
     container.style.fontFamily = 'Arial, sans-serif';
+    container.style.background = 'rgba(0,0,0,0.7)';
     container.style.fontSize = '14px';
     container.style.pointerEvents = 'none'; // не мешает кликам по сцене
+    container.style.padding = '8px';
+    container.style.borderRadius = '4px'; 
 
     const nameEl = document.createElement('div');
     nameEl.textContent = `${playerName} (ур. ${level})`;

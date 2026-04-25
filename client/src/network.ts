@@ -114,8 +114,8 @@ function join(playerName: string) {
             // ---------- Другие игроки ----------
             state.players.forEach((player: any, sessionId: string) => {
                 if (sessionId === room.sessionId) return;
-                console.log(`[STATE] sessionId=${sessionId}, x=${player.x}, z=${player.z}, hp=${player.hp}`);
-                console.log(`[NET] Игрок ${sessionId} – x=${player.x}, z=${player.z}, hp=${player.hp}`);
+                //console.log(`[STATE] sessionId=${sessionId}, x=${player.x}, z=${player.z}, hp=${player.hp}`);
+                //console.log(`[NET] Игрок ${sessionId} – x=${player.x}, z=${player.z}, hp=${player.hp}`);
 
                 // Возрождение после смерти (сброс позы)
                 if (player.hp > 0 && playerWasDead[sessionId]) {

@@ -5,8 +5,8 @@ export function createTargetUI() {
     targetPanel = document.createElement('div');
     targetPanel.id = 'target-panel';
     targetPanel.style.position = 'absolute';
-    targetPanel.style.top = '80px';  // ниже своей панели
-    targetPanel.style.left = '20px';
+    targetPanel.style.top = '20px';  // ниже своей панели
+    targetPanel.style.left = '150px';
     targetPanel.style.color = '#ffd700';
     targetPanel.style.fontFamily = 'Arial, sans-serif';
     targetPanel.style.fontSize = '14px';
