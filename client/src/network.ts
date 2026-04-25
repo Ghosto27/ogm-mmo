@@ -56,11 +56,11 @@ function join(playerName: string) {
                 // Возрождение после смерти
                 if (alive && wasDead) {
                     deathAnimating['local'] = false;
-                    localModel.visible = true;
+                    localModel!.visible = true;
                     wasDead = false;
-                    localModel.position.x = myPlayer.x;
-                    localModel.position.z = myPlayer.z;
-                    fsm['local']?.transitionTo('idle', 0.3);
+                    localModel!.position.x = myPlayer.x;
+                    localModel!.position.z = myPlayer.z;
+                    fsm['local']?.resetToIdle();  // <-- Вот правильный вызов
                 }
 
                 // Получение урона
@@ -129,7 +129,11 @@ function join(playerName: string) {
                 updateOtherPlayer(sessionId, player.x, player.z, player.hp, player.maxHp, player.hp > 0);
 
                 if (moving && fsm[sessionId]) {
+                    console.log(`[NET] player ${sessionId} is moving, walk`);
                     fsm[sessionId].transitionTo('walk');
+                } else if (!moving && fsm[sessionId] && fsm[sessionId].currentStateName !== 'idle') {
+                    console.log(`[NET] player ${sessionId} stopped, idle`);
+                    fsm[sessionId].transitionTo('idle');
                 }
             });
 

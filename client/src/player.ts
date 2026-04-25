@@ -98,9 +98,12 @@ function createModelInstance(sessionId?: string): THREE.Group {
         if (act) filteredActions[key] = act;
     }
     // В функции createModelInstance, после создания fsm[id]:
-    fsm[id] = new AnimationStateMachine(mixer, filteredActions);
-    // Явно запускаем Idle, чтобы FSM знал своё начальное состояние
-    fsm[id].transitionTo('idle');
+    fsm[id] = new AnimationStateMachine(mixer, filteredActions, id);
+    console.log(`[FSM] created for ${id}, starting idle`);
+    // Запускаем idle, если он ещё не активен (защита от повторного запуска)
+    if (!actions[id]['idle']?.isRunning()) {
+        fsm[id].transitionTo('idle');
+    }
 
     return model;
 }

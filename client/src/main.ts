@@ -56,8 +56,10 @@ function loop() {
                     lastSend = nowSend;
                 } catch (e) {}
             }
+            console.log('[MAIN] local is moving, calling fsm[\'local\'].transitionTo(\'walk\')');
             fsm['local']?.transitionTo('walk')
         } else {
+            console.log('[MAIN] local is idle, calling fsm[\'local\'].transitionTo(\'idle\')');
             fsm['local']?.transitionTo('idle')
         }
     }
