@@ -19,7 +19,8 @@ export class AnimationStateMachine {
         const currentAction = this.currentStateName ? this.actions[this.currentStateName] : null;
 
         if (currentAction && currentAction.isRunning() && currentAction !== targetAction) {
-            // Плавный кроссфейд (вес целевого действия уже 1 по умолчанию)
+            // Устанавливаем вес целевого действия перед кроссфейдом
+            targetAction.setEffectiveWeight(1);
             currentAction.crossFadeTo(targetAction, fadeDuration, false);
         } else {
             targetAction.reset().play();
@@ -34,7 +35,6 @@ export class AnimationStateMachine {
         const action = this.actions[stateName];
         if (!action || (action.isRunning() && action.loop === THREE.LoopOnce)) return;
 
-        // Запоминаем текущее циклическое состояние, чтобы вернуться после атаки
         const prevState = this.currentStateName;
 
         // Останавливаем все циклические анимации
@@ -51,9 +51,8 @@ export class AnimationStateMachine {
             this.mixer.removeEventListener('finished', onFinishedLocal);
             if (stateName === 'death') {
                 Object.values(this.actions).forEach(a => a?.stop());
-                setTimeout(() => onFinished?.(), 100);
+                onFinished?.(); // сразу вызываем колбек, без таймаута
             } else {
-                // После атаки/урона возвращаемся к предыдущему состоянию (обычно idle)
                 if (prevState) {
                     this.transitionTo(prevState, 0.3);
                 } else {
