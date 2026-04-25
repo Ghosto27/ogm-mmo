@@ -79,22 +79,23 @@ export class MyRoom extends Room<MyRoomState> {
         player.name = name;
         player.hp = player.maxHp = 100;
 
+        // Восстанавливаем позицию из хранилища
         const saved = loadPlayer(name);
         if (saved) {
             player.x = saved.x;
             player.z = saved.z;
-            console.log(`[SERVER] Восстановлена позиция для ${name}: (${saved.x}, ${saved.z})`);
-        } else {
-            console.log(`[SERVER] Для ${name} нет сохранения, старт с (0,0)`);
         }
 
+        // Немедленно добавляем игрока в состояние комнаты
         this.state.players.set(client.sessionId, player);
-        // Мгновенно оповещаем всех о точных координатах нового игрока
-        this.broadcast("playerJoined", {
+
+        // Гарантированно оповещаем всех о точных координатах нового игрока
+        this.broadcast("initialPosition", {
             sessionId: client.sessionId,
             x: player.x,
             z: player.z
         });
+
         console.log(`[SERVER] Игрок ${name} добавлен в стейт с x=${player.x}, z=${player.z}`);
     }
 

@@ -104,9 +104,6 @@ function join(playerName: string) {
                 } else {
                     hideLocalHpBar();
                 }
-            } else {
-                localModel.visible = false;
-                hideLocalHpBar();
             }
 
             // ---------- Другие игроки ----------
@@ -192,6 +189,14 @@ function join(playerName: string) {
 
         room.onMessage("playerJoined", (data: { sessionId: string, x: number, z: number }) => {
             if (data.sessionId === room.sessionId) return; // себя пропускаем
+            const model = otherPlayers[data.sessionId];
+            if (model) {
+                model.position.set(data.x, 0, data.z);
+                setTargetPosition(data.sessionId, data.x, data.z);
+            }
+        });
+
+        room.onMessage("initialPosition", (data: { sessionId: string, x: number, z: number }) => {
             const model = otherPlayers[data.sessionId];
             if (model) {
                 model.position.set(data.x, 0, data.z);
