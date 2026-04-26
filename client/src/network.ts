@@ -11,7 +11,7 @@ import { getSelectedTarget } from './selection';
 import { updateTargetHP, showTargetUI } from './targetUI';
 import { mobModels, spawnMob, updateMobState, despawnMob, mobFSM } from './mobPlayer';
 import { createPlayerUI, updatePlayerUI } from './playerUI';
-import { createNameTag, attachNameTag, removeNameTag } from './nameTags';
+import { createNameTag, attachNameTag } from './nameTags';
 import { updateInventoryUI } from './inventoryUI';
 import { lootMeshes, updateLootMeshes, spawnLootMesh } from './render/LootRenderer';
 import { getCurrentBagId, updateLootSlots, hideLootUI } from './ui/LootWindowUI';
@@ -19,7 +19,6 @@ import { updateCharacterPanel } from './characterPanel';
 
 export const client = new Client(SERVER_URL);
 export let room: any = null;
-
 
 let reconnectTimer: any = null;
 let firstSync = true;
@@ -111,7 +110,6 @@ function join(playerName: string) {
 
                 if (alive) {
                     showLocalHpBar(myPlayer.x, myPlayer.z, myPlayer.hp, myPlayer.maxHp);
-                    //console.log('[UI] updatePlayerUI', myPlayer.hp, myPlayer.maxHp);
                     updatePlayerUI(myPlayer.hp, myPlayer.maxHp, myPlayer.level, myPlayer.exp, myPlayer.expToLevel);
                     updateCharacterPanel(myPlayer);
                     updateInventoryUI(myPlayer.inventory);
@@ -211,37 +209,11 @@ function join(playerName: string) {
                 }
             }
 
-            // Закрываем окно лута, если отошли от мешка
-            const lootBagId = getCurrentBagId();
-            if (lootBagId) {
-                const bag = state.lootBags.get(lootBagId);
-                const player = state.players.get(room.sessionId);
-                if (bag && player) {
-                    const dist = Math.sqrt((player.x - bag.x) ** 2 + (player.z - bag.z) ** 2);
-                    if (dist > 3.0) {
-                        hideLootUI();
-                    }
-                } else {
-                    hideLootUI(); // мешок исчез
-                }
-            }
-
             // ---------- Мешки с лутом ----------
             state.lootBags.forEach((bag: any, bagId: string) => {
-                updateLootMeshes(state.lootBags);
-                // Запускаем анимацию только если модели ещё нет и мешок не пуст
                 if (!lootMeshes[bagId] && bag.items.length > 0) {
                     spawnLootMesh(bagId, bag.mobX, bag.mobZ, bag.x, bag.z);
                 }
-                if (state.lootBags.size > 0 || Object.keys(lootMeshes).length > 0) {
-                    //console.log('[NET] lootBags updated, calling updateLootMeshes');
-                    //console.log('[NET] lootBags size:', state.lootBags.size);
-                    state.lootBags.forEach((bag: any, bagId: string) => {
-                        //console.log(`[NET]   ${bagId} items: ${bag.items.length}`);
-                    });
-                    updateLootMeshes(state.lootBags);
-                }
-                // Если окно открыто для этого мешка – обновить слоты
                 if (getCurrentBagId() === bagId) {
                     if (bag.items.length === 0) {
                         hideLootUI();
@@ -251,11 +223,21 @@ function join(playerName: string) {
                 }
             });
 
-            // Удаляем мешки, которых больше нет
-            for (const bagId in lootMeshes) {
-                if (!state.lootBags.has(bagId)) {
-                    // updateLootMeshes уже сделает удаление, но также скроем UI
-                    if (getCurrentBagId() === bagId) hideLootUI();
+            // Обновление визуала всех мешков (удаление пустых/неактуальных)
+            updateLootMeshes(state.lootBags);
+
+            // Закрываем окно лута, если отошли от мешка
+            const lootBagId = getCurrentBagId();
+            if (lootBagId) {
+                const bag = state.lootBags.get(lootBagId);
+                const player = state.players.get(room.sessionId);
+                if (bag && player && bag.items) {
+                    const dist = Math.sqrt((player.x - bag.x) ** 2 + (player.z - bag.z) ** 2);
+                    if (dist > 3.0) {
+                        hideLootUI();
+                    }
+                } else {
+                    hideLootUI(); // мешок исчез
                 }
             }
         });

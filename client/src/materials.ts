@@ -6,13 +6,10 @@ const createGradientMap = (): THREE.CanvasTexture => {
     canvas.height = 1;
     const ctx = canvas.getContext('2d')!;
 
-    // Более светлая тень (средне-серый вместо почти чёрного)
-    ctx.fillStyle = '#777777'; // ~0.47 яркости
+    ctx.fillStyle = '#777777';
     ctx.fillRect(0, 0, 1, 1);
-
-    ctx.fillStyle = '#aaaaaa'; // ~0.67
+    ctx.fillStyle = '#aaaaaa';
     ctx.fillRect(1, 0, 1, 1);
-
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(2, 0, 1, 1);
 
@@ -40,3 +37,27 @@ export const createEnemyToonMaterial = (map: THREE.Texture | null) => {
         map: map,
     });
 };
+
+export function cloneMaterial(original: THREE.MeshStandardMaterial, sessionId?: string): THREE.MeshToonMaterial {
+    const map = original.map ?? null;
+    const newMat = sessionId ? createEnemyToonMaterial(map) : createLocalToonMaterial(map);
+
+    (newMat as any).alphaMap = original.alphaMap ?? null;
+    (newMat as any).emissiveMap = original.emissiveMap ?? null;
+    (newMat as any).aoMap = original.aoMap ?? null;
+    (newMat as any).normalMap = original.normalMap ?? null;
+
+    newMat.transparent = original.transparent;
+    newMat.alphaTest = original.alphaTest;
+    newMat.side = original.side;
+    newMat.depthWrite = original.depthWrite;
+    newMat.depthTest = original.depthTest;
+    newMat.opacity = original.opacity;
+
+    newMat.vertexColors = original.vertexColors;
+    newMat.wireframe = original.wireframe;
+    newMat.emissive = original.emissive;
+    newMat.emissiveIntensity = original.emissiveIntensity;
+
+    return newMat;
+}

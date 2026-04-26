@@ -76,10 +76,12 @@ export class MobSpawner {
         const bag = new LootBag(bagId, landX, landZ, mob.x, mob.z, lootItems);
         this.room.state.lootBags.set(bagId, bag);
 
-        // Удаление мешка через 60 секунд
-        setTimeout(() => {
-            this.room.state.lootBags.delete(bagId);
-        }, 60000);
+        // Удаляем мешок через 60 секунд, только если он не был опустошён
+        /* const deleteTimer = setTimeout(() => {
+            if (this.room.state.lootBags.has(bagId) && (this.room.state.lootBags.get(bagId)?.items.length ?? 0) > 0) {
+                this.room.state.lootBags.delete(bagId);
+            }
+        }, 60000); */
 
         // Удаление моба и респаун
         setTimeout(() => {

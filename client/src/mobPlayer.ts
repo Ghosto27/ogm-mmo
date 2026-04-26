@@ -4,7 +4,7 @@ import { clone } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { AnimationStateMachine } from './animationStateMachine';
 import { scene } from './scene';
 import { createHpBar, updateHpBarSprite } from './utils';
-import { createEnemyToonMaterial } from './materials';
+import { createEnemyToonMaterial, createLocalToonMaterial, cloneMaterial } from './materials';
 
 const lastMobPositions: { [mobId: string]: THREE.Vector3 } = {};
 const mobTargetAngles: { [mobId: string]: number } = {};
@@ -62,7 +62,7 @@ function createWolfInstance(mobId: string): THREE.Group {
         if (child instanceof THREE.Mesh) {
             const orig = child.material as THREE.MeshStandardMaterial;
             const map = orig.map ?? null;
-            const newMat = createEnemyToonMaterial(map);
+            const newMat = cloneMaterial(orig);
             newMat.transparent = orig.transparent;
             newMat.alphaTest = orig.alphaTest;
             newMat.side = orig.side;

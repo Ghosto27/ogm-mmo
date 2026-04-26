@@ -61,7 +61,7 @@ export class EquipmentSystem {
         s.attackPower = s.strength * 2;
         s.defense = Math.floor(s.vitality * 0.5);
         s.critChance = Math.min(50, s.dexterity * 0.5 + s.luck * 0.2);
-        player.maxHp = 100 + s.vitality * 5;
+        player.maxHp = 100 + player.level * 10 + s.vitality * 5;
         player.hp = Math.min(player.hp, player.maxHp);
     }
 }

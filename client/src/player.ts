@@ -4,7 +4,7 @@ import { clone } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { AnimationStateMachine } from './animationStateMachine';
 import { scene } from './scene';
 import { createHpBar, updateHpBarSprite } from './utils';
-import { createLocalToonMaterial, createEnemyToonMaterial } from './materials';
+import { createLocalToonMaterial, createEnemyToonMaterial, cloneMaterial } from './materials';
 import { createNameTag, attachNameTag, removeNameTag } from './nameTags';
 
 // ---------- ШАБЛОН ----------
@@ -35,27 +35,6 @@ export const mixers: { [id: string]: THREE.AnimationMixer } = {};
 export const actions: { [id: string]: Record<string, THREE.AnimationAction | null> } = {};
 export const deathAnimating: { [id: string]: boolean } = {};
 export const fsm: { [id: string]: AnimationStateMachine } = {};
-
-// ---------- КЛОНИРОВАНИЕ МАТЕРИАЛА ----------
-function cloneMaterial(original: THREE.MeshStandardMaterial, sessionId?: string): THREE.MeshToonMaterial {
-    const map = original.map ?? null;
-    const newMat = sessionId ? createEnemyToonMaterial(map) : createLocalToonMaterial(map);
-    (newMat as any).alphaMap = original.alphaMap ?? null;
-    (newMat as any).emissiveMap = original.emissiveMap ?? null;
-    (newMat as any).aoMap = original.aoMap ?? null;
-    (newMat as any).normalMap = original.normalMap ?? null;
-    newMat.transparent = original.transparent;
-    newMat.alphaTest = original.alphaTest;
-    newMat.side = original.side;
-    newMat.depthWrite = original.depthWrite;
-    newMat.depthTest = original.depthTest;
-    newMat.opacity = original.opacity;
-    newMat.vertexColors = original.vertexColors;
-    newMat.wireframe = original.wireframe;
-    newMat.emissive = original.emissive;
-    newMat.emissiveIntensity = original.emissiveIntensity;
-    return newMat;
-}
 
 // ---------- СОЗДАНИЕ ЭКЗЕМПЛЯРА ИГРОКА ----------
 function createModelInstance(sessionId?: string): THREE.Group {

@@ -9,6 +9,8 @@ import { Item } from "./models/Item";
 import { LootBag } from "./schemas/LootBag";
 import { PlayerStats } from "./models/PlayerStats";
 import { EquipmentSystem } from "./systems/EquipmentSystem";
+import { PlayerPersistence } from "./systems/PlayerPersistence";
+import { ItemSlot } from "./models/ItemSlot";
 
 export class Player extends Schema {
     @type("number") x: number = 0;
@@ -302,6 +304,7 @@ export class MyRoom extends Room<MyRoomState> {
         player.name = name;
         player.hp = player.maxHp = 100;
 
+        // Восстанавливаем позицию из старого хранилища (координаты)
         const saved = loadPlayer(name);
         if (saved) {
             player.x = saved.x;
@@ -309,17 +312,49 @@ export class MyRoom extends Room<MyRoomState> {
             player.rotationY = saved.ry;
         }
 
-        // Сразу пересчитываем производные параметры (maxHp, атаку, защиту и т.д.)
-        EquipmentSystem.recalculateStats(player);
+        // Загружаем полное сохранение (инвентарь, экипировка, статы, опыт, HP)
+        const savedData = PlayerPersistence.loadPlayer(name);
+        if (savedData) {
+            // Восстанавливаем уровень, опыт и текущее здоровье
+            player.level = savedData.level;
+            player.exp = savedData.exp;
+            player.expToLevel = savedData.expToLevel;
+            player.hp = savedData.hp; // останется, пока не пересчитаем
 
-        // Выдаём стартовые предметы (для теста)
-        const potion = itemDatabase["potion_hp_01"];
-        const sword = itemDatabase["sword_01"];
-        // Создаём копии предметов, чтобы не менять оригиналы в базе
-        player.inventory.addItem(Object.assign(new Item(), potion), 3); // 3 зелья
-        player.inventory.addItem(Object.assign(new Item(), sword), 1);  // 1 меч
+            // Восстанавливаем статы
+            player.stats.strength = savedData.stats.strength;
+            player.stats.dexterity = savedData.stats.dexterity;
+            player.stats.intelligence = savedData.stats.intelligence;
+            player.stats.vitality = savedData.stats.vitality;
+            player.stats.luck = savedData.stats.luck;
+            // Производные пересчитаются позже
 
-        player.stats = new PlayerStats(); // перестраховка
+            // Восстанавливаем инвентарь
+            player.inventory.slots.clear();
+            savedData.inventory.forEach(slot => {
+                player.inventory.slots.push(slot.cloneSlot());
+            });
+
+            // Восстанавливаем экипировку
+            player.equipment.clear();
+            savedData.equipment.forEach((item, slot) => {
+                player.equipment.set(slot, item.cloneItem());
+            });
+
+            // Пересчитываем производные статы (maxHp, атака, защита) с учётом уровня и бонусов
+            EquipmentSystem.recalculateStats(player);
+            // HP не должно превышать maxHp
+            if (player.hp > player.maxHp) player.hp = player.maxHp;
+        } else {
+            // Нет сохранения – выдаём стартовые предметы
+            const potion = itemDatabase["potion_hp_01"];
+            const sword = itemDatabase["sword_01"];
+            player.inventory.addItem(Object.assign(new Item(), potion), 3);
+            player.inventory.addItem(Object.assign(new Item(), sword), 1);
+
+            // Пересчитываем статы для стартовых параметров
+            EquipmentSystem.recalculateStats(player);
+        }
 
         // Небольшая задержка, чтобы координаты точно были готовы
         setTimeout(() => {
@@ -328,7 +363,7 @@ export class MyRoom extends Room<MyRoomState> {
                 sessionId: client.sessionId,
                 x: player.x,
                 z: player.z,
-                rotationY: player.rotationY   // берём текущее значение (по умолчанию 0)
+                rotationY: player.rotationY
             });
             console.log(`[SERVER] Игрок ${name} добавлен в стейт с x=${player.x}, z=${player.z}`);
         }, 20);
@@ -338,7 +373,7 @@ export class MyRoom extends Room<MyRoomState> {
         const player = this.state.players.get(client.sessionId);
         if (player) {
             savePlayer(player.name, player.x, player.z, player.rotationY);
-            console.log(`[LEAVE] ${player.name} сохранён.`);
+            PlayerPersistence.savePlayer(player);
         }
         this.state.players.delete(client.sessionId);
     }

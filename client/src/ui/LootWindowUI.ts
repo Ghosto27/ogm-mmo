@@ -12,9 +12,9 @@ export function getCurrentBagId(): string | null {
 function getLootSlotData(slotIndex: number): any | null {
     if (!currentBagId || !room || !room.state) return null;
     const bag = room.state.lootBags.get(currentBagId);
-    if (!bag || slotIndex >= bag.items.length) return null;
+    if (!bag || !bag.items || slotIndex >= bag.items.length) return null;
     const slot = bag.items[slotIndex];
-    return slot.item ? { name: slot.item.name, description: slot.item.description } : null;
+    return slot?.item ? { name: slot.item.name, description: slot.item.description } : null;
 }
 
 export function createLootUI() {
