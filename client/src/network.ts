@@ -15,6 +15,7 @@ import { createNameTag, attachNameTag, removeNameTag } from './nameTags';
 import { updateInventoryUI } from './inventoryUI';
 import { lootMeshes, updateLootMeshes, spawnLootMesh } from './render/LootRenderer';
 import { getCurrentBagId, updateLootSlots, hideLootUI } from './ui/LootWindowUI';
+import { updateCharacterPanel } from './characterPanel';
 
 export const client = new Client(SERVER_URL);
 export let room: any = null;
@@ -112,6 +113,7 @@ function join(playerName: string) {
                     showLocalHpBar(myPlayer.x, myPlayer.z, myPlayer.hp, myPlayer.maxHp);
                     //console.log('[UI] updatePlayerUI', myPlayer.hp, myPlayer.maxHp);
                     updatePlayerUI(myPlayer.hp, myPlayer.maxHp, myPlayer.level, myPlayer.exp, myPlayer.expToLevel);
+                    updateCharacterPanel(myPlayer);
                     updateInventoryUI(myPlayer.inventory);
                     localModel.visible = true;
                 } else {
@@ -142,6 +144,7 @@ function join(playerName: string) {
                 const oldHp = prevHp[sessionId] ?? player.hp;
                 if (player.hp < oldHp && player.hp > 0) {
                     fsm[sessionId]?.playOneShot('recievehit', 0.1);
+                    console.log(`[DAMAGE] ${sessionId} получил урон, новое HP: ${player.hp}`);
                 }
                 prevHp[sessionId] = player.hp;
 
@@ -205,6 +208,21 @@ function join(playerName: string) {
             for (const mobId in mobModels) {
                 if (!state.mobs.has(mobId)) {
                     despawnMob(mobId);
+                }
+            }
+
+            // Закрываем окно лута, если отошли от мешка
+            const lootBagId = getCurrentBagId();
+            if (lootBagId) {
+                const bag = state.lootBags.get(lootBagId);
+                const player = state.players.get(room.sessionId);
+                if (bag && player) {
+                    const dist = Math.sqrt((player.x - bag.x) ** 2 + (player.z - bag.z) ** 2);
+                    if (dist > 3.0) {
+                        hideLootUI();
+                    }
+                } else {
+                    hideLootUI(); // мешок исчез
                 }
             }
 

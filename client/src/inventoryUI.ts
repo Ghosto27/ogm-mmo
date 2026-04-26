@@ -56,10 +56,16 @@ export function createInventoryUI() {
         slot.addEventListener('contextmenu', (event) => {
             event.preventDefault();
             const index = parseInt(slot.dataset.index!);
-            // получаем актуальные данные слота из инвентаря (при обновлении UI они обновляются)
             const slotData = getSlotData(index);
-            if (slotData && slotData.item && slotData.item.id === 'potion_hp_01') {
-                room?.send('useItem', { slotIndex: index });
+            if (slotData && slotData.item) {
+                const item = slotData.item;
+                if (item.slot) {
+                    // Экипировка – надеть
+                    room?.send('equipItem', { slotIndex: index });
+                } else if (item.id === 'potion_hp_01') {
+                    // Зелье – использовать
+                    room?.send('useItem', { slotIndex: index });
+                }
             }
         });
 

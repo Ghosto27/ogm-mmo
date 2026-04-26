@@ -7,8 +7,10 @@ import { Inventory } from "./models/Inventory";
 import { itemDatabase } from "./data/items";
 import { Item } from "./models/Item";
 import { LootBag } from "./schemas/LootBag";
+import { PlayerStats } from "./models/PlayerStats";
+import { EquipmentSystem } from "./systems/EquipmentSystem";
 
-class Player extends Schema {
+export class Player extends Schema {
     @type("number") x: number = 0;
     @type("number") z: number = 0;
     @type("number") rotationY: number = 0;
@@ -19,6 +21,8 @@ class Player extends Schema {
     @type("number") exp: number = 0;
     @type("number") expToLevel: number = 100;
     @type(Inventory) inventory: Inventory = new Inventory();
+    @type(PlayerStats) stats: PlayerStats = new PlayerStats();
+    @type({ map: Item }) equipment = new MapSchema<Item>();
     
 }
 
@@ -61,9 +65,10 @@ export class MyRoom extends Room<MyRoomState> {
             const dz = attacker.z - target.z;
             if (Math.sqrt(dx*dx + dz*dz) > 4) return;
 
-            target.hp -= 10;
+            const damage = Math.max(1, Math.floor(attacker.stats.attackPower - target.stats.defense * 0.3));
+            target.hp -= damage;
+            console.log(`[ATTACK] ${attacker.name} -> ${target.name} на ${damage} урона (AP: ${attacker.stats.attackPower}, Def: ${target.stats.defense})`);
             this.addExperience(attacker, 10);
-            console.log(`[ATTACK] ${attacker.name} -> ${target.name} (HP: ${target.hp})`);
 
             // Рассылаем анимацию атаки всем клиентам
             this.broadcast("attackAnim", { attacker: client.sessionId });
@@ -102,15 +107,17 @@ export class MyRoom extends Room<MyRoomState> {
 
             const dx = attacker.x - mob.x;
             const dz = attacker.z - mob.z;
-            if (Math.sqrt(dx*dx + dz*dz) > 4) return;
+            if (Math.sqrt(dx*dx + dz*dz) > 2.5) return;
 
-            mob.hp -= 10;
-            mob.state = 'walk'; // заставляем идти к атакующему
+            const damage = Math.max(1, Math.floor(attacker.stats.attackPower * 0.5));
+            mob.hp -= damage;
+            console.log(`[ATTACK] ${attacker.name} ударил волка ${mobId} на ${damage} урона (AP: ${attacker.stats.attackPower})`);
+
+            mob.state = 'walk';
             mob.targetId = client.sessionId;
-            //console.log(`[ATTACK] ${attacker.name} ударил волка ${mobId} (HP: ${mob.hp})`);
 
             if (mob.hp <= 0) {
-                this.spawner.onMobDied(mobId);
+                this.spawner.onMobDied(mobId, client.sessionId);
             }
         });
 
@@ -250,6 +257,35 @@ export class MyRoom extends Room<MyRoomState> {
             }
         });
 
+        this.onMessage("equipItem", (client, message) => {
+            const player = this.state.players.get(client.sessionId);
+            if (!player || player.hp <= 0) return;
+
+            const { slotIndex } = message;
+            const slot = player.inventory.slots[slotIndex];
+            if (!slot || !slot.item) return;
+
+            const item = slot.item;
+            if (!item.slot) return; // не экипировка
+
+            const success = EquipmentSystem.equipItem(player, item, slotIndex);
+            if (!success) {
+                // можно отправить клиенту сообщение об ошибке, но пока просто логируем
+                console.log(`[EQUIP] Не удалось надеть ${item.name}`);
+            }
+        });
+
+        this.onMessage("unequipItem", (client, message) => {
+            const player = this.state.players.get(client.sessionId);
+            if (!player) return;
+
+            const { slot } = message;
+            const success = EquipmentSystem.unequipItem(player, slot);
+            if (!success) {
+                console.log(`[UNEQUIP] Не удалось снять предмет из слота ${slot}`);
+            }
+        });
+
         console.log("Комната 'world' создана");
     }
 
@@ -273,12 +309,17 @@ export class MyRoom extends Room<MyRoomState> {
             player.rotationY = saved.ry;
         }
 
+        // Сразу пересчитываем производные параметры (maxHp, атаку, защиту и т.д.)
+        EquipmentSystem.recalculateStats(player);
+
         // Выдаём стартовые предметы (для теста)
         const potion = itemDatabase["potion_hp_01"];
         const sword = itemDatabase["sword_01"];
         // Создаём копии предметов, чтобы не менять оригиналы в базе
         player.inventory.addItem(Object.assign(new Item(), potion), 3); // 3 зелья
         player.inventory.addItem(Object.assign(new Item(), sword), 1);  // 1 меч
+
+        player.stats = new PlayerStats(); // перестраховка
 
         // Небольшая задержка, чтобы координаты точно были готовы
         setTimeout(() => {

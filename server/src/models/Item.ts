@@ -1,9 +1,14 @@
-import { Schema, type } from "@colyseus/schema";
+import { Schema, MapSchema, type } from "@colyseus/schema";
 
 export class Item extends Schema {
-  @type("string") id: string = "";           // "potion_hp_01"
-  @type("string") name: string = "";         // "Зелье здоровья"
-  @type("string") description: string = "";  // "Восстанавливает 50 HP"
-  @type("number") maxStack: number = 1;      // Макс. количество в одной ячейке
-  @type("string") icon: string = "";         // "icons/potion.png"
+    @type("string") id: string = "";
+    @type("string") name: string = "";
+    @type("string") description: string = "";
+    @type("number") maxStack: number = 1;
+    @type("string") icon: string = "";
+
+    // Новые поля для экипировки
+    @type("string") slot: string = "";              // "head", "chest", "gloves", "legs", "weapon", "shield"
+    @type("number") requiredLevel: number = 1;
+    @type({ map: "number" }) bonuses = new MapSchema<number>(); // например, { "strength": 5, "vitality": 10 }
 }

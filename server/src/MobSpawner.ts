@@ -48,11 +48,19 @@ export class MobSpawner {
         // Но для первого раза оставим просто создание нового моба при старте, а смерть и респаун будут в FSM.
     }
 
-    public onMobDied(mobId: string) {
+    public onMobDied(mobId: string, killerSessionId?: string) {
         const mob = this.room.state.mobs.get(mobId);
         if (!mob) return;
 
-        // Собираем лут (пока тестовый)
+        // Опыт только убийце (если передан)
+        if (killerSessionId) {
+            const killer = this.room.state.players.get(killerSessionId);
+            if (killer) {
+                this.room.addExperience(killer, mob.expReward);
+            }
+        }
+
+        // Создание мешка с лутом (без изменений)
         const lootItems: { item: Item, quantity: number }[] = [];
         const potion = Object.assign(new Item(), itemDatabase["potion_hp_01"]);
         const sword = Object.assign(new Item(), itemDatabase["sword_01"]);
@@ -60,24 +68,20 @@ export class MobSpawner {
         lootItems.push({ item: sword, quantity: 1 });
 
         const angle = Math.random() * Math.PI * 2;
-        const dist = 1.0 + Math.random() * 2.0; // от 1 до 3 единиц
+        const dist = 1.0 + Math.random() * 2.0;
         const landX = mob.x + Math.cos(angle) * dist;
         const landZ = mob.z + Math.sin(angle) * dist;
 
         const bagId = `loot_${mobId}_${Date.now()}`;
         const bag = new LootBag(bagId, landX, landZ, mob.x, mob.z, lootItems);
         this.room.state.lootBags.set(bagId, bag);
-        console.log(`[LOOT] Мешок ${bagId} создан`);
 
-        // Удаляем через 60 секунд
+        // Удаление мешка через 60 секунд
         setTimeout(() => {
             this.room.state.lootBags.delete(bagId);
         }, 60000);
 
-        // Старая логика с опытом и удалением моба
-        this.room.state.players.forEach((player, sessionId) => {
-            (this.room as any).addExperience(player, mob.expReward);
-        });
+        // Удаление моба и респаун
         setTimeout(() => {
             this.room.state.mobs.delete(mobId);
             this.mobCount--;

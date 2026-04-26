@@ -18,6 +18,7 @@ import './interaction';
 import { createInventoryUI, toggleInventory, updateInventoryUI } from './inventoryUI';
 import { createLootUI } from './ui/LootWindowUI';
 import { animateLootMeshes } from './render/LootRenderer';
+import {createCharacterPanel, toggleCharacterPanel, updateCharacterPanel} from './characterPanel';
 
 let playerName = localStorage.getItem(STORAGE_KEY) || '';
 
@@ -40,6 +41,7 @@ modelReady.then(() => {
     createWorldMap();
     createInventoryUI();
     createLootUI();
+    createCharacterPanel()
     setTimeout(() => {
         fsm['local']?.transitionTo('idle');
     }, 500);
@@ -54,6 +56,11 @@ window.addEventListener('keydown', (e) => {
     if (e.key.toLowerCase() === 'i' || e.key.toLowerCase() === 'ш') {
         if (document.activeElement === document.body) {
             toggleInventory();
+        }
+    }
+    if (e.key.toLowerCase() === 'c' || e.key.toLowerCase() === 'с') {
+        if (document.activeElement === document.body) {
+            toggleCharacterPanel();
         }
     }
 });
@@ -169,7 +176,7 @@ function loop() {
     updateMobAnimations(deltaTime);
     interpolateMobPositions(deltaTime);
     animateLootMeshes();
-    
+
     composer.render();
     renderLabels(scene, camera);
 }
