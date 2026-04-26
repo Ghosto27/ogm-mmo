@@ -1,9 +1,9 @@
 {
-  "hp": 20,
-  "maxHp": 210,
-  "level": 6,
-  "exp": 753,
-  "expToLevel": 757,
+  "hp": -8,
+  "maxHp": 220,
+  "level": 7,
+  "exp": 266,
+  "expToLevel": 1135,
   "stats": {
     "strength": 10,
     "dexterity": 10,

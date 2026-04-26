@@ -78,15 +78,14 @@ export class AnimationStateMachine {
         this.currentStateName = null;
 
         if (stateName === 'death') {
-            this.isDead = true;
-            // Приостанавливаем циклические анимации, чтобы сохранить позу перед падением
+            // ПОЛНОСТЬЮ останавливаем циклические анимации, чтобы их поза не мешала смерти
             Object.values(this.actions).forEach(a => {
                 if (a && a.isRunning() && a.loop === THREE.LoopRepeat) {
-                    a.paused = true;
+                    a.stop();
                 }
             });
         } else {
-            // Для других one-shot полностью останавливаем циклические
+            // для других one-shot – тоже останавливаем (без изменений)
             Object.values(this.actions).forEach(a => {
                 if (a && a.isRunning() && a.loop === THREE.LoopRepeat) {
                     a.stop();
@@ -94,7 +93,9 @@ export class AnimationStateMachine {
             });
         }
 
-        action.reset();
+        if (stateName !== 'death') {
+            action.reset();
+        }
         action.setLoop(THREE.LoopOnce, 1);
         action.clampWhenFinished = true;
         action.play();
@@ -105,7 +106,6 @@ export class AnimationStateMachine {
             this.mixer.removeEventListener('finished', onFinishedLocal);
 
             if (stateName === 'death') {
-                action.stop(); // фиксируем последний кадр
                 onFinished?.();
             } else {
                 console.log(`[FSM ${this.id}] returning to prevState "${prevState}" or idle`);

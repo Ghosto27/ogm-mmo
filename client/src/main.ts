@@ -125,13 +125,13 @@ function loop() {
                     lastSend = nowSend;
                 } catch (e) {}
             }
-            
-                 fsm['local']?.transitionTo('walk');
-            
+                if (!deathAnimating['local']) {
+                    fsm['local']?.transitionTo('walk');
+                }
         } else {
-            
-                fsm['local']?.transitionTo('idle');
-            
+                if (!deathAnimating['local']) {
+                    fsm['local']?.transitionTo('idle');
+                }
         }
     }
 
@@ -165,7 +165,7 @@ function loop() {
     const IDLE_TIMEOUT = 200;
     for (const sessionId in otherPlayers) {
         const lastMove = lastMoveTimes[sessionId] || 0;
-        if (Date.now() - lastMove > IDLE_TIMEOUT && otherPlayers[sessionId]?.visible) {
+        if (Date.now() - lastMove > IDLE_TIMEOUT && !deathAnimating[sessionId]) {
             fsm[sessionId]?.transitionTo('idle');
         }
     }
