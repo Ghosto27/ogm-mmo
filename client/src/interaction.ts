@@ -123,7 +123,7 @@ window.addEventListener('mouseup', (event) => {
 
 // В mousedown или keydown (я предлагаю keydown для F)
 window.addEventListener('keydown', (e) => {
-    if (e.key.toLowerCase() === 'f') {
+    if (e.key.toLowerCase() === 'f' || e.key.toLowerCase() === 'а') {
         if (!room || !localModel) return;
         // Ищем ближайший мешок на расстоянии < 2.0
         let closestBagId: string | null = null;

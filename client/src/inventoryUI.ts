@@ -1,15 +1,17 @@
+import { room } from './network';
+import { showTooltip, hideTooltip } from './tooltip';
+
 let container: HTMLDivElement;
 let slotElements: HTMLDivElement[] = [];
 let isVisible = false;
 
+// ---------- Интерфейс инвентаря ----------
 export function createInventoryUI() {
     container = document.createElement('div');
     container.id = 'inventory-panel';
     container.style.position = 'absolute';
-    container.style.transform = 'translate(-50%, -50%)';
     container.style.bottom = '20px';
     container.style.right = '20px';
-    container.style.transform = 'translate(-50%, -50%)';
     container.style.width = '300px';
     container.style.background = 'rgba(0, 0, 0, 0.8)';
     container.style.border = '2px solid white';
@@ -48,6 +50,32 @@ export function createInventoryUI() {
         slot.style.position = 'relative';
         slot.dataset.index = String(i);
         slot.title = `Слот ${i+1}`;
+
+        // ----- Обработчики мыши -----
+        // ПКМ – использовать предмет (зелье)
+        slot.addEventListener('contextmenu', (event) => {
+            event.preventDefault();
+            const index = parseInt(slot.dataset.index!);
+            // получаем актуальные данные слота из инвентаря (при обновлении UI они обновляются)
+            const slotData = getSlotData(index);
+            if (slotData && slotData.item && slotData.item.id === 'potion_hp_01') {
+                room?.send('useItem', { slotIndex: index });
+            }
+        });
+
+        // При наведении показываем тултип
+        slot.addEventListener('mouseenter', (event) => {
+            const index = parseInt(slot.dataset.index!);
+            const slotData = getSlotData(index);
+            if (slotData && slotData.item) {
+                showTooltip(event.clientX, event.clientY, slotData.item);
+            }
+        });
+
+        slot.addEventListener('mouseleave', () => {
+            hideTooltip();
+        });
+
         grid.appendChild(slot);
         slotElements.push(slot);
     }
@@ -100,8 +128,25 @@ export function updateInventoryUI(inventory: any) {
                 slot.appendChild(qty);
             }
 
-            // Всплывающая подсказка
-            slot.title = `${item.name}\n${item.description}`;
+            // Всплывающая подсказка (title оставим как fallback)
+            slot.title = '';
+        } else {
+            slot.title = '';
         }
     }
+}
+
+// ---------- Вспомогательная функция получения данных слота ----------
+function getSlotData(slotIndex: number): any {
+    // Мы не храним ссылку на инвентарь, но можем получить текущее состояние через room
+    // Проще всего хранить последний известный inventory в переменной модуля
+    // Либо искать через room.state.players.get(room.sessionId).inventory
+    // Но чтобы не усложнять, будем хранить ссылку в самом inventoryUI
+    // Пока для простоты реализуем через window или замыкание.
+    // Самый надёжный способ: импортировать room и запрашивать актуальные данные.
+    if (!room || !room.sessionId) return null;
+    const player = room.state?.players?.get(room.sessionId);
+    if (!player) return null;
+    const slot = player.inventory.slots[slotIndex];
+    return slot ? { item: slot.item, quantity: slot.quantity } : null;
 }

@@ -1,4 +1,5 @@
 import { room } from '../network';
+import { showTooltip, hideTooltip } from '../tooltip';
 
 let container: HTMLDivElement;
 let slotElements: HTMLDivElement[] = [];
@@ -8,13 +9,23 @@ export function getCurrentBagId(): string | null {
     return currentBagId;
 }
 
+function getLootSlotData(slotIndex: number): any | null {
+    if (!currentBagId || !room || !room.state) return null;
+    const bag = room.state.lootBags.get(currentBagId);
+    if (!bag || slotIndex >= bag.items.length) return null;
+    const slot = bag.items[slotIndex];
+    return slot.item ? { name: slot.item.name, description: slot.item.description } : null;
+}
+
 export function createLootUI() {
     container = document.createElement('div');
     container.id = 'loot-panel';
     container.style.position = 'absolute';
-    container.style.bottom = '20px';
-    container.style.right = '20px';
+    container.style.top = '60%';
+    container.style.left = '50%';
     container.style.width = '250px';
+    // Смещаем правее на 120 пикселей и центрируем по вертикали
+    container.style.transform = 'translate(calc(-50% + 400px), -50%)';
     container.style.background = 'rgba(0, 0, 0, 0.8)';
     container.style.border = '2px solid white';
     container.style.borderRadius = '8px';
@@ -48,7 +59,21 @@ export function createLootUI() {
         slot.style.justifyContent = 'center';
         slot.style.position = 'relative';
         slot.dataset.index = String(i);
+        // Обработчик клика
         slot.addEventListener('click', () => onSlotClick(i));
+        // Обработчики наведения
+        slot.addEventListener('mouseenter', (event) => {
+            const index = parseInt(slot.dataset.index!);
+            const itemData = getLootSlotData(index);
+            if (itemData) {
+                showTooltip(event.clientX, event.clientY, itemData);
+            }
+        });
+        
+        slot.addEventListener('mouseleave', () => {
+            hideTooltip();
+        });
+        
         grid.appendChild(slot);
         slotElements.push(slot);
     }

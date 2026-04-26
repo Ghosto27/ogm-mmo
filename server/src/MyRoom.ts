@@ -228,6 +228,28 @@ export class MyRoom extends Room<MyRoomState> {
             }
         });
 
+        this.onMessage("useItem", (client, message) => {
+            const player = this.state.players.get(client.sessionId);
+            if (!player || player.hp <= 0) return;
+
+            const { slotIndex } = message;
+            const slot = player.inventory.slots[slotIndex];
+            if (!slot || !slot.item) return;
+
+            // Пока обрабатываем только зелье здоровья
+            if (slot.item.id === 'potion_hp_01') {
+                const healAmount = 50;
+                player.hp = Math.min(player.maxHp, player.hp + healAmount);
+                
+                // Уменьшаем количество
+                slot.quantity -= 1;
+                if (slot.quantity <= 0) {
+                    slot.item = null;
+                    slot.quantity = 0;
+                }
+            }
+        });
+
         console.log("Комната 'world' создана");
     }
 
