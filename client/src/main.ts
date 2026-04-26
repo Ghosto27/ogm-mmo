@@ -15,6 +15,7 @@ import { createTargetUI } from './targetUI';
 import { updateMobAnimations, interpolateMobPositions } from './mobPlayer';
 import { renderLabels } from './renderers';
 import './interaction';
+import { createInventoryUI, toggleInventory, updateInventoryUI } from './inventoryUI';
 
 let playerName = localStorage.getItem(STORAGE_KEY) || '';
 
@@ -35,18 +36,25 @@ modelReady.then(() => {
     createTargetUI();
     createMinimap();
     createWorldMap();
+    createInventoryUI();
     setTimeout(() => {
         fsm['local']?.transitionTo('idle');
     }, 500);
 });
 
 window.addEventListener('keydown', (e) => {
-    if (e.key.toLowerCase() === 'm') {
+    if (e.key.toLowerCase() === 'm' || e.key.toLowerCase() === 'ь') {
         if (document.activeElement === document.body) {
             toggleWorldMap();
         }
     }
+    if (e.key.toLowerCase() === 'i' || e.key.toLowerCase() === 'ш') {
+        if (document.activeElement === document.body) {
+            toggleInventory();
+        }
+    }
 });
+
 
 setTimeout(() => renderer.domElement.focus({ preventScroll: true }), 100);
 

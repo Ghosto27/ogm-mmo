@@ -12,6 +12,7 @@ import { updateTargetHP, showTargetUI } from './targetUI';
 import { mobModels, spawnMob, updateMobState, despawnMob, mobFSM } from './mobPlayer';
 import { createPlayerUI, updatePlayerUI } from './playerUI';
 import { createNameTag, attachNameTag, removeNameTag } from './nameTags';
+import { updateInventoryUI } from './inventoryUI';
 
 export const client = new Client(SERVER_URL);
 export let room: any = null;
@@ -109,6 +110,7 @@ function join(playerName: string) {
                     showLocalHpBar(myPlayer.x, myPlayer.z, myPlayer.hp, myPlayer.maxHp);
                     //console.log('[UI] updatePlayerUI', myPlayer.hp, myPlayer.maxHp);
                     updatePlayerUI(myPlayer.hp, myPlayer.maxHp, myPlayer.level, myPlayer.exp, myPlayer.expToLevel);
+                    updateInventoryUI(myPlayer.inventory);
                     localModel.visible = true;
                 } else {
                     hideLocalHpBar();

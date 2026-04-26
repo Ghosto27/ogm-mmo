@@ -3,6 +3,9 @@ import { Schema, MapSchema, type } from "@colyseus/schema";
 import { loadPlayer, savePlayer } from "./storage";
 import { Mob } from "./Mob";
 import { MobSpawner } from "./MobSpawner";
+import { Inventory } from "./models/Inventory";
+import { itemDatabase } from "./data/items";
+import { Item } from "./models/Item";
 
 class Player extends Schema {
     @type("number") x: number = 0;
@@ -14,6 +17,7 @@ class Player extends Schema {
     @type("number") level: number = 1;
     @type("number") exp: number = 0;
     @type("number") expToLevel: number = 100;
+    @type(Inventory) inventory: Inventory = new Inventory();
     
 }
 
@@ -220,6 +224,13 @@ export class MyRoom extends Room<MyRoomState> {
             player.z = saved.z;
             player.rotationY = saved.ry;
         }
+
+        // Выдаём стартовые предметы (для теста)
+        const potion = itemDatabase["potion_hp_01"];
+        const sword = itemDatabase["sword_01"];
+        // Создаём копии предметов, чтобы не менять оригиналы в базе
+        player.inventory.addItem(Object.assign(new Item(), potion), 3); // 3 зелья
+        player.inventory.addItem(Object.assign(new Item(), sword), 1);  // 1 меч
 
         // Небольшая задержка, чтобы координаты точно были готовы
         setTimeout(() => {
