@@ -11,4 +11,6 @@ export class Mob extends Schema {
     @type("string") state: string = "idle";       // idle, patrol, chase, attack, dead
     @type("string") targetId: string = "";        // sessionId игрока, которого атакует
     @type("number") lastAttackTime: number = 0;
+    @type("number") idleTimer: number = 0;
+    @type("number") patrolAngle: number = Math.random() * Math.PI * 2;
 }

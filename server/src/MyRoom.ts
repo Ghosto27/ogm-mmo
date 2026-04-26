@@ -176,12 +176,24 @@ export class MyRoom extends Room<MyRoomState> {
                         mob.rotationY += diff * 0.3;
                     }
                 } else {
-                    // Нет игроков поблизости – случайное блуждание с небольшой скоростью
-                    mob.state = 'walk';
-                    mob.x += (Math.random() - 0.5) * 1.0;
-                    mob.z += (Math.random() - 0.5) * 1.0;
-                    // Очень плавный случайный поворот
-                    mob.rotationY += (Math.random() - 0.5) * 0.1;
+                    // Случайное блуждание с паузами
+                    mob.idleTimer -= 0.25; // интервал 250 мс, за 1 сек проходят 4 тика
+                    if (mob.idleTimer <= 0) {
+                        // Выбираем новое направление и длительность движения (1.5–4 секунды)
+                        mob.patrolAngle = Math.random() * Math.PI * 2;
+                        mob.idleTimer = 1.5 + Math.random() * 2.5;
+                    }
+                    if (mob.idleTimer > 0.8) { // первую часть времени двигаемся
+                        mob.state = 'walk';
+                        mob.x += Math.cos(mob.patrolAngle) * 1.2 * 0.5;
+                        mob.z += Math.sin(mob.patrolAngle) * 1.2 * 0.5;
+                        let diff = mob.patrolAngle - mob.rotationY;
+                        while (diff > Math.PI) diff -= 2 * Math.PI;
+                        while (diff < -Math.PI) diff += 2 * Math.PI;
+                        mob.rotationY += (Math.random() - 0.5) * 0.1; 
+                    } else {
+                        mob.state = 'idle'; // стоим на месте
+                    }
                 }
             });
         }, 250);

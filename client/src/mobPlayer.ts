@@ -137,19 +137,18 @@ export function spawnMob(mobId: string, x: number, z: number, hp: number, maxHp:
 }
 
 // Измените updateMobState: сохраняем предыдущую позицию
-export function updateMobState(mobId: string, x: number, z: number, hp: number, maxHp: number, state: string, rotationY?: number) {
+export function updateMobState(mobId: string, x: number, z: number, hp: number, maxHp: number, state: string) {
     const model = mobModels[mobId];
     if (!model) return;
     
     // Сохраняем предыдущую позицию для вычисления направления
-    if (lastMobPositions[mobId]) {
-        lastMobPositions[mobId].set(model.position.x, 0, model.position.z);
-    } else {
+    if (!lastMobPositions[mobId]) {
         lastMobPositions[mobId] = new THREE.Vector3(model.position.x, 0, model.position.z);
+    } else {
+        lastMobPositions[mobId].set(model.position.x, 0, model.position.z);
     }
     
     setMobTargetPosition(mobId, x, z);
-    // Угол больше не сохраняем с сервера – будем вычислять сами
     updateHpBarSprite(mobHpBars[mobId], hp, maxHp);
     
     const fsm = mobFSM[mobId];
@@ -191,20 +190,20 @@ export function interpolateMobPositions(deltaTime: number) {
         const model = mobModels[mobId];
         if (!model) continue;
 
-        // Интерполяция позиции (плавное движение к цели)
+        // Позиция (плавное движение к цели)
         const targetPos = mobTargetPositions[mobId];
         if (targetPos) {
             const t = Math.min(MOB_INTERPOLATION_SPEED * deltaTime, 1.0);
             model.position.x += (targetPos.x - model.position.x) * t;
             model.position.z += (targetPos.z - model.position.z) * t;
 
-            // Вычисляем угол по вектору от предыдущей позиции к целевой
+            // Вычисляем угол движения по разнице между целевой и предыдущей позицией
             const prevPos = lastMobPositions[mobId];
             if (prevPos) {
                 const dx = targetPos.x - prevPos.x;
                 const dz = targetPos.z - prevPos.z;
                 const dist = Math.sqrt(dx * dx + dz * dz);
-                if (dist > 0.01) { // если есть движение
+                if (dist > 0.01) {
                     const targetAngle = Math.atan2(dx, dz);
                     const currentAngle = model.rotation.y;
                     let diff = targetAngle - currentAngle;

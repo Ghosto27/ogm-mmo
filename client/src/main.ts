@@ -13,6 +13,7 @@ import { createWorldMap, updateWorldMap, toggleWorldMap } from './worldMap';
 import { createPlayerUI, updatePlayerUI } from './playerUI';
 import { createTargetUI } from './targetUI';
 import { updateMobAnimations, interpolateMobPositions } from './mobPlayer';
+import { renderLabels } from './renderers';
 import './interaction';
 
 let playerName = localStorage.getItem(STORAGE_KEY) || '';
@@ -158,6 +159,7 @@ function loop() {
     interpolateMobPositions(deltaTime);
 
     composer.render();
+    renderLabels(scene, camera);
 }
 
 loop();

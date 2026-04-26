@@ -113,7 +113,6 @@ export function initLocalModel(playerName?: string): THREE.Group {
     if (localModel) {
         scene.add(localModel);
         localModel.visible = true;
-        (window as any).localModel = localModel;
 
         // Принудительно создаём тег с именем из localStorage или переданным
         const displayName = playerName || localStorage.getItem('ogm_playerName') || 'Герой';

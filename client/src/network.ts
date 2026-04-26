@@ -11,6 +11,7 @@ import { getSelectedTarget } from './selection';
 import { updateTargetHP, showTargetUI } from './targetUI';
 import { mobModels, spawnMob, updateMobState, despawnMob, mobFSM } from './mobPlayer';
 import { createPlayerUI, updatePlayerUI } from './playerUI';
+import { createNameTag, attachNameTag, removeNameTag } from './nameTags';
 
 export const client = new Client(SERVER_URL);
 export let room: any = null;
@@ -40,6 +41,12 @@ function join(playerName: string) {
         // Явно показываем модель (на случай, если она была скрыта)
         if (localModel) {
             localModel.visible = true;
+            const existingTag = localModel.getObjectByName('nameTag');
+            if (!existingTag) {
+                const tag = createNameTag(localStorage.getItem('ogm_playerName') || 'Герой');
+                attachNameTag(localModel, tag);
+                console.log('[NET] Тег создан принудительно');
+            }
             // Отправляем начальное состояние, раз уж модель готова
             room.send("move", { x: localModel.position.x, z: localModel.position.z, r: localModel.rotation.y });
         }
