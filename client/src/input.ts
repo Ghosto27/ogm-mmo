@@ -13,8 +13,8 @@ export function getMovementInput(): { x: number; z: number } {
     let x = 0, z = 0;
     if (keys['w'] || keys['arrowup'] || keys['ц']) z -= 1;
     if (keys['s'] || keys['arrowdown'] || keys['ы']) z += 1;
-    if (keys['a'] || keys['arrowleft'] || keys['ф']) x -= 1;
-    if (keys['d'] || keys['arrowright'] || keys['в']) x += 1;
+    if (keys['a'] || keys['arrowleft'] || keys['ф']) x += 1;
+    if (keys['d'] || keys['arrowright'] || keys['в']) x -= 1;
     if (x !== 0 || z !== 0) {
         const len = Math.sqrt(x * x + z * z);
         x /= len;
@@ -42,7 +42,7 @@ export function getCameraRelativeMovement(camera: THREE.Camera): THREE.Vector3 {
     // Вычисляем итоговый вектор движения
     const move = new THREE.Vector3();
     move.add(forward.multiplyScalar(-rawInput.z)); // Вперёд/назад
-    move.add(right.multiplyScalar(rawInput.x));    // Влево/вправо
+    move.add(right.multiplyScalar(-rawInput.x));    // Влево/вправо
     move.normalize();
 
     return move;

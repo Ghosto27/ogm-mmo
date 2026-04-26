@@ -31,12 +31,12 @@ export const wolfModelReady = new Promise<void>((resolve, reject) => {
 
             wolfAnimations = gltf.animations;
             wolfTemplate.scale.set(0.8, 0.8, 0.8);
-            console.log('[MOB] Шаблон волка загружен. Анимаций:', wolfAnimations.length);
-            console.log('[MOB] Проверка текстур шаблона волка:');
+            //console.log('[MOB] Шаблон волка загружен. Анимаций:', wolfAnimations.length);
+            //console.log('[MOB] Проверка текстур шаблона волка:');
             wolfTemplate!.traverse((child) => {
                 if (child instanceof THREE.Mesh) {
                     const material = child.material as THREE.MeshStandardMaterial;
-                    console.log(`[MOB] Меш: ${child.name}, map: ${!!material.map}, emissiveMap: ${!!material.emissiveMap}, emissive: ${!!material.emissive}`);
+                    //console.log(`[MOB] Меш: ${child.name}, map: ${!!material.map}, emissiveMap: ${!!material.emissiveMap}, emissive: ${!!material.emissive}`);
                 }
             });
             

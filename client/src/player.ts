@@ -21,7 +21,7 @@ export const modelReady = new Promise<void>((resolve, reject) => {
             modelTemplate.matrixAutoUpdate = false;
             if (modelTemplate.parent) modelTemplate.parent.remove(modelTemplate);
             defaultAnimations = gltf.animations;
-            modelTemplate.scale.set(0.8, 0.8, 0.8);
+            //modelTemplate.scale.set(1, 1, 1);
             console.log('[MODEL] Шаблон Warrior загружен. Анимаций:', defaultAnimations.length);
             resolve();
         },

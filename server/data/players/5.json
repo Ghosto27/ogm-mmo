@@ -1,16 +1,16 @@
 {
-  "hp": 40,
-  "maxHp": 160,
-  "level": 1,
-  "exp": 50,
-  "expToLevel": 100,
+  "hp": 80,
+  "maxHp": 210,
+  "level": 6,
+  "exp": 413,
+  "expToLevel": 757,
   "stats": {
-    "strength": 15,
+    "strength": 10,
     "dexterity": 10,
     "intelligence": 10,
     "vitality": 10,
     "luck": 5,
-    "attackPower": 30,
+    "attackPower": 20,
     "defense": 5,
     "critChance": 6
   },
@@ -116,18 +116,5 @@
       "quantity": 0
     }
   ],
-  "equipment": {
-    "weapon": {
-      "id": "sword_01",
-      "name": "Меч новичка",
-      "description": "Простой, но надёжный",
-      "maxStack": 1,
-      "icon": "icons/sword.png",
-      "slot": "weapon",
-      "requiredLevel": 1,
-      "bonuses": {
-        "strength": 5
-      }
-    }
-  }
+  "equipment": {}
 }

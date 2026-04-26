@@ -69,7 +69,8 @@ window.addEventListener('mouseup', (event) => {
                 });
                 if (mobId && room) {
                     room.send("attackMob", { mobId });
-                    console.log(`[ATTACK] Моб ${mobId}`);
+                    fsm['local']?.playOneShot('sword_attack', 0.1);  // 👈 добавляем анимацию удара
+                    console.log(`[ATTACK] Атака на моба ${mobId}`);
                 }
                 return;
             }

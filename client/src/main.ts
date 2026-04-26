@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { PLAYER_SPEED, STORAGE_KEY } from './config';
 import { scene, camera, renderer } from './scene';
 import { getMovementInput, getCameraRelativeMovement } from './input';
-import { localModel, otherPlayers, modelReady, fsm } from './player';
+import { localModel, otherPlayers, modelReady, fsm, deathAnimating } from './player';
 import { room, startConnection, lastMoveTimes } from './network';
 import { composer, outlinePass } from './postprocessing';
 import { updateAnimations } from './animationUtils';
@@ -125,11 +125,16 @@ function loop() {
                     lastSend = nowSend;
                 } catch (e) {}
             }
-            fsm['local']?.transitionTo('walk');
+            if (!deathAnimating['local']) {
+                 fsm['local']?.transitionTo('walk');
+            }
         } else {
-            fsm['local']?.transitionTo('idle');
+            if (!deathAnimating['local']) {
+                fsm['local']?.transitionTo('idle');
+            }
         }
     }
+
 
     if (localModel) {
         const box = new THREE.Box3().setFromObject(localModel);
@@ -160,7 +165,7 @@ function loop() {
     const IDLE_TIMEOUT = 200;
     for (const sessionId in otherPlayers) {
         const lastMove = lastMoveTimes[sessionId] || 0;
-        if (Date.now() - lastMove > IDLE_TIMEOUT) {
+        if (Date.now() - lastMove > IDLE_TIMEOUT && otherPlayers[sessionId]?.visible) {
             fsm[sessionId]?.transitionTo('idle');
         }
     }

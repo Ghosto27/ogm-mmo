@@ -3,7 +3,7 @@ import { SERVER_URL } from './config';
 import {
     localModel, initLocalModel, otherPlayers, hpBars,
     showLocalHpBar, hideLocalHpBar, updateOtherPlayer, removeOtherPlayerVisuals,
-    deathAnimating, fsm
+    deathAnimating, fsm, actions        // <-- добавили actions
 } from './player';
 import { setTargetPosition } from './animationUtils';
 import { updateHpBarSprite } from './utils';
@@ -87,20 +87,35 @@ function join(playerName: string) {
                     wasDead = false;
                     localModel!.position.x = myPlayer.x;
                     localModel!.position.z = myPlayer.z;
+
+                    // Принудительно сбрасываем скелет в rest‑позу перед запуском idle
+                    const curActions = actions['local'];
+                    if (curActions) {
+                        Object.values(curActions).forEach(a => { if (a) a.stop(); });
+                    }
                     fsm['local']?.transitionTo('idle');
                 }
 
                 const localOldHp = prevHp[room.sessionId] ?? myPlayer.hp;
-                if (myPlayer.hp < localOldHp) {
-                    fsm['local']?.playOneShot('recievehit', 0.1);
+                if (myPlayer.hp < localOldHp && alive) {
+                    // Если игрок умирает, не запускаем recievehit – сразу будет death
+                    if (myPlayer.hp <= 0) {
+                        // Урон смертельный, recievehit не нужен
+                    } else {
+                        fsm['local']?.playOneShot('recievehit', 0.1);
+                    }
                 }
                 prevHp[room.sessionId] = myPlayer.hp;
 
                 if (!alive && !wasDead) {
+                    if (deathAnimating['local']) return;
                     fsm['local']?.playOneShot('death', 0.1, () => {
-                        console.log('[DEATH] local death callback');
-                        if (localModel) localModel.visible = false;
-                        deathAnimating['local'] = false;
+                        // Оставляем труп на 2 секунды
+                        setTimeout(() => {
+                            if (localModel) localModel.visible = false;
+                            deathAnimating['local'] = false;
+                            console.log('[DEATH] Труп скрыт');
+                        }, 2000);
                     });
                     deathAnimating['local'] = true;
                     wasDead = true;
@@ -126,6 +141,11 @@ function join(playerName: string) {
                 if (player.hp > 0 && playerWasDead[sessionId]) {
                     playerWasDead[sessionId] = false;
                     if (otherPlayers[sessionId]) otherPlayers[sessionId].visible = true;
+                    // Сброс позы для чужого игрока после возрождения
+                    const curActions = actions[sessionId];
+                    if (curActions) {
+                        Object.values(curActions).forEach(a => { if (a) a.stop(); });
+                    }
                     if (fsm[sessionId]) fsm[sessionId].transitionTo('idle');
                 }
 
@@ -140,9 +160,8 @@ function join(playerName: string) {
                 lastMoveTimes[sessionId] = Date.now();
 
                 const oldHp = prevHp[sessionId] ?? player.hp;
-                if (player.hp < oldHp && player.hp > 0) {
+                if (player.hp < oldHp && player.hp > 0) {  // тут уже есть проверка >0
                     fsm[sessionId]?.playOneShot('recievehit', 0.1);
-                    console.log(`[DAMAGE] ${sessionId} получил урон, новое HP: ${player.hp}`);
                 }
                 prevHp[sessionId] = player.hp;
 
@@ -151,6 +170,7 @@ function join(playerName: string) {
                 }
 
                 if (player.hp <= 0 && !deathAnimating[sessionId]) {
+                    if (deathAnimating[sessionId]) return;
                     deathAnimating[sessionId] = true;
                     playerWasDead[sessionId] = true;
                     if (hpBars[sessionId]) {
@@ -172,10 +192,12 @@ function join(playerName: string) {
                     otherPlayers[sessionId].rotation.y = player.rotationY ?? 0;
                 }
 
-                if (moving && fsm[sessionId]) {
-                    fsm[sessionId].transitionTo('walk');
-                } else if (!moving && fsm[sessionId] && fsm[sessionId].currentStateName !== 'idle') {
-                    fsm[sessionId].transitionTo('idle');
+                if (player.hp > 0) { // только для живых
+                    if (moving && fsm[sessionId]) {
+                        fsm[sessionId].transitionTo('walk');
+                    } else if (!moving && fsm[sessionId] && fsm[sessionId].currentStateName !== 'idle') {
+                        fsm[sessionId].transitionTo('idle');
+                    }
                 }
             });
 
