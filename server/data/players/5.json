@@ -1,8 +1,8 @@
 {
-  "hp": 80,
+  "hp": 20,
   "maxHp": 210,
   "level": 6,
-  "exp": 413,
+  "exp": 753,
   "expToLevel": 757,
   "stats": {
     "strength": 10,

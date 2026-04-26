@@ -82,12 +82,14 @@ function join(playerName: string) {
                 }
 
                 if (alive && wasDead) {
+                    if (fsm['local']) fsm['local'].isDead = false;
                     deathAnimating['local'] = false;
                     localModel!.visible = true;
                     wasDead = false;
                     localModel!.position.x = myPlayer.x;
                     localModel!.position.z = myPlayer.z;
 
+                    fsm['local']?.enable(); 
                     // Принудительно сбрасываем скелет в rest‑позу перед запуском idle
                     const curActions = actions['local'];
                     if (curActions) {
@@ -118,6 +120,7 @@ function join(playerName: string) {
                         }, 2000);
                     });
                     deathAnimating['local'] = true;
+                    fsm['local']?.disable(); 
                     wasDead = true;
                     showLocalHpBar(myPlayer.x, myPlayer.z, 0, myPlayer.maxHp);
                     hideLocalHpBar();
@@ -139,6 +142,8 @@ function join(playerName: string) {
                 if (sessionId === room.sessionId) return;
 
                 if (player.hp > 0 && playerWasDead[sessionId]) {
+                    if (fsm[sessionId]) fsm[sessionId].isDead = false;
+                    fsm[sessionId]?.enable()
                     playerWasDead[sessionId] = false;
                     if (otherPlayers[sessionId]) otherPlayers[sessionId].visible = true;
                     // Сброс позы для чужого игрока после возрождения
@@ -171,6 +176,7 @@ function join(playerName: string) {
 
                 if (player.hp <= 0 && !deathAnimating[sessionId]) {
                     if (deathAnimating[sessionId]) return;
+                    fsm[sessionId]?.disable()
                     deathAnimating[sessionId] = true;
                     playerWasDead[sessionId] = true;
                     if (hpBars[sessionId]) {

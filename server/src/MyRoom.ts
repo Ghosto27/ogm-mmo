@@ -147,7 +147,7 @@ export class MyRoom extends Room<MyRoomState> {
                     const dist = Math.sqrt(dx * dx + dz * dz);
 
                     // Если игрок вплотную (радиус атаки 2.0) – стоим на месте и кусаем
-                     if (dist <= 3.0) {
+                     if (dist <= 3.0 && target.hp > 0) {
                         mob.state = 'attack';
                         if (!mob.lastAttackTime || Date.now() - mob.lastAttackTime > 1500) {
                             target.hp -= 10;

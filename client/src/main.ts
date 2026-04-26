@@ -125,13 +125,13 @@ function loop() {
                     lastSend = nowSend;
                 } catch (e) {}
             }
-            if (!deathAnimating['local']) {
+            
                  fsm['local']?.transitionTo('walk');
-            }
+            
         } else {
-            if (!deathAnimating['local']) {
+            
                 fsm['local']?.transitionTo('idle');
-            }
+            
         }
     }
 
