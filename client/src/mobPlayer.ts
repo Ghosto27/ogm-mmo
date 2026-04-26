@@ -54,6 +54,7 @@ export const mobMixers: { [mobId: string]: THREE.AnimationMixer } = {};
 export const mobActions: { [mobId: string]: Record<string, THREE.AnimationAction | null> } = {};
 export const mobFSM: { [mobId: string]: AnimationStateMachine } = {};
 export const mobHpBars: { [mobId: string]: THREE.Sprite } = {};
+export const mobDeathAnimating: { [mobId: string]: boolean } = {};
 
 const mobTargetPositions: { [mobId: string]: THREE.Vector3 } = {};
 const MOB_INTERPOLATION_SPEED = 10.0;
@@ -152,8 +153,7 @@ export function spawnMob(mobId: string, x: number, z: number, hp: number, maxHp:
     setMobTargetPosition(mobId, x, z);
 }
 
-// Измените updateMobState: сохраняем предыдущую позицию
-export function updateMobState(mobId: string, x: number, z: number, hp: number, maxHp: number, state: string) {
+export function updateMobState(mobId: string, x: number, z: number, hp: number, maxHp: number, state: string, subState?: string) {
     const model = mobModels[mobId];
     if (!model) return;
     
@@ -169,12 +169,28 @@ export function updateMobState(mobId: string, x: number, z: number, hp: number, 
     
     const fsm = mobFSM[mobId];
     if (fsm) {
-        const lowerState = state.toLowerCase();
-        if (lowerState === 'attack' || lowerState === 'death') {
+         const lowerState = state.toLowerCase();
+        // Игнорируем любые анимации, если уже проигрывается смерть
+        if (mobDeathAnimating[mobId] && lowerState !== 'death') {
+            return;
+        }
+        if (lowerState === 'attack' || lowerState === 'death' || 
+            lowerState === 'hitreact1' || lowerState === 'hitreact2' || 
+            lowerState === 'gallop_jump') {
             if (fsm.currentStateName !== lowerState) {
-                fsm.playOneShot(lowerState, 0.1);
+                // Для смерти взводим флаг и не даём перезапустить
+                if (lowerState === 'death') {
+                    if (!mobDeathAnimating[mobId]) {
+                        mobDeathAnimating[mobId] = true;
+                        fsm.playOneShot(lowerState, 0.1);
+                    }
+                } else {
+                    fsm.playOneShot(lowerState, 0.1);
+                }
             }
         } else {
+            // Циклические анимации (idle, idle_2, idle_2_headlow, walk, gallop)
+            if (mobDeathAnimating[mobId]) return;
             if (fsm.currentStateName !== lowerState) {
                 fsm.transitionTo(lowerState);
             }
@@ -183,6 +199,7 @@ export function updateMobState(mobId: string, x: number, z: number, hp: number, 
 }
 
 export function despawnMob(mobId: string) {
+    delete mobDeathAnimating[mobId];
     const model = mobModels[mobId];
     if (model) {
         scene.remove(model);

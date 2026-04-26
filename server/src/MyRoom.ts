@@ -113,7 +113,8 @@ export class MyRoom extends Room<MyRoomState> {
             mob.hp -= damage;
             console.log(`[ATTACK] ${attacker.name} ударил волка ${mobId} на ${damage} урона (AP: ${attacker.stats.attackPower})`);
 
-            mob.state = 'walk';
+            const hitAnim = Math.random() < 0.5 ? 'hitreact1' : 'hitreact2';
+            mob.state = hitAnim;   // клиент подхватит через updateMobState
             mob.targetId = client.sessionId;
 
             if (mob.hp <= 0) {
@@ -121,7 +122,7 @@ export class MyRoom extends Room<MyRoomState> {
             }
         });
 
-        // Игровой цикл мобов (каждые 500 мс)
+        // Игровой цикл мобов (каждые 250 мс)
         this.mobInterval = setInterval(() => {
             this.state.mobs.forEach((mob, mobId) => {
                 if (mob.hp <= 0) return;
@@ -144,8 +145,20 @@ export class MyRoom extends Room<MyRoomState> {
                     const dz = target.z - mob.z;
                     const dist = Math.sqrt(dx * dx + dz * dz);
 
-                    // Если игрок вплотную (радиус атаки 2.0) – стоим на месте и кусаем
-                     if (dist <= 3.0 && target.hp > 0) {
+                    // Определяем тип движения в зависимости от расстояния
+                    if (dist > 4.0) {
+                        mob.state = 'gallop';   // 🐺 быстрый бег при большом расстоянии
+                    } else {
+                        mob.state = 'walk';     // обычное преследование
+                    }
+
+                    // 🔥 Прыжок при резком сближении (gallop_jump)
+                    if (dist <= 5 && dist > 4 && mob.state !== 'gallop_jump') {
+                        mob.state = 'gallop_jump';
+                    }
+
+                    // Атака при достаточном приближении
+                    if (dist <= 3.0 && target.hp > 0) {
                         mob.state = 'attack';
                         if (!mob.lastAttackTime || Date.now() - mob.lastAttackTime > 1500) {
                             target.hp -= 10;
@@ -155,7 +168,6 @@ export class MyRoom extends Room<MyRoomState> {
                             // Проверка смерти игрока от моба
                             if (target.hp <= 0) {
                                 console.log(`[DEATH] ${target.name} убит волком. Возрождение через 5 сек.`);
-                                // Ищем sessionId цели
                                 let deadSessionId: string | null = null;
                                 this.state.players.forEach((player, sid) => {
                                     if (player === target) deadSessionId = sid;
@@ -176,9 +188,8 @@ export class MyRoom extends Room<MyRoomState> {
                             }
                         }
                     } else {
-                        // Движение к игроку
-                        mob.state = 'walk';
-                        const speed = 2.5;
+                        // Движение к игроку с учётом состояния (gallop/walk)
+                        const speed = mob.state === 'gallop' ? 4.0 : 2.5;
                         const step = Math.min(speed * 0.25, dist);
                         mob.x += (dx / dist) * step;
                         mob.z += (dz / dist) * step;
@@ -190,22 +201,31 @@ export class MyRoom extends Room<MyRoomState> {
                     }
                 } else {
                     // Случайное блуждание с паузами
-                    mob.idleTimer -= 0.25; // интервал 250 мс, за 1 сек проходят 4 тика
+                    mob.idleTimer -= 1;
                     if (mob.idleTimer <= 0) {
                         // Выбираем новое направление и длительность движения (1.5–4 секунды)
                         mob.patrolAngle = Math.random() * Math.PI * 2;
                         mob.idleTimer = 1.5 + Math.random() * 2.5;
                     }
-                    if (mob.idleTimer > 0.8) { // первую часть времени двигаемся
+                    if (mob.idleTimer > 0.6) { // первую часть времени двигаемся
                         mob.state = 'walk';
                         mob.x += Math.cos(mob.patrolAngle) * 1.2 * 0.5;
                         mob.z += Math.sin(mob.patrolAngle) * 1.2 * 0.5;
                         let diff = mob.patrolAngle - mob.rotationY;
                         while (diff > Math.PI) diff -= 2 * Math.PI;
                         while (diff < -Math.PI) diff += 2 * Math.PI;
-                        mob.rotationY += (Math.random() - 0.5) * 0.1; 
+                        mob.rotationY += diff * 0.2;
                     } else {
-                        mob.state = 'idle'; // стоим на месте
+                        // Разнообразный отдых: случайный выбор между idle, idle_2 и idle_2_headlow
+                        const r = Math.random();
+                        if (r < 0.3) {
+                            mob.state = 'idle_2';
+                        } else if (r < 0.6) {
+                            mob.state = 'idle_2_headlow';
+                        } else {
+                            mob.state = 'idle';
+                        }
+                        mob.rotationY += (Math.random() - 0.5) * 0.1;
                     }
                 }
             });

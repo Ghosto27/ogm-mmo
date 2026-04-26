@@ -52,6 +52,9 @@ export class MobSpawner {
         const mob = this.room.state.mobs.get(mobId);
         if (!mob) return;
 
+        // Устанавливаем состояние смерти (клиент проиграет анимацию)
+        mob.state = 'death';
+
         // Опыт только убийце (если передан)
         if (killerSessionId) {
             const killer = this.room.state.players.get(killerSessionId);
@@ -60,7 +63,7 @@ export class MobSpawner {
             }
         }
 
-        // Создание мешка с лутом (без изменений)
+        // Создание мешка с лутом
         const lootItems: { item: Item, quantity: number }[] = [];
         const potion = Object.assign(new Item(), itemDatabase["potion_hp_01"]);
         const sword = Object.assign(new Item(), itemDatabase["sword_01"]);
@@ -76,18 +79,12 @@ export class MobSpawner {
         const bag = new LootBag(bagId, landX, landZ, mob.x, mob.z, lootItems);
         this.room.state.lootBags.set(bagId, bag);
 
-        // Удаляем мешок через 60 секунд, только если он не был опустошён
-        /* const deleteTimer = setTimeout(() => {
-            if (this.room.state.lootBags.has(bagId) && (this.room.state.lootBags.get(bagId)?.items.length ?? 0) > 0) {
-                this.room.state.lootBags.delete(bagId);
-            }
-        }, 60000); */
-
-        // Удаление моба и респаун
+        // Даём время на проигрывание анимации смерти (3 секунды)
         setTimeout(() => {
             this.room.state.mobs.delete(mobId);
             this.mobCount--;
+            // Респавн через 10 секунд после удаления
             setTimeout(() => this.spawnOne(), 10000);
-        }, 5000);
+        }, 3000);
     }
 }
