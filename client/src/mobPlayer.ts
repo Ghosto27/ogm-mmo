@@ -6,6 +6,14 @@ import { scene } from './scene';
 import { createHpBar, updateHpBarSprite } from './utils';
 import { createEnemyToonMaterial } from './materials';
 
+const lastMobPositions: { [mobId: string]: THREE.Vector3 } = {};
+const mobTargetAngles: { [mobId: string]: number } = {};
+const MOB_ANGLE_INTERPOLATION = 4.0; // скорость поворота
+
+export function setMobTargetAngle(mobId: string, angle: number) {
+    mobTargetAngles[mobId] = angle;
+}
+
 // ---------- ХРАНЕНИЕ ШАБЛОНА МОДЕЛИ ----------
 let wolfTemplate: THREE.Group | null = null;
 let wolfAnimations: THREE.AnimationClip[] = [];
@@ -47,6 +55,7 @@ function createWolfInstance(mobId: string): THREE.Group {
     const model = clone(wolfTemplate) as unknown as THREE.Group;
     model.visible = true;
     model.matrixAutoUpdate = true;
+    model.rotation.set(0, Math.PI, 0);
 
     // Заменяем материал на toon-совместимый
     model.traverse((child: THREE.Object3D) => {
@@ -112,24 +121,37 @@ export function setMobTargetPosition(mobId: string, x: number, z: number) {
     }
 }
 
-export function spawnMob(mobId: string, x: number, z: number, hp: number, maxHp: number) {
+export function spawnMob(mobId: string, x: number, z: number, hp: number, maxHp: number, rotationY?: number) {
     if (mobModels[mobId]) return;
 
     const model = createWolfInstance(mobId);
     model.position.set(x, 0, z);
+    if (rotationY !== undefined) {
+        model.rotation.y = rotationY;
+        setMobTargetAngle(mobId, rotationY);
+    }
     mobModels[mobId] = model;
 
     updateHpBarSprite(mobHpBars[mobId], hp, maxHp);
     setMobTargetPosition(mobId, x, z);
 }
 
-export function updateMobState(mobId: string, x: number, z: number, hp: number, maxHp: number, state: string) {
+// Измените updateMobState: сохраняем предыдущую позицию
+export function updateMobState(mobId: string, x: number, z: number, hp: number, maxHp: number, state: string, rotationY?: number) {
     const model = mobModels[mobId];
     if (!model) return;
-
+    
+    // Сохраняем предыдущую позицию для вычисления направления
+    if (lastMobPositions[mobId]) {
+        lastMobPositions[mobId].set(model.position.x, 0, model.position.z);
+    } else {
+        lastMobPositions[mobId] = new THREE.Vector3(model.position.x, 0, model.position.z);
+    }
+    
     setMobTargetPosition(mobId, x, z);
+    // Угол больше не сохраняем с сервера – будем вычислять сами
     updateHpBarSprite(mobHpBars[mobId], hp, maxHp);
-
+    
     const fsm = mobFSM[mobId];
     if (fsm) {
         const lowerState = state.toLowerCase();
@@ -166,12 +188,31 @@ export function updateMobAnimations(deltaTime: number) {
 
 export function interpolateMobPositions(deltaTime: number) {
     for (const mobId in mobModels) {
-        const target = mobTargetPositions[mobId];
-        if (!target) continue;
         const model = mobModels[mobId];
         if (!model) continue;
-        const t = Math.min(MOB_INTERPOLATION_SPEED * deltaTime, 1.0);
-        model.position.x += (target.x - model.position.x) * t;
-        model.position.z += (target.z - model.position.z) * t;
+
+        // Интерполяция позиции (плавное движение к цели)
+        const targetPos = mobTargetPositions[mobId];
+        if (targetPos) {
+            const t = Math.min(MOB_INTERPOLATION_SPEED * deltaTime, 1.0);
+            model.position.x += (targetPos.x - model.position.x) * t;
+            model.position.z += (targetPos.z - model.position.z) * t;
+
+            // Вычисляем угол по вектору от предыдущей позиции к целевой
+            const prevPos = lastMobPositions[mobId];
+            if (prevPos) {
+                const dx = targetPos.x - prevPos.x;
+                const dz = targetPos.z - prevPos.z;
+                const dist = Math.sqrt(dx * dx + dz * dz);
+                if (dist > 0.01) { // если есть движение
+                    const targetAngle = Math.atan2(dx, dz);
+                    const currentAngle = model.rotation.y;
+                    let diff = targetAngle - currentAngle;
+                    while (diff > Math.PI) diff -= 2 * Math.PI;
+                    while (diff < -Math.PI) diff += 2 * Math.PI;
+                    model.rotation.y += diff * Math.min(1, MOB_ANGLE_INTERPOLATION * deltaTime);
+                }
+            }
+        }
     }
 }

@@ -10,4 +10,5 @@ export class Mob extends Schema {
     @type("number") expReward: number = 50;
     @type("string") state: string = "idle";       // idle, patrol, chase, attack, dead
     @type("string") targetId: string = "";        // sessionId игрока, которого атакует
+    @type("number") lastAttackTime: number = 0;
 }

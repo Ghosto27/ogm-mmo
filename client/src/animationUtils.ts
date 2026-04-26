@@ -4,7 +4,6 @@ import { mobModels } from './mobPlayer';
 
 const targetPositions: { [id: string]: THREE.Vector3 } = {};
 const INTERPOLATION_SPEED = 10.0;
-const MOB_INTERPOLATION_SPEED = 10.0;
 
 export function setTargetPosition(id: string, x: number, z: number) {
     if (!targetPositions[id]) targetPositions[id] = new THREE.Vector3(x, 0, z);

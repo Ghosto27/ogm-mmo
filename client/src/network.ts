@@ -182,7 +182,7 @@ function join(playerName: string) {
             // ---------- Мобы ----------
             state.mobs.forEach((mob: any, mobId: string) => {
                 if (!mobModels[mobId]) {
-                    spawnMob(mobId, mob.x, mob.z, mob.hp, mob.maxHp);
+                    spawnMob(mobId, mob.x, mob.z, mob.hp, mob.maxHp, mob.rotationY);
                 } else {
                     updateMobState(mobId, mob.x, mob.z, mob.hp, mob.maxHp, mob.state);
                 }

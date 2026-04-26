@@ -43,7 +43,7 @@ window.addEventListener('mouseup', (event) => {
                     const targetModel = otherPlayers[targetId];
                     if (!targetModel) return;
                     const dist = targetModel.position.distanceTo(localModel.position);
-                    if (dist <= 2.5) {
+                    if (dist <= 4) {
                         room.send("attack", { target: targetId });
                         fsm['local']?.playOneShot('sword_attack', 0.1);
                         console.log(`[ATTACK] Игрок ${targetId} (дист. ${dist.toFixed(2)})`);

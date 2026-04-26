@@ -53,7 +53,7 @@ export class MyRoom extends Room<MyRoomState> {
 
             const dx = attacker.x - target.x;
             const dz = attacker.z - target.z;
-            if (Math.sqrt(dx*dx + dz*dz) > 2.5) return;
+            if (Math.sqrt(dx*dx + dz*dz) > 4) return;
 
             target.hp -= 10;
             this.addExperience(attacker, 10);
@@ -96,7 +96,7 @@ export class MyRoom extends Room<MyRoomState> {
 
             const dx = attacker.x - mob.x;
             const dz = attacker.z - mob.z;
-            if (Math.sqrt(dx*dx + dz*dz) > 2.5) return;
+            if (Math.sqrt(dx*dx + dz*dz) > 4) return;
 
             mob.hp -= 10;
             mob.state = 'walk'; // заставляем идти к атакующему
@@ -113,9 +113,10 @@ export class MyRoom extends Room<MyRoomState> {
             this.state.mobs.forEach((mob, mobId) => {
                 if (mob.hp <= 0) return;
 
+                // Ищем ближайшего живого игрока в радиусе 12
                 let closestPlayer: Player | null = null;
                 let closestDist = 12;
-                this.state.players.forEach((player: Player) => {   // <-- ЯВНОЕ УКАЗАНИЕ ТИПА
+                this.state.players.forEach((player: Player) => {
                     if (player.hp <= 0) return;
                     const d = Math.sqrt((mob.x - player.x) ** 2 + (mob.z - player.z) ** 2);
                     if (d < closestDist) {
@@ -125,50 +126,65 @@ export class MyRoom extends Room<MyRoomState> {
                 });
 
                 if (closestPlayer) {
-                    const target: Player = closestPlayer; // ЯВНОЕ ПРИВЕДЕНИЕ ТИПА
-                    mob.state = 'walk';
-                    const angle = Math.atan2(target.z - mob.z, target.x - mob.x);
-                    mob.x += Math.cos(angle) * 3 * 0.5;
-                    mob.z += Math.sin(angle) * 3 * 0.5;
-                    mob.rotationY = angle;
+                    const target: Player = closestPlayer;
+                    const dx = target.x - mob.x;
+                    const dz = target.z - mob.z;
+                    const dist = Math.sqrt(dx * dx + dz * dz);
 
-                    if (closestDist < 2.5) {
+                    // Если игрок вплотную (радиус атаки 2.0) – стоим на месте и кусаем
+                     if (dist <= 3.0) {
                         mob.state = 'attack';
-                        target.hp -= 5;
-                        this.broadcast("mobAttackAnim", { mobId });
+                        if (!mob.lastAttackTime || Date.now() - mob.lastAttackTime > 1500) {
+                            target.hp -= 10;
+                            mob.lastAttackTime = Date.now();
+                            this.broadcast("mobAttackAnim", { mobId });
 
-                        // Проверка смерти игрока от моба
-                        if (target.hp <= 0) {
-                            console.log(`[DEATH] ${target.name} убит волком. Возрождение через 5 сек.`);
-                            const deadSessionId = (() => {
-                                for (const [sid, player] of this.state.players) {
-                                    if (player === target) return sid;
+                            // Проверка смерти игрока от моба
+                            if (target.hp <= 0) {
+                                console.log(`[DEATH] ${target.name} убит волком. Возрождение через 5 сек.`);
+                                // Ищем sessionId цели
+                                let deadSessionId: string | null = null;
+                                this.state.players.forEach((player, sid) => {
+                                    if (player === target) deadSessionId = sid;
+                                });
+                                if (deadSessionId) {
+                                    const sid = deadSessionId;
+                                    setTimeout(() => {
+                                        const deadPlayer = this.state.players.get(sid);
+                                        if (deadPlayer && deadPlayer.hp <= 0) {
+                                            deadPlayer.hp = deadPlayer.maxHp;
+                                            deadPlayer.x = 0;
+                                            deadPlayer.z = 0;
+                                            this.state.players.set(sid, deadPlayer);
+                                            console.log(`[RESPAWN] ${deadPlayer.name} возрождён в центре`);
+                                        }
+                                    }, 5000);
                                 }
-                                return null;
-                            })();
-                            if (deadSessionId) {
-                                setTimeout(() => {
-                                    const deadPlayer = this.state.players.get(deadSessionId);
-                                    if (deadPlayer && deadPlayer.hp <= 0) {
-                                        deadPlayer.hp = deadPlayer.maxHp;
-                                        deadPlayer.x = 0;
-                                        deadPlayer.z = 0;
-                                        // Явно обновляем состояние
-                                        this.state.players.set(deadSessionId, deadPlayer);
-                                        console.log(`[RESPAWN] ${deadPlayer.name} возрождён в центре`);
-                                    }
-                                }, 5000);
                             }
                         }
+                    } else {
+                        // Движение к игроку
+                        mob.state = 'walk';
+                        const speed = 2.5;
+                        const step = Math.min(speed * 0.25, dist);
+                        mob.x += (dx / dist) * step;
+                        mob.z += (dz / dist) * step;
+                        const targetAngle = Math.atan2(target.z - mob.z, target.x - mob.x);
+                        let diff = targetAngle - mob.rotationY;
+                        while (diff > Math.PI) diff -= 2 * Math.PI;
+                        while (diff < -Math.PI) diff += 2 * Math.PI;
+                        mob.rotationY += diff * 0.3;
                     }
                 } else {
+                    // Нет игроков поблизости – случайное блуждание с небольшой скоростью
                     mob.state = 'walk';
-                    mob.x += (Math.random() - 0.5) * 2;
-                    mob.z += (Math.random() - 0.5) * 2;
-                    mob.rotationY += (Math.random() - 0.5) * 0.5;
+                    mob.x += (Math.random() - 0.5) * 1.0;
+                    mob.z += (Math.random() - 0.5) * 1.0;
+                    // Очень плавный случайный поворот
+                    mob.rotationY += (Math.random() - 0.5) * 0.1;
                 }
             });
-        }, 500);
+        }, 250);
 
         console.log("Комната 'world' создана");
     }
