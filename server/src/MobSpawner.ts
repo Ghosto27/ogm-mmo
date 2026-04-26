@@ -1,5 +1,10 @@
 import { Mob } from "./Mob";
 import type { MyRoom } from "./MyRoom";
+import { LootBag } from "./schemas/LootBag";
+import { Item } from "./models/Item";
+import { ItemSlot } from "./models/ItemSlot";
+import { itemDatabase } from "./data/items";
+ 
 
 const MAX_MOBS = 1;
 const SPAWN_RADIUS = 30; // от центра
@@ -46,19 +51,37 @@ export class MobSpawner {
     public onMobDied(mobId: string) {
         const mob = this.room.state.mobs.get(mobId);
         if (!mob) return;
-        mob.state = "dead";
-        // Даём опыт всем игрокам в комнате (заглушка)
+
+        // Собираем лут (пока тестовый)
+        const lootItems: { item: Item, quantity: number }[] = [];
+        const potion = Object.assign(new Item(), itemDatabase["potion_hp_01"]);
+        const sword = Object.assign(new Item(), itemDatabase["sword_01"]);
+        lootItems.push({ item: potion, quantity: 1 });
+        lootItems.push({ item: sword, quantity: 1 });
+
+        const angle = Math.random() * Math.PI * 2;
+        const dist = 1.0 + Math.random() * 2.0; // от 1 до 3 единиц
+        const landX = mob.x + Math.cos(angle) * dist;
+        const landZ = mob.z + Math.sin(angle) * dist;
+
+        const bagId = `loot_${mobId}_${Date.now()}`;
+        const bag = new LootBag(bagId, landX, landZ, mob.x, mob.z, lootItems);
+        this.room.state.lootBags.set(bagId, bag);
+        console.log(`[LOOT] Мешок ${bagId} создан`);
+
+        // Удаляем через 60 секунд
+        setTimeout(() => {
+            this.room.state.lootBags.delete(bagId);
+        }, 60000);
+
+        // Старая логика с опытом и удалением моба
         this.room.state.players.forEach((player, sessionId) => {
-            this.room.addExperience(player, mob.expReward);
+            (this.room as any).addExperience(player, mob.expReward);
         });
-        // Удаляем через 5 секунд
         setTimeout(() => {
             this.room.state.mobs.delete(mobId);
             this.mobCount--;
-            // Респаун нового волка через RESPAWN_DELAY
-            setTimeout(() => {
-                this.spawnOne();
-            }, RESPAWN_DELAY);
+            setTimeout(() => this.spawnOne(), 10000);
         }, 5000);
     }
 }

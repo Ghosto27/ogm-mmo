@@ -6,6 +6,7 @@ import { MobSpawner } from "./MobSpawner";
 import { Inventory } from "./models/Inventory";
 import { itemDatabase } from "./data/items";
 import { Item } from "./models/Item";
+import { LootBag } from "./schemas/LootBag";
 
 class Player extends Schema {
     @type("number") x: number = 0;
@@ -24,6 +25,7 @@ class Player extends Schema {
 class MyRoomState extends Schema {
     @type({ map: Player }) players = new MapSchema<Player>();
     @type({ map: Mob }) mobs = new MapSchema<Mob>();
+    @type({ map: LootBag }) lootBags = new MapSchema<LootBag>();
 }
 
 export class MyRoom extends Room<MyRoomState> {
@@ -202,6 +204,30 @@ export class MyRoom extends Room<MyRoomState> {
             });
         }, 250);
 
+        this.onMessage("lootItem", (client, message) => {
+            const player = this.state.players.get(client.sessionId);
+            if (!player) return;
+
+            const { bagId, slotIndex } = message;
+            const bag = this.state.lootBags.get(bagId);
+            if (!bag) return;
+
+            const slot = bag.items[slotIndex];
+            if (!slot || slot.quantity <= 0) return;
+
+            // Переносим в инвентарь игрока
+            const success = player.inventory.addItem(slot.item!, slot.quantity);
+            if (success) {
+                bag.items.splice(slotIndex, 1);
+                console.log(`[LOOT] ${player.name} забрал предмет из ${bagId}, осталось слотов: ${bag.items.length}`);
+                // Вместо удаления мешка — очищаем массив, чтобы клиент сразу увидел пустой лут
+                if (bag.items.length === 0) {
+                    bag.items.clear(); // очистка синхронизируется автоматически
+                    console.log(`[LOOT] Мешок ${bagId} опустел (items cleared)`);
+                }
+            }
+        });
+
         console.log("Комната 'world' создана");
     }
 
@@ -253,6 +279,7 @@ export class MyRoom extends Room<MyRoomState> {
         }
         this.state.players.delete(client.sessionId);
     }
+    
 
     public addExperience(player: Player, amount: number) {
         player.exp += amount;

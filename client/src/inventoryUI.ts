@@ -62,7 +62,7 @@ export function toggleInventory() {
 }
 
 export function updateInventoryUI(inventory: any) {
-    if (!container || !isVisible) return; // обновляем только когда открыто
+    if (!container) return;
 
     for (let i = 0; i < slotElements.length; i++) {
         const slot = slotElements[i];

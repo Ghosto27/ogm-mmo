@@ -5,6 +5,9 @@ import { mobModels } from './mobPlayer';
 import { room } from './network';
 import { setSelectedTarget } from './selection';
 import { showTargetUI, hideTargetUI } from './targetUI';
+import { } from './render/LootRenderer';
+import { showLootUI, hideLootUI } from './ui/LootWindowUI';
+import { lootMeshes } from './render/LootRenderer';
 
 console.log('[INTERACTION] Module loaded');
 
@@ -115,6 +118,32 @@ window.addEventListener('mouseup', (event) => {
         setSelectedTarget(null);
         hideTargetUI();
         console.log('[LCLICK] Выделение снято');
+    }
+});
+
+// В mousedown или keydown (я предлагаю keydown для F)
+window.addEventListener('keydown', (e) => {
+    if (e.key.toLowerCase() === 'f') {
+        if (!room || !localModel) return;
+        // Ищем ближайший мешок на расстоянии < 2.0
+        let closestBagId: string | null = null;
+        let closestDist = Infinity;
+        for (const bagId in lootMeshes) {
+            const mesh = lootMeshes[bagId];
+            const dist = localModel.position.distanceTo(mesh.position);
+            if (dist < 2.0 && dist < closestDist) {
+                closestDist = dist;
+                closestBagId = bagId;
+            }
+        }
+        if (closestBagId) {
+            const bag = room.state.lootBags.get(closestBagId);
+            if (bag && bag.items.length > 0) {
+                showLootUI(closestBagId, bag.items);
+            }
+        } else {
+            hideLootUI();
+        }
     }
 });
 

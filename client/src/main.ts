@@ -16,6 +16,8 @@ import { updateMobAnimations, interpolateMobPositions } from './mobPlayer';
 import { renderLabels } from './renderers';
 import './interaction';
 import { createInventoryUI, toggleInventory, updateInventoryUI } from './inventoryUI';
+import { createLootUI } from './ui/LootWindowUI';
+import { animateLootMeshes } from './render/LootRenderer';
 
 let playerName = localStorage.getItem(STORAGE_KEY) || '';
 
@@ -37,6 +39,7 @@ modelReady.then(() => {
     createMinimap();
     createWorldMap();
     createInventoryUI();
+    createLootUI();
     setTimeout(() => {
         fsm['local']?.transitionTo('idle');
     }, 500);
@@ -165,7 +168,8 @@ function loop() {
     updateAnimations(deltaTime);
     updateMobAnimations(deltaTime);
     interpolateMobPositions(deltaTime);
-
+    animateLootMeshes();
+    
     composer.render();
     renderLabels(scene, camera);
 }

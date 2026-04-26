@@ -13,6 +13,8 @@ import { mobModels, spawnMob, updateMobState, despawnMob, mobFSM } from './mobPl
 import { createPlayerUI, updatePlayerUI } from './playerUI';
 import { createNameTag, attachNameTag, removeNameTag } from './nameTags';
 import { updateInventoryUI } from './inventoryUI';
+import { lootMeshes, updateLootMeshes, spawnLootMesh } from './render/LootRenderer';
+import { getCurrentBagId, updateLootSlots, hideLootUI } from './ui/LootWindowUI';
 
 export const client = new Client(SERVER_URL);
 export let room: any = null;
@@ -203,6 +205,39 @@ function join(playerName: string) {
             for (const mobId in mobModels) {
                 if (!state.mobs.has(mobId)) {
                     despawnMob(mobId);
+                }
+            }
+
+            // ---------- Мешки с лутом ----------
+            state.lootBags.forEach((bag: any, bagId: string) => {
+                updateLootMeshes(state.lootBags);
+                // Запускаем анимацию только если модели ещё нет и мешок не пуст
+                if (!lootMeshes[bagId] && bag.items.length > 0) {
+                    spawnLootMesh(bagId, bag.mobX, bag.mobZ, bag.x, bag.z);
+                }
+                if (state.lootBags.size > 0 || Object.keys(lootMeshes).length > 0) {
+                    //console.log('[NET] lootBags updated, calling updateLootMeshes');
+                    //console.log('[NET] lootBags size:', state.lootBags.size);
+                    state.lootBags.forEach((bag: any, bagId: string) => {
+                        //console.log(`[NET]   ${bagId} items: ${bag.items.length}`);
+                    });
+                    updateLootMeshes(state.lootBags);
+                }
+                // Если окно открыто для этого мешка – обновить слоты
+                if (getCurrentBagId() === bagId) {
+                    if (bag.items.length === 0) {
+                        hideLootUI();
+                    } else {
+                        updateLootSlots(bag.items);
+                    }
+                }
+            });
+
+            // Удаляем мешки, которых больше нет
+            for (const bagId in lootMeshes) {
+                if (!state.lootBags.has(bagId)) {
+                    // updateLootMeshes уже сделает удаление, но также скроем UI
+                    if (getCurrentBagId() === bagId) hideLootUI();
                 }
             }
         });
