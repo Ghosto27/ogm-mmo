@@ -4,7 +4,7 @@ import { clone } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { AnimationStateMachine } from './animationStateMachine';
 import { scene } from './scene';
 import { createHpBar, updateHpBarSprite } from './utils';
-import { createEnemyToonMaterial, createLocalToonMaterial, cloneMaterial } from './materials';
+import { createEnemyToonMaterial, createLocalToonMaterial, cloneMaterial, toonGradientMap } from './materials';
 
 const lastMobPositions: { [mobId: string]: THREE.Vector3 } = {};
 const mobTargetAngles: { [mobId: string]: number } = {};
@@ -24,6 +24,7 @@ export const wolfModelReady = new Promise<void>((resolve, reject) => {
         '/models/Wolf.gltf',
         (gltf) => {
             wolfTemplate = gltf.scene;
+            (window as any).wolfTemplate = wolfTemplate;
             wolfTemplate.visible = false;
             wolfTemplate.matrixAutoUpdate = false;
             if (wolfTemplate.parent) wolfTemplate.parent.remove(wolfTemplate);
@@ -31,6 +32,15 @@ export const wolfModelReady = new Promise<void>((resolve, reject) => {
             wolfAnimations = gltf.animations;
             wolfTemplate.scale.set(0.8, 0.8, 0.8);
             console.log('[MOB] Шаблон волка загружен. Анимаций:', wolfAnimations.length);
+            console.log('[MOB] Проверка текстур шаблона волка:');
+            wolfTemplate!.traverse((child) => {
+                if (child instanceof THREE.Mesh) {
+                    const material = child.material as THREE.MeshStandardMaterial;
+                    console.log(`[MOB] Меш: ${child.name}, map: ${!!material.map}, emissiveMap: ${!!material.emissiveMap}, emissive: ${!!material.emissive}`);
+                }
+            });
+            
+
             resolve();
         },
         undefined,
@@ -61,14 +71,20 @@ function createWolfInstance(mobId: string): THREE.Group {
     model.traverse((child: THREE.Object3D) => {
         if (child instanceof THREE.Mesh) {
             const orig = child.material as THREE.MeshStandardMaterial;
-            const map = orig.map ?? null;
-            const newMat = cloneMaterial(orig);
+            const newMat = new THREE.MeshToonMaterial({
+                color: orig.color,              // родной цвет меша (например, серый)
+                gradientMap: toonGradientMap,  // toon-тени
+                map: null,                     // текстуры нет
+            });
+
             newMat.transparent = orig.transparent;
             newMat.alphaTest = orig.alphaTest;
             newMat.side = orig.side;
-            newMat.depthWrite = orig.depthWrite;
-            newMat.depthTest = orig.depthTest;
             newMat.vertexColors = orig.vertexColors;
+            newMat.wireframe = orig.wireframe;
+            newMat.emissive = new THREE.Color(0x222222); // лёгкая подсветка
+            newMat.emissiveIntensity = 0.2;
+
             child.material = newMat;
             child.castShadow = true;
             child.receiveShadow = true;
