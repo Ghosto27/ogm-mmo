@@ -194,3 +194,19 @@ export function removeOtherPlayerVisuals(sessionId: string) {
     if (deathAnimating[sessionId]) delete deathAnimating[sessionId];
     if (fsm[sessionId]) delete fsm[sessionId];
 }
+export function resetModelFsms() {
+    // Удаляем все существующие FSM (для локального и чужих игроков)
+    for (const id in fsm) {
+        // Останавливаем все действия, чтобы сбросить состояние
+        const playerFsm = fsm[id];
+        if (playerFsm) {
+            const curActions = actions[id];
+            if (curActions) {
+                Object.values(curActions).forEach(a => a?.stop());
+            }
+            delete fsm[id];
+        }
+    }
+    // Очищаем хранилище actions (если нужно, но actions живут вместе с FSM)
+    // Если у вас actions[id] привязаны к FSM, их можно не трогать.
+}

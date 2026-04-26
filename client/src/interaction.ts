@@ -67,10 +67,19 @@ window.addEventListener('mouseup', (event) => {
                     mobModels[id].traverse(child => { if (child === mesh) found = true; });
                     return found;
                 });
-                if (mobId && room) {
-                    room.send("attackMob", { mobId });
-                    fsm['local']?.playOneShot('sword_attack', 0.1);  // 👈 добавляем анимацию удара
-                    console.log(`[ATTACK] Атака на моба ${mobId}`);
+                if (mobId && room && localModel) {
+                    const mobModel = mobModels[mobId];
+                    if (mobModel) {
+                        const dist = mobModel.position.distanceTo(localModel.position);
+                        const ATTACK_RANGE = 4;   // можно изменить на нужную дистанцию
+                        if (dist <= ATTACK_RANGE) {
+                            room.send("attackMob", { mobId });
+                            fsm['local']?.playOneShot('sword_attack', 0.1);
+                            console.log(`[ATTACK] Атака на моба ${mobId} (дист. ${dist.toFixed(2)})`);
+                        } else {
+                            console.log(`[ATTACK] Моб далеко (${dist.toFixed(2)})`);
+                        }
+                    }
                 }
                 return;
             }

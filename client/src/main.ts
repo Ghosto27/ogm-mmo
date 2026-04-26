@@ -126,12 +126,12 @@ function loop() {
                 } catch (e) {}
             }
                 if (!deathAnimating['local']) {
-                    fsm['local']?.transitionTo('walk');
-                }
+                 fsm['local']?.transitionTo('walk');
+            }
         } else {
-                if (!deathAnimating['local']) {
-                    fsm['local']?.transitionTo('idle');
-                }
+            if (!deathAnimating['local']) {
+                fsm['local']?.transitionTo('idle');
+            }
         }
     }
 

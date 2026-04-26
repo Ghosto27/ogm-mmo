@@ -3,7 +3,7 @@ import { SERVER_URL } from './config';
 import {
     localModel, initLocalModel, otherPlayers, hpBars,
     showLocalHpBar, hideLocalHpBar, updateOtherPlayer, removeOtherPlayerVisuals,
-    deathAnimating, fsm, actions        // <-- добавили actions
+    deathAnimating, fsm, actions
 } from './player';
 import { setTargetPosition } from './animationUtils';
 import { updateHpBarSprite } from './utils';
@@ -35,13 +35,11 @@ function join(playerName: string) {
         room = roomInstance;
         console.log('[JOIN] Успех, sessionId:', room.sessionId);
         
-        // Гарантированно создаём локальную модель, если её ещё нет
         if (!localModel) {
             const storedName = localStorage.getItem('ogm_playerName') || 'Герой';
             initLocalModel(storedName);
             console.log('[NET] localModel принудительно создана с ником', storedName);
         }
-        // Явно показываем модель (на случай, если она была скрыта)
         if (localModel) {
             localModel.visible = true;
             const existingTag = localModel.getObjectByName('nameTag');
@@ -50,7 +48,6 @@ function join(playerName: string) {
                 attachNameTag(localModel, tag);
                 console.log('[NET] Тег создан принудительно');
             }
-            // Отправляем начальное состояние, раз уж модель готова
             room.send("move", { x: localModel.position.x, z: localModel.position.z, r: localModel.rotation.y });
         }
         if (reconnectTimer) {
@@ -62,7 +59,6 @@ function join(playerName: string) {
         wasDead = false;
 
         if (!localModel) initLocalModel();
-
         if (fsm['local']) fsm['local'].transitionTo('idle');
 
         room.onStateChange((state: any) => {
@@ -82,25 +78,22 @@ function join(playerName: string) {
                 }
 
                 if (alive && wasDead) {
-                    if (fsm['local']) fsm['local'].isDead = false;
+                    if (fsm['local']?.isDying) return;
+                    fsm['local']?.revive();
                     deathAnimating['local'] = false;
                     localModel!.visible = true;
                     wasDead = false;
-                    localModel!.position.x = myPlayer.x;
-                    localModel!.position.z = myPlayer.z;
-
-                    fsm['local']?.enable(); 
-                    // Принудительно сбрасываем скелет в rest‑позу перед запуском idle
-                    const curActions = actions['local'];
-                    if (curActions) {
-                        Object.values(curActions).forEach(a => { if (a) a.stop(); });
+                    console.log(`[RESPAWN] localPlayer x=${myPlayer.x} z=${myPlayer.z}`);
+                    // Принудительно ставим позицию, т.к. сервер всегда возрождает в (0,0)
+                    if (myPlayer.x === undefined || myPlayer.z === undefined || (myPlayer.x === 0 && myPlayer.z === 0)) {
+                        localModel!.position.set(0, 0, 0);
+                    } else {
+                        localModel!.position.set(myPlayer.x, myPlayer.z, 0);
                     }
-                    fsm['local']?.transitionTo('idle');
                 }
 
                 const localOldHp = prevHp[room.sessionId] ?? myPlayer.hp;
                 if (myPlayer.hp < localOldHp && alive) {
-                    // Если игрок умирает, не запускаем recievehit – сразу будет death
                     if (myPlayer.hp <= 0) {
                         // Урон смертельный, recievehit не нужен
                     } else {
@@ -116,11 +109,15 @@ function join(playerName: string) {
                         setTimeout(() => {
                             if (localModel) localModel.visible = false;
                             deathAnimating['local'] = false;
+                            // Снимаем блокировку FSM после скрытия трупа
+                            if (fsm['local']) {
+                                fsm['local'].isDead = false;
+                                fsm['local'].isDying = false;
+                            }
                             console.log('[DEATH] Труп скрыт');
                         }, 2000);
                     });
                     deathAnimating['local'] = true;
-                    fsm['local']?.disable(); 
                     wasDead = true;
                     showLocalHpBar(myPlayer.x, myPlayer.z, 0, myPlayer.maxHp);
                     hideLocalHpBar();
@@ -142,16 +139,18 @@ function join(playerName: string) {
                 if (sessionId === room.sessionId) return;
 
                 if (player.hp > 0 && playerWasDead[sessionId]) {
-                    if (fsm[sessionId]) fsm[sessionId].isDead = false;
-                    fsm[sessionId]?.enable()
+                    if (fsm[sessionId]?.isDying) return;
+                    fsm[sessionId]?.revive();
                     playerWasDead[sessionId] = false;
-                    if (otherPlayers[sessionId]) otherPlayers[sessionId].visible = true;
-                    // Сброс позы для чужого игрока после возрождения
-                    const curActions = actions[sessionId];
-                    if (curActions) {
-                        Object.values(curActions).forEach(a => { if (a) a.stop(); });
+                    //if (otherPlayers[sessionId]) otherPlayers[sessionId].visible = true;
+                    const model = otherPlayers[sessionId];
+                    if (model) {
+                        model.visible = true;
+                        // Принудительно перемещаем модель в точку возрождения
+                        model.position.set(player.x, 0, player.z);
+                        // Сбрасываем цель интерполяции, чтобы избежать полёта
+                        setTargetPosition(sessionId, player.x, player.z);
                     }
-                    if (fsm[sessionId]) fsm[sessionId].transitionTo('idle');
                 }
 
                 const prev = prevPositions[sessionId];
@@ -165,7 +164,7 @@ function join(playerName: string) {
                 lastMoveTimes[sessionId] = Date.now();
 
                 const oldHp = prevHp[sessionId] ?? player.hp;
-                if (player.hp < oldHp && player.hp > 0) {  // тут уже есть проверка >0
+                if (player.hp < oldHp && player.hp > 0) {
                     fsm[sessionId]?.playOneShot('recievehit', 0.1);
                 }
                 prevHp[sessionId] = player.hp;
@@ -176,7 +175,6 @@ function join(playerName: string) {
 
                 if (player.hp <= 0 && !deathAnimating[sessionId]) {
                     if (deathAnimating[sessionId]) return;
-                    fsm[sessionId]?.disable()
                     deathAnimating[sessionId] = true;
                     playerWasDead[sessionId] = true;
                     if (hpBars[sessionId]) {
@@ -187,6 +185,11 @@ function join(playerName: string) {
                             if (otherPlayers[sessionId]) otherPlayers[sessionId].visible = false;
                             if (hpBars[sessionId]) hpBars[sessionId].visible = false;
                             deathAnimating[sessionId] = false;
+                            // Снимаем блокировку FSM после скрытия трупа
+                            if (fsm[sessionId]) {
+                                fsm[sessionId].isDead = false;
+                                fsm[sessionId].isDying = false;
+                            }
                             console.log(`[DEATH] ${sessionId} model hidden`);
                         }, 500);
                     });
@@ -198,7 +201,7 @@ function join(playerName: string) {
                     otherPlayers[sessionId].rotation.y = player.rotationY ?? 0;
                 }
 
-                if (player.hp > 0) { // только для живых
+                if (player.hp > 0) {
                     if (moving && fsm[sessionId]) {
                         fsm[sessionId].transitionTo('walk');
                     } else if (!moving && fsm[sessionId] && fsm[sessionId].currentStateName !== 'idle') {
@@ -251,7 +254,6 @@ function join(playerName: string) {
                 }
             });
 
-            // Обновление визуала всех мешков (удаление пустых/неактуальных)
             updateLootMeshes(state.lootBags);
 
             // Закрываем окно лута, если отошли от мешка
@@ -265,7 +267,7 @@ function join(playerName: string) {
                         hideLootUI();
                     }
                 } else {
-                    hideLootUI(); // мешок исчез
+                    hideLootUI();
                 }
             }
         });

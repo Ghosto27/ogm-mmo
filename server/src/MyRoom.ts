@@ -80,8 +80,6 @@ export class MyRoom extends Room<MyRoomState> {
                 // Запускаем таймер возрождения
                 const deadTargetId = targetId;
                 setTimeout(() => {
-                    
-                    
                     const deadPlayer = this.state.players.get(deadTargetId);
                     if (deadPlayer && deadPlayer.hp <= 0) {
                         deadPlayer.hp = deadPlayer.maxHp;
@@ -90,7 +88,7 @@ export class MyRoom extends Room<MyRoomState> {
                         // Принудительно обновляем состояние, чтобы клиенты увидели изменения
                         this.state.players.set(deadTargetId, deadPlayer);
                         console.log(`[RESPAWN] ${deadPlayer.name} возрождён в центре`);
-                        //console.log(`[DEBUG] Попытка возродить ${deadTargetId}, deadPlayer =`, deadPlayer);
+                        console.log(`[DEBUG] Попытка возродить ${deadTargetId}, deadPlayer =`, deadPlayer);
                     }
                 }, 5000);
                 //console.log(`[DEBUG] Таймер возрождения запущен для ${deadTargetId}`);
@@ -109,7 +107,7 @@ export class MyRoom extends Room<MyRoomState> {
 
             const dx = attacker.x - mob.x;
             const dz = attacker.z - mob.z;
-            if (Math.sqrt(dx*dx + dz*dz) > 2.5) return;
+            if (Math.sqrt(dx*dx + dz*dz) > 4) return;
 
             const damage = Math.max(1, Math.floor(attacker.stats.attackPower * 0.5));
             mob.hp -= damage;
@@ -304,59 +302,63 @@ export class MyRoom extends Room<MyRoomState> {
         player.name = name;
         player.hp = player.maxHp = 100;
 
-        // Восстанавливаем позицию из старого хранилища (координаты)
-        const saved = loadPlayer(name);
-        if (saved) {
-            player.x = saved.x;
-            player.z = saved.z;
-            player.rotationY = saved.ry;
-        }
+        try {
+            // Восстанавливаем позицию из старого хранилища (координаты)
+            const saved = loadPlayer(name);
+            if (saved) {
+                player.x = saved.x;
+                player.z = saved.z;
+                player.rotationY = saved.ry;
+            }
 
-        // Загружаем полное сохранение (инвентарь, экипировка, статы, опыт, HP)
-        const savedData = PlayerPersistence.loadPlayer(name);
-        if (savedData) {
-            // Восстанавливаем уровень, опыт и текущее здоровье
-            player.level = savedData.level;
-            player.exp = savedData.exp;
-            player.expToLevel = savedData.expToLevel;
-            player.hp = savedData.hp; // останется, пока не пересчитаем
+            // Загружаем полное сохранение (инвентарь, экипировка, статы, опыт, HP)
+            const savedData = PlayerPersistence.loadPlayer(name);
+            if (savedData) {
+                player.level = savedData.level;
+                player.exp = savedData.exp;
+                player.expToLevel = savedData.expToLevel;
+                player.hp = savedData.hp;
 
-            // Восстанавливаем статы
-            player.stats.strength = savedData.stats.strength;
-            player.stats.dexterity = savedData.stats.dexterity;
-            player.stats.intelligence = savedData.stats.intelligence;
-            player.stats.vitality = savedData.stats.vitality;
-            player.stats.luck = savedData.stats.luck;
-            // Производные пересчитаются позже
+                player.stats.strength = savedData.stats.strength;
+                player.stats.dexterity = savedData.stats.dexterity;
+                player.stats.intelligence = savedData.stats.intelligence;
+                player.stats.vitality = savedData.stats.vitality;
+                player.stats.luck = savedData.stats.luck;
+                player.stats.attackPower = savedData.stats.attackPower;
+                player.stats.defense = savedData.stats.defense;
+                player.stats.critChance = savedData.stats.critChance;
 
-            // Восстанавливаем инвентарь
-            player.inventory.slots.clear();
-            savedData.inventory.forEach(slot => {
-                player.inventory.slots.push(slot.cloneSlot());
-            });
+                player.inventory.slots.clear();
+                savedData.inventory.forEach(slot => {
+                    player.inventory.slots.push(slot.cloneSlot());
+                });
 
-            // Восстанавливаем экипировку
-            player.equipment.clear();
-            savedData.equipment.forEach((item, slot) => {
-                player.equipment.set(slot, item.cloneItem());
-            });
+                player.equipment.clear();
+                savedData.equipment.forEach((item, slot) => {
+                    player.equipment.set(slot, item.cloneItem());
+                });
 
-            // Пересчитываем производные статы (maxHp, атака, защита) с учётом уровня и бонусов
-            EquipmentSystem.recalculateStats(player);
-            // HP не должно превышать maxHp
-            if (player.hp > player.maxHp) player.hp = player.maxHp;
-        } else {
-            // Нет сохранения – выдаём стартовые предметы
+                EquipmentSystem.recalculateStats(player);
+                if (player.hp > player.maxHp) player.hp = player.maxHp;
+            } else {
+                // Нет сохранения – выдаём стартовые предметы
+                const potion = itemDatabase["potion_hp_01"];
+                const sword = itemDatabase["sword_01"];
+                player.inventory.addItem(Object.assign(new Item(), potion), 3);
+                player.inventory.addItem(Object.assign(new Item(), sword), 1);
+                EquipmentSystem.recalculateStats(player);
+            }
+        } catch (err) {
+            console.error(`[ERROR] Ошибка загрузки сохранения для ${name}:`, err);
+            // Выдаём стартовые предметы при любой ошибке
             const potion = itemDatabase["potion_hp_01"];
             const sword = itemDatabase["sword_01"];
             player.inventory.addItem(Object.assign(new Item(), potion), 3);
             player.inventory.addItem(Object.assign(new Item(), sword), 1);
-
-            // Пересчитываем статы для стартовых параметров
             EquipmentSystem.recalculateStats(player);
         }
 
-        // Небольшая задержка, чтобы координаты точно были готовы
+        // Добавляем игрока в комнату
         setTimeout(() => {
             this.state.players.set(client.sessionId, player);
             this.broadcast("initialPosition", {

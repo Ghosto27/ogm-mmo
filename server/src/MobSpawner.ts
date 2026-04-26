@@ -6,7 +6,7 @@ import { ItemSlot } from "./models/ItemSlot";
 import { itemDatabase } from "./data/items";
  
 
-const MAX_MOBS = 1;
+const MAX_MOBS = 2;
 const SPAWN_RADIUS = 30; // от центра
 const RESPAWN_DELAY = 10_000; // 10 секунд
 
