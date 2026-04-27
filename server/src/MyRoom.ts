@@ -85,6 +85,7 @@ export class MyRoom extends Room<MyRoomState> {
                         deadPlayer.hp = deadPlayer.maxHp;
                         deadPlayer.x = 0;
                         deadPlayer.z = 0;
+                        PlayerPersistence.savePlayer(deadPlayer);
                         // Принудительно обновляем состояние, чтобы клиенты увидели изменения
                         this.state.players.set(deadTargetId, deadPlayer);
                         console.log(`[RESPAWN] ${deadPlayer.name} возрождён в центре`);
@@ -180,6 +181,7 @@ export class MyRoom extends Room<MyRoomState> {
                                             deadPlayer.hp = deadPlayer.maxHp;
                                             deadPlayer.x = 0;
                                             deadPlayer.z = 0;
+                                            PlayerPersistence.savePlayer(deadPlayer);
                                             this.state.players.set(sid, deadPlayer);
                                             console.log(`[RESPAWN] ${deadPlayer.name} возрождён в центре`);
                                         }
@@ -292,6 +294,8 @@ export class MyRoom extends Room<MyRoomState> {
             if (!success) {
                 // можно отправить клиенту сообщение об ошибке, но пока просто логируем
                 console.log(`[EQUIP] Не удалось надеть ${item.name}`);
+            } else {
+                PlayerPersistence.savePlayer(player);
             }
         });
 
@@ -303,6 +307,8 @@ export class MyRoom extends Room<MyRoomState> {
             const success = EquipmentSystem.unequipItem(player, slot);
             if (!success) {
                 console.log(`[UNEQUIP] Не удалось снять предмет из слота ${slot}`);
+            } else {
+                PlayerPersistence.savePlayer(player);
             }
         });
 
@@ -426,5 +432,7 @@ export class MyRoom extends Room<MyRoomState> {
             // Можно отправить отдельное сообщение клиенту для спецэффекта
             // this.broadcast("levelUp", { sessionId: client.sessionId, level: player.level });
         }
+        // Сохраняем прогресс после получения опыта
+        PlayerPersistence.savePlayer(player);
     }
 }

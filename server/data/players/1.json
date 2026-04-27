@@ -1,8 +1,8 @@
 {
-  "hp": 126,
+  "hp": 46,
   "maxHp": 200,
   "level": 5,
-  "exp": 108,
+  "exp": 228,
   "expToLevel": 505,
   "stats": {
     "strength": 15,
@@ -26,7 +26,7 @@
         "requiredLevel": 1,
         "bonuses": {}
       },
-      "quantity": 4
+      "quantity": 5
     },
     {
       "item": {
@@ -104,8 +104,19 @@
       "quantity": 1
     },
     {
-      "item": null,
-      "quantity": 0
+      "item": {
+        "id": "sword_01",
+        "name": "Меч новичка",
+        "description": "Простой, но надёжный",
+        "maxStack": 1,
+        "icon": "icons/sword.png",
+        "slot": "weapon",
+        "requiredLevel": 1,
+        "bonuses": {
+          "strength": 5
+        }
+      },
+      "quantity": 1
     },
     {
       "item": null,
