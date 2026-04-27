@@ -175,7 +175,7 @@ export function updateMobState(mobId: string, x: number, z: number, hp: number, 
             return;
         }
         if (lowerState === 'attack' || lowerState === 'death' || 
-            lowerState === 'hitreact1' || lowerState === 'hitreact2' || 
+            lowerState === 'idle_hitreact1' || lowerState === 'idle_hitreact2' || 
             lowerState === 'gallop_jump') {
             if (fsm.currentStateName !== lowerState) {
                 // Для смерти взводим флаг и не даём перезапустить

@@ -113,7 +113,7 @@ export class MyRoom extends Room<MyRoomState> {
             mob.hp -= damage;
             console.log(`[ATTACK] ${attacker.name} ударил волка ${mobId} на ${damage} урона (AP: ${attacker.stats.attackPower})`);
 
-            const hitAnim = Math.random() < 0.5 ? 'hitreact1' : 'hitreact2';
+            const hitAnim = Math.random() < 0.5 ? 'idle_hitreact1' : 'idle_hitreact2';
             mob.state = hitAnim;   // клиент подхватит через updateMobState
             mob.targetId = client.sessionId;
 

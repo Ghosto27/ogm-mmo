@@ -94,7 +94,7 @@ export class AnimationStateMachine {
         console.log(`[FSM ${this.id}] playing "${stateName}", clampWhenFinished=true`);
 
         const onFinishedLocal = () => {
-            console.log(`[FSM ${this.id}] finished "${stateName}"`);
+            //console.log(`[FSM ${this.id}] finished "${stateName}"`);
             this.mixer.removeEventListener('finished', onFinishedLocal);
 
             if (stateName === 'death') {
