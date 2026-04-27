@@ -70,7 +70,7 @@ document.addEventListener('keydown', (e) => {
         }
     }
     if (key === 'm') { toggleWorldMap(); }
-    if (key === 'i') { toggleInventory(); }
+    if (key === 'b') { toggleInventory(); }
     if (key === 'c') { toggleCharacterPanel(); }
 });
 
