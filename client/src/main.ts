@@ -53,7 +53,7 @@ window.addEventListener('keydown', (e) => {
             toggleWorldMap();
         }
     }
-    if (e.key.toLowerCase() === 'i' || e.key.toLowerCase() === 'ш') {
+    if (e.key.toLowerCase() === 'b' || e.key.toLowerCase() === 'и') {
         if (document.activeElement === document.body) {
             toggleInventory();
         }
