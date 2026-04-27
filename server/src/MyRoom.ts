@@ -359,7 +359,14 @@ export class MyRoom extends Room<MyRoomState> {
                 });
 
                 EquipmentSystem.recalculateStats(player);
-                if (player.hp > player.maxHp) player.hp = player.maxHp;
+                if (player.hp <= 0) {
+                    player.hp = player.maxHp;
+                    player.x = 0;   // на точку респауна
+                    player.z = 0;
+                    console.log(`[SERVER] Игрок ${name} вошёл мёртвым, возрождаем принудительно`);
+                } else if (player.hp > player.maxHp) {
+                    player.hp = player.maxHp;
+                }
             } else {
                 // Нет сохранения – выдаём стартовые предметы
                 const potion = itemDatabase["potion_hp_01"];
