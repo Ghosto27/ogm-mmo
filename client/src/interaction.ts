@@ -2,12 +2,14 @@ import * as THREE from 'three';
 import { camera } from './scene';
 import { localModel, otherPlayers, fsm } from './player';
 import { mobModels } from './mobPlayer';
-import { room } from './network';
+import { room, interactionState } from './network';
 import { setSelectedTarget } from './selection';
 import { showTargetUI, hideTargetUI } from './targetUI';
 import { } from './render/LootRenderer';
 import { showLootUI, hideLootUI } from './ui/LootWindowUI';
 import { lootMeshes } from './render/LootRenderer';
+import { npcMeshes } from './render/NPCRenderer';
+import { hideDialog } from './ui/DialogUI';
 
 console.log('[INTERACTION] Module loaded');
 
@@ -135,24 +137,46 @@ window.addEventListener('mouseup', (event) => {
 window.addEventListener('keydown', (e) => {
     if (e.key.toLowerCase() === 'f' || e.key.toLowerCase() === 'а') {
         if (!room || !localModel) return;
-        // Ищем ближайший мешок на расстоянии < 2.0
+
+        // Ищем ближайшего NPC (приоритет)
+        let closestNpcId: string | null = null;
+        let closestNpcDist = Infinity;
+        for (const npcId in npcMeshes) {
+            const mesh = npcMeshes[npcId];
+            const dist = localModel.position.distanceTo(mesh.position);
+            if (dist < 3.0 && dist < closestNpcDist) {
+                closestNpcDist = dist;
+                closestNpcId = npcId;
+            }
+        }
+
+        // Ищем ближайший мешок с лутом
         let closestBagId: string | null = null;
-        let closestDist = Infinity;
+        let closestBagDist = Infinity;
         for (const bagId in lootMeshes) {
             const mesh = lootMeshes[bagId];
             const dist = localModel.position.distanceTo(mesh.position);
-            if (dist < 2.0 && dist < closestDist) {
-                closestDist = dist;
+            if (dist < 2.0 && dist < closestBagDist) {
+                closestBagDist = dist;
                 closestBagId = bagId;
             }
         }
-        if (closestBagId) {
+
+        console.log('[INTERACTION] F pressed', { closestNpcId, closestBagId });
+
+        if (closestNpcId) {
+            interactionState.currentInteractNpcId = closestNpcId;
+            console.log('[INTERACTION] Set currentInteractNpcId =', closestNpcId);
+            room.send('interactNpc', { npcId: closestNpcId });
+        } else if (closestBagId) {
             const bag = room.state.lootBags.get(closestBagId);
             if (bag && bag.items.length > 0) {
                 showLootUI(closestBagId, bag.items);
             }
         } else {
             hideLootUI();
+            hideDialog();
+            interactionState.currentInteractNpcId = '';
         }
     }
 });

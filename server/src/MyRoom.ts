@@ -12,6 +12,10 @@ import { EquipmentSystem } from "./systems/EquipmentSystem";
 import { PlayerPersistence } from "./systems/PlayerPersistence";
 import { ItemSlot } from "./models/ItemSlot";
 import { ChatManager } from "./chat/ChatManager";
+import { NPC } from "./schemas/NPC";
+import { dialogs } from "./data/dialogs";
+import { QuestManager } from "./systems/QuestManager";
+import { quests } from "./data/quests";
 
 export class Player extends Schema {
     @type("number") x: number = 0;
@@ -26,13 +30,17 @@ export class Player extends Schema {
     @type(Inventory) inventory: Inventory = new Inventory();
     @type(PlayerStats) stats: PlayerStats = new PlayerStats();
     @type({ map: Item }) equipment = new MapSchema<Item>();
-    
+    @type({ map: "number" }) questProgress = new MapSchema<number>();
+    @type("string") currentDialogueNpcId: string = "";
+    @type("string") currentDialogueNode: string = "";
+    @type("string") sessionId: string = "";
 }
 
 class MyRoomState extends Schema {
     @type({ map: Player }) players = new MapSchema<Player>();
     @type({ map: Mob }) mobs = new MapSchema<Mob>();
     @type({ map: LootBag }) lootBags = new MapSchema<LootBag>();
+    @type({ map: NPC }) npcs = new MapSchema<NPC>();
 }
 
 export class MyRoom extends Room<MyRoomState> {
@@ -43,6 +51,198 @@ export class MyRoom extends Room<MyRoomState> {
 
     onCreate() {
         this.setState(new MyRoomState());
+
+        const resendStartDialogue = (client: Client, player: Player) => {
+            const npc = this.state.npcs?.get(player.currentDialogueNpcId);
+            if (!npc) return;
+            // Логика построения кнопок (точно такая же, как в interactNpc)
+            const choices: { text: string; action?: string; questId?: string }[] = [];
+            for (const questId of npc.availableQuestIds) {
+                const questDef = quests[questId];
+                if (!questDef) continue;
+                const progress = player.questProgress.get(questId) ?? 0;
+                if (!player.questProgress.has(questId)) {
+                    choices.push({ text: `Взять: ${questDef.name}`, action: 'giveQuest', questId });
+                } else if (progress >= questDef.requiredCount) {
+                    choices.push({ text: `Сдать: ${questDef.name} (${progress}/${questDef.requiredCount})`, action: 'completeQuest', questId });
+                } else {
+                    choices.push({ text: `${questDef.name} (${progress}/${questDef.requiredCount})` });
+                }
+            }
+            if (choices.length === 0) {
+                const idle = dialogs["knight_idle"];
+                if (idle) {
+                    client.send("dialogueUpdate", { text: idle.npcLine, choices: idle.choices.map(c => ({ text: c.text })) });
+                }
+                return;
+            }
+            client.send("dialogueUpdate", {
+                text: "Приветствую, путник! Чем могу помочь?",
+                choices: choices,
+            });
+        };
+
+        this.onMessage("interactNpc", (client, message) => {
+            const player = this.state.players.get(client.sessionId);
+            if (!player) return;
+            const npc = this.state.npcs?.get(message.npcId);
+            if (!npc) return;
+            const dx = player.x - npc.x;
+            const dz = player.z - npc.z;
+            if (Math.sqrt(dx*dx + dz*dz) > 3) return;
+
+            // Сохраняем ID NPC, чтобы resendStartDialogue мог найти его позже
+            player.currentDialogueNpcId = npc.id;
+
+            // Формируем динамические кнопки на основе доступных квестов
+            const choices: { text: string; action?: string; questId?: string }[] = [];
+
+            for (const questId of npc.availableQuestIds) {
+                const questDef = quests[questId];
+                if (!questDef) continue;
+                const progress = player.questProgress.get(questId) ?? 0;
+
+                if (!player.questProgress.has(questId)) {
+                    // Квест ещё не взят — предлагаем взять
+                    choices.push({
+                        text: `Взять: ${questDef.name}`,
+                        action: 'giveQuest',
+                        questId: questId,
+                    });
+                } else if (progress >= questDef.requiredCount) {
+                    // Квест выполнен — предлагаем сдать
+                    choices.push({
+                        text: `Сдать: ${questDef.name} (${progress}/${questDef.requiredCount})`,
+                        action: 'completeQuest',
+                        questId: questId,
+                    });
+                } else {
+                    // Квест в процессе — можно показать прогресс без действия
+                    choices.push({
+                        text: `${questDef.name} (${progress}/${questDef.requiredCount})`,
+                    });
+                }
+            }
+
+            if (choices.length === 0) {
+                // Нет доступных действий — показываем idle-диалог
+                const idle = dialogs["knight_idle"];
+                if (idle) {
+                    client.send("dialogueStart", {
+                        npcName: npc.name,
+                        text: idle.npcLine,
+                        choices: idle.choices.map(c => ({ text: c.text })),
+                    });
+                }
+                return;
+            }
+
+            // Отправляем стартовый диалог с динамическими кнопками
+            client.send("dialogueStart", {
+                npcName: npc.name,
+                text: "Приветствую, путник! Чем могу помочь?",
+                choices: choices,
+            });
+        });
+
+        this.onMessage("dialogueChoice", (client, message) => {
+            const player = this.state.players.get(client.sessionId);
+            if (!player) return;
+            const { npcId, action, questId, choiceIndex } = message;
+            const npc = this.state.npcs?.get(npcId);
+            if (!npc) return;
+
+            // Приоритет: динамические действия (взять/сдать квест)
+            if (action === 'giveQuest' && questId) {
+                const questDef = quests[questId];
+                if (!questDef) return;
+                player.currentDialogueNode = questDef.startDialogue;
+                const dialogue = dialogs[questDef.startDialogue];
+                if (dialogue) {
+                    client.send("dialogueUpdate", {
+                        text: dialogue.npcLine,
+                        choices: dialogue.choices.map(c => ({ text: c.text })),
+                    });
+                }
+                return;
+            }
+
+            //Динамический блок
+            if (action === 'completeQuest' && questId) {
+                if (QuestManager.completeQuest(this, player, questId)) {
+                    PlayerPersistence.savePlayer(player);
+                    const questDef = quests[questId];
+                    if (questDef) {
+                        player.currentDialogueNode = questDef.completeDialogue;
+                        const completeDialogue = dialogs[questDef.completeDialogue];
+                        if (completeDialogue) {
+                            client.send("dialogueUpdate", {
+                                text: completeDialogue.npcLine,
+                                choices: completeDialogue.choices.map(c => ({ text: c.text })),
+                            });
+                        }
+                    }
+                    // Проверяем, есть ли ещё выполненные квесты у этого NPC, и предлагаем сдать следующий
+                    for (const qId of npc.availableQuestIds) {
+                        const def = quests[qId];
+                        if (!def) continue;
+                        const prog = player.questProgress.get(qId) ?? 0;
+                        if (prog >= def.requiredCount) {
+                            client.send("dialogueUpdate", {
+                                text: `У вас есть выполненный квест: ${def.name}. Сдать?`,
+                                choices: [
+                                    { text: `Сдать: ${def.name}`, action: 'completeQuest', questId: qId },
+                                    { text: "Позже", action: undefined }
+                                ]
+                            });
+                            return;
+                        }
+                    }
+                    // Если больше выполненных квестов нет – закрываем диалог
+                    client.send("dialogueEnd", {});
+                }
+                return;
+            }
+
+            // Обычный статический диалог (по индексу)
+            if (choiceIndex !== undefined && player.currentDialogueNode) {
+                const currentDialogue = dialogs[player.currentDialogueNode];
+                if (!currentDialogue || choiceIndex >= currentDialogue.choices.length) {
+                    client.send("dialogueEnd", {});
+                    return;
+                }
+                const choice = currentDialogue.choices[choiceIndex];
+
+                // Обработка последствий (если есть) – для совместимости
+                if (choice.consequences) {
+                    for (const con of choice.consequences) {
+                        if (con.type === 'giveQuest' && con.questId) {
+                            QuestManager.giveQuest(player, con.questId);
+                            PlayerPersistence.savePlayer(player);
+                        } else if (con.type === 'completeQuest' && con.questId) {
+                            if (QuestManager.completeQuest(this, player, con.questId)) {
+                                //client.send("questCompleted", { questId: con.questId, name: quests[con.questId]?.name, rewardXp: quests[con.questId]?.rewardXp });
+                            }
+                        }
+                    }
+                }
+
+                const nextId = choice.nextId;
+                if (nextId) {
+                    player.currentDialogueNode = nextId;
+                    const nextDialogue = dialogs[nextId];
+                    if (nextDialogue) {
+                        client.send("dialogueUpdate", {
+                            text: nextDialogue.npcLine,
+                            choices: nextDialogue.choices.map(c => ({ text: c.text })),
+                        });
+                    }
+                } else {
+                    // Диалог завершён, перестраиваем стартовый экран NPC
+                    resendStartDialogue(client, player);
+                }
+            }
+        });
 
         this.onMessage("chatMessage", (client, message) => {
             ChatManager.sendMessage(this, client, message);
@@ -102,6 +302,17 @@ export class MyRoom extends Room<MyRoomState> {
         });
 
         this.spawner = new MobSpawner(this);
+
+        // Создаём тестового NPC – рыцаря
+        const knight = new NPC();
+        knight.id = "knight_01";
+        knight.name = "Рыцарь";
+        knight.x = 30;
+        knight.z = 0;
+        knight.availableQuestIds.push("kill_5_wolves", "kill_10_wolves");
+        this.state.npcs.set(knight.id, knight);
+        console.log(`[NPC] Рыцарь появился на (${knight.x}, ${knight.z})`);
+
 
         this.onMessage("attackMob", (client, message) => {
             const attacker = this.state.players.get(client.sessionId);
@@ -330,8 +541,10 @@ export class MyRoom extends Room<MyRoomState> {
     onJoin(client: Client, options: { name: string }) {
         const name = options.name || "Гость";
         const player = new Player();
+        player.sessionId = client.sessionId;
         player.name = name;
         player.hp = player.maxHp = 100;
+
 
         try {
             // Восстанавливаем позицию из старого хранилища (координаты)
@@ -368,6 +581,14 @@ export class MyRoom extends Room<MyRoomState> {
                 savedData.equipment.forEach((item, slot) => {
                     player.equipment.set(slot, item.cloneItem());
                 });
+
+                // Восстанавливаем прогресс квестов (только если savedData не null)
+                if (savedData && savedData.quests) {
+                    player.questProgress.clear();
+                    for (const [questId, progress] of Object.entries(savedData.quests)) {
+                        player.questProgress.set(questId, progress as number);
+                    }
+                }
 
                 EquipmentSystem.recalculateStats(player);
                 if (player.hp <= 0) {
@@ -406,6 +627,7 @@ export class MyRoom extends Room<MyRoomState> {
                 rotationY: player.rotationY
             });
             console.log(`[SERVER] Игрок ${name} добавлен в стейт с x=${player.x}, z=${player.z}`);
+            PlayerPersistence.savePlayer(player);   // <-- сохраняем уже полностью загруженного игрока
         }, 20);
     }
 

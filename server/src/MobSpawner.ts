@@ -4,7 +4,8 @@ import { LootBag } from "./schemas/LootBag";
 import { Item } from "./models/Item";
 import { ItemSlot } from "./models/ItemSlot";
 import { itemDatabase } from "./data/items";
- 
+import { QuestManager } from "./systems/QuestManager";
+import { PlayerPersistence } from "./systems/PlayerPersistence";
 
 const MAX_MOBS = 2;
 const SPAWN_RADIUS = 30; // от центра
@@ -62,6 +63,11 @@ export class MobSpawner {
                 this.room.addExperience(killer, mob.expReward);
             }
         }
+        // Обновляем прогресс квестов для всех игроков в комнате
+        this.room.state.players.forEach((player) => {
+            QuestManager.onMobKilled(this.room, player, 'wolf');
+            PlayerPersistence.savePlayer(player);
+        });
 
         // Создание мешка с лутом
         const lootItems: { item: Item, quantity: number }[] = [];

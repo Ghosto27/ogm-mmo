@@ -32,7 +32,8 @@ export class PlayerPersistence {
             inventory: player.inventory.slots.map(slot => slot.toJSON()),
             equipment: Object.fromEntries(
                 Array.from(player.equipment.entries()).map(([key, item]) => [key, item.toJSON()])
-            )
+            ),
+            quests: Object.fromEntries(player.questProgress.entries())
         };
         const filePath = path.join(DATA_DIR, `${player.name}.json`);
         fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
@@ -57,12 +58,15 @@ export class PlayerPersistence {
         };
         inventory: ItemSlot[];
         equipment: Map<string, Item>;
+        quests?: Record<string, number>;
     } | null {
         const filePath = path.join(DATA_DIR, `${playerName}.json`);
         if (!fs.existsSync(filePath)) return null;
 
         const raw = fs.readFileSync(filePath, 'utf-8');
         const data = JSON.parse(raw);
+
+        const quests = data.quests || {};
 
         const inventory = data.inventory.map((slotData: any) =>
             ItemSlot.fromJSON(slotData)
@@ -83,6 +87,7 @@ export class PlayerPersistence {
             stats: data.stats,
             inventory,
             equipment,
+            quests,
         };
     }
 }

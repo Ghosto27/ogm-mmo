@@ -29,3 +29,4 @@ public/*
 client/public
 client/public/
 client/public/*
+server/data/players/*.json

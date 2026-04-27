@@ -1,16 +1,16 @@
 {
-  "hp": 180,
-  "maxHp": 180,
-  "level": 3,
-  "exp": 190,
-  "expToLevel": 225,
+  "hp": 100,
+  "maxHp": 160,
+  "level": 1,
+  "exp": 0,
+  "expToLevel": 100,
   "stats": {
-    "strength": 15,
+    "strength": 10,
     "dexterity": 10,
     "intelligence": 10,
     "vitality": 10,
     "luck": 5,
-    "attackPower": 30,
+    "attackPower": 20,
     "defense": 5,
     "critChance": 6
   },
@@ -26,7 +26,7 @@
         "requiredLevel": 1,
         "bonuses": {}
       },
-      "quantity": 5
+      "quantity": 3
     },
     {
       "item": {
@@ -44,62 +44,20 @@
       "quantity": 1
     },
     {
-      "item": {
-        "id": "sword_01",
-        "name": "Меч новичка",
-        "description": "Простой, но надёжный",
-        "maxStack": 1,
-        "icon": "icons/sword.png",
-        "slot": "weapon",
-        "requiredLevel": 1,
-        "bonuses": {
-          "strength": 5
-        }
-      },
-      "quantity": 1
+      "item": null,
+      "quantity": 0
     },
     {
-      "item": {
-        "id": "sword_01",
-        "name": "Меч новичка",
-        "description": "Простой, но надёжный",
-        "maxStack": 1,
-        "icon": "icons/sword.png",
-        "slot": "weapon",
-        "requiredLevel": 1,
-        "bonuses": {
-          "strength": 5
-        }
-      },
-      "quantity": 1
+      "item": null,
+      "quantity": 0
     },
     {
-      "item": {
-        "id": "potion_hp_01",
-        "name": "Зелье здоровья",
-        "description": "Восстанавливает 50 HP",
-        "maxStack": 5,
-        "icon": "icons/potion.png",
-        "slot": "",
-        "requiredLevel": 1,
-        "bonuses": {}
-      },
-      "quantity": 1
+      "item": null,
+      "quantity": 0
     },
     {
-      "item": {
-        "id": "sword_01",
-        "name": "Меч новичка",
-        "description": "Простой, но надёжный",
-        "maxStack": 1,
-        "icon": "icons/sword.png",
-        "slot": "weapon",
-        "requiredLevel": 1,
-        "bonuses": {
-          "strength": 5
-        }
-      },
-      "quantity": 1
+      "item": null,
+      "quantity": 0
     },
     {
       "item": null,
@@ -158,18 +116,6 @@
       "quantity": 0
     }
   ],
-  "equipment": {
-    "weapon": {
-      "id": "sword_01",
-      "name": "Меч новичка",
-      "description": "Простой, но надёжный",
-      "maxStack": 1,
-      "icon": "icons/sword.png",
-      "slot": "weapon",
-      "requiredLevel": 1,
-      "bonuses": {
-        "strength": 5
-      }
-    }
-  }
+  "equipment": {},
+  "quests": {}
 }

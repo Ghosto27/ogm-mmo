@@ -19,9 +19,14 @@ import { updateCharacterPanel } from './characterPanel';
 import { setupChatListeners } from './chat/chatNetwork';
 import { PlayerSyncManager } from './sync/PlayerSyncManager';
 import type { LocalPlayerUpdate, RemotePlayerUpdate } from './sync/PlayerSyncManager';
+import { showDialog, hideDialog } from './ui/DialogUI';
+import { updateNPCMeshes, setNPCProximity, npcMeshes } from './render/NPCRenderer';
+import { createQuestJournal, toggleQuestJournal, updateQuestList } from './quest/QuestJournalUI';
+import { showNotification } from './ui/notificationUI'; 
 
 export const client = new Client(SERVER_URL);
 export let room: any = null;
+export const interactionState = { currentInteractNpcId: '' };
 
 let reconnectTimer: any = null;
 let firstSync = true;
@@ -76,6 +81,7 @@ function join(playerName: string) {
 
             // Подключаем чат (комната уже готова)
             setupChatListeners(room);
+            
 
             // Получаем структурированный результат от менеджера синхронизации
             const syncResult = syncManager.processStateChange(state, room.sessionId);
@@ -137,6 +143,11 @@ function join(playerName: string) {
                         updatePlayerUI(local.hp, local.maxHp, myPlayer.level, myPlayer.exp, myPlayer.expToLevel);
                         updateCharacterPanel(myPlayer);
                         updateInventoryUI(myPlayer.inventory);
+                        // Квесты
+                        const questEntries = Array.from(myPlayer.questProgress.entries()) as [string, number][];
+                        const questsObj = Object.fromEntries(questEntries);
+                        updateQuestList(questsObj);
+                        
                     }
                     localModel.visible = true;
                 } else {
@@ -225,6 +236,28 @@ function join(playerName: string) {
                 }
             }
 
+            // ---------- NPC ----------
+            state.npcs.forEach((npc: any, npcId: string) => {
+                updateNPCMeshes(state.npcs);
+                const player = state.players.get(room.sessionId);
+                if (player) {
+                    const dist = Math.sqrt((player.x - npc.x)**2 + (player.z - npc.z)**2);
+                    setNPCProximity(npcId, dist < 3);
+                }
+            
+                // Если окно диалога открыто для этого NPC, и игрок отошёл дальше 3 единиц – закрываем
+                if (interactionState.currentInteractNpcId === npcId) {
+                    const player = state.players.get(room.sessionId);
+                    if (player) {
+                        const dist = Math.sqrt((player.x - npc.x)**2 + (player.z - npc.z)**2);
+                        if (dist > 3) {
+                            hideDialog();
+                            interactionState.currentInteractNpcId = '';
+                        }
+                    }
+                }
+            });
+
             // ---------- Мешки с лутом ----------
             state.lootBags.forEach((bag: any, bagId: string) => {
                 if (!lootMeshes[bagId] && bag.items.length > 0) {
@@ -249,6 +282,7 @@ function join(playerName: string) {
                 const player = state.players.get(room.sessionId);
                 if (bag && player && bag.items) {
                     const dist = Math.sqrt((player.x - bag.x) ** 2 + (player.z - bag.z) ** 2);
+                    //console.log('[LOOT] distance to bag', dist); // временный лог
                     if (dist > 3.0) {
                         hideLootUI();
                     }
@@ -282,6 +316,31 @@ function join(playerName: string) {
         room.onMessage("mobAttackAnim", (data: { mobId: string }) => {
             const f = mobFSM[data.mobId];
             f?.playOneShot('attack', 0.1);
+        });
+
+        room.onMessage("dialogueStart", (data: { npcName: string; text: string; choices: { text: string }[] }) => {
+            console.log('[NET] dialogueStart', { npcId: interactionState.currentInteractNpcId, data });
+            showDialog(interactionState.currentInteractNpcId, data.npcName, data.text, data.choices);
+        });
+
+        room.onMessage("dialogueUpdate", (data: { text: string; choices: { text: string }[] }) => {
+            // Используем текущий npcId, который запомнили при interact
+            showDialog(interactionState.currentInteractNpcId, "NPC", data.text, data.choices);
+        });
+
+        room.onMessage("dialogueEnd", () => {
+            hideDialog();
+        });
+
+        room.onMessage("questProgress", (data: { questId: string; current: number; required: number }) => {
+            console.log(`[QUEST] Прогресс квеста ${data.questId}: ${data.current}/${data.required}`);
+            // Пока просто покажем всплывающее уведомление
+            showNotification(`Прогресс квеста: ${data.current}/${data.required}`);
+        });
+
+        room.onMessage("questCompleted", (data: { questId: string; name: string; rewardXp: number }) => {
+            console.log(`[QUEST] Квест "${data.name}" завершён! +${data.rewardXp} XP`);
+            showNotification(`Квест "${data.name}" завершён! +${data.rewardXp} XP`);
         });
 
         room.onLeave((code: number) => {

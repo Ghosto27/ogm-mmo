@@ -22,6 +22,9 @@ import {createCharacterPanel, toggleCharacterPanel, updateCharacterPanel} from '
 import { createChatInput, isChatActive } from './chat/chatInput';
 import { setupChatListeners } from './chat/chatNetwork';
 import { normalizeKey } from './keyboard';
+import { createDialogUI } from './ui/DialogUI';
+import { createQuestJournal, toggleQuestJournal, updateQuestList } from './quest/QuestJournalUI';
+import { createNotificationUI } from './ui/notificationUI';
 
 let playerName = localStorage.getItem(STORAGE_KEY) || '';
 
@@ -46,6 +49,9 @@ modelReady.then(() => {
     createLootUI();
     createCharacterPanel();
     createChatInput();
+    createDialogUI();
+    createQuestJournal();
+    createNotificationUI();
     setTimeout(() => {
         fsm['local']?.transitionTo('idle');
     }, 500);
@@ -72,6 +78,11 @@ document.addEventListener('keydown', (e) => {
     if (key === 'm') { toggleWorldMap(); }
     if (key === 'b') { toggleInventory(); }
     if (key === 'c') { toggleCharacterPanel(); }
+    if (key === 'j') {
+        if (document.activeElement === document.body) {
+            toggleQuestJournal();
+        }
+    }
 });
 
 
