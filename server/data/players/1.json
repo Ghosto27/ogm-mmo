@@ -1,9 +1,9 @@
 {
-  "hp": 100,
-  "maxHp": 160,
-  "level": 1,
-  "exp": 0,
-  "expToLevel": 100,
+  "hp": 160,
+  "maxHp": 180,
+  "level": 3,
+  "exp": 100,
+  "expToLevel": 225,
   "stats": {
     "strength": 10,
     "dexterity": 10,
@@ -117,5 +117,7 @@
     }
   ],
   "equipment": {},
-  "quests": {}
+  "quests": {
+    "kill_10_wolves": 5
+  }
 }

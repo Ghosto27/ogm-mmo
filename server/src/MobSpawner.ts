@@ -63,11 +63,15 @@ export class MobSpawner {
                 this.room.addExperience(killer, mob.expReward);
             }
         }
-        // Обновляем прогресс квестов для всех игроков в комнате
-        this.room.state.players.forEach((player) => {
-            QuestManager.onMobKilled(this.room, player, 'wolf');
-            PlayerPersistence.savePlayer(player);
-        });
+
+        // Засчитываем прогресс квеста только убийце
+         if (killerSessionId) {
+            const killer = this.room.state.players.get(killerSessionId);
+            if (killer) {
+                QuestManager.onMobKilled(this.room, killer, 'wolf');
+                PlayerPersistence.savePlayer(killer);
+            }
+         }
 
         // Создание мешка с лутом
         const lootItems: { item: Item, quantity: number }[] = [];

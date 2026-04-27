@@ -1,3 +1,5 @@
+import { getQuestName } from './questData';
+
 let container: HTMLDivElement;
 
 export function createQuestJournal() {
@@ -29,16 +31,19 @@ export function toggleQuestJournal() {
     container.style.display = container.style.display === 'none' ? 'block' : 'none';
 }
 
-export function updateQuestList(quests: any) {
-    // Пока просто выводим список
+export function updateQuestList(quests: Record<string, number>) {
     container.innerHTML = '<div style="font-weight:bold; margin-bottom:8px;">Журнал квестов</div>';
-    if (!quests || Object.keys(quests).length === 0) {
-        container.appendChild(document.createTextNode('Нет активных квестов'));
+    const entries = Object.entries(quests);
+    if (entries.length === 0) {
+        const empty = document.createElement('div');
+        empty.textContent = 'Нет активных квестов';
+        container.appendChild(empty);
     } else {
-        for (const [questId, progress] of Object.entries(quests)) {
+        entries.forEach(([questId, progress]) => {
             const div = document.createElement('div');
-            div.textContent = `${questId}: ${progress}`;
+            const name = getQuestName(questId);
+            div.textContent = `${name}: ${progress}`;
             container.appendChild(div);
-        }
+        });
     }
 }

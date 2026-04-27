@@ -626,6 +626,12 @@ export class MyRoom extends Room<MyRoomState> {
                 z: player.z,
                 rotationY: player.rotationY
             });
+            // Отправляем определения всех квестов
+            client.send("initQuests", {
+                quests: Object.fromEntries(
+                    Object.entries(quests).map(([id, def]) => [id, { name: def.name, description: def.description }])
+                )
+            });
             console.log(`[SERVER] Игрок ${name} добавлен в стейт с x=${player.x}, z=${player.z}`);
             PlayerPersistence.savePlayer(player);   // <-- сохраняем уже полностью загруженного игрока
         }, 20);

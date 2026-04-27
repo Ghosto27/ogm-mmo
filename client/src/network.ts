@@ -23,6 +23,7 @@ import { showDialog, hideDialog } from './ui/DialogUI';
 import { updateNPCMeshes, setNPCProximity, npcMeshes } from './render/NPCRenderer';
 import { createQuestJournal, toggleQuestJournal, updateQuestList } from './quest/QuestJournalUI';
 import { showNotification } from './ui/notificationUI'; 
+import { setQuestDefs, getQuestName } from './quest/questData';
 
 export const client = new Client(SERVER_URL);
 export let room: any = null;
@@ -333,14 +334,19 @@ function join(playerName: string) {
         });
 
         room.onMessage("questProgress", (data: { questId: string; current: number; required: number }) => {
-            console.log(`[QUEST] Прогресс квеста ${data.questId}: ${data.current}/${data.required}`);
+            //console.log(`[QUEST] Прогресс квеста ${data.questId}: ${data.current}/${data.required}`);
             // Пока просто покажем всплывающее уведомление
-            showNotification(`Прогресс квеста: ${data.current}/${data.required}`);
+            showNotification(`${getQuestName(data.questId)}: ${data.current}/${data.required}`);
         });
 
         room.onMessage("questCompleted", (data: { questId: string; name: string; rewardXp: number }) => {
-            console.log(`[QUEST] Квест "${data.name}" завершён! +${data.rewardXp} XP`);
-            showNotification(`Квест "${data.name}" завершён! +${data.rewardXp} XP`);
+            //console.log(`[QUEST] Квест "${data.name}" завершён! +${data.rewardXp} XP`);
+            showNotification(`Квест "${getQuestName(data.questId)}" завершён! +${data.rewardXp} XP`);
+        });
+
+        room.onMessage("initQuests", (data: { quests: Record<string, { name: string; description: string }> }) => {
+            //console.log('[QUESTS] Received quest definitions:', data.quests);
+            setQuestDefs(data.quests);
         });
 
         room.onLeave((code: number) => {
