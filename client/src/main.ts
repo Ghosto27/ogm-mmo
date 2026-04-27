@@ -12,7 +12,7 @@ import { createMinimap, updateMinimap } from './minimap';
 import { createWorldMap, updateWorldMap, toggleWorldMap } from './worldMap';
 import { createPlayerUI, updatePlayerUI } from './playerUI';
 import { createTargetUI } from './targetUI';
-import { updateMobAnimations, interpolateMobPositions } from './mobPlayer';
+import { updateMobAnimations, interpolateMobPositions, mobModels } from './mobPlayer';
 import { renderLabels } from './renderers';
 import './interaction';
 import { createInventoryUI, toggleInventory, updateInventoryUI } from './inventoryUI';
@@ -158,8 +158,21 @@ function loop() {
                 });
             }
         }
-        updateMinimap(localModel.position.x, localModel.position.z, localModel.rotation.y, othersForMap);
-        updateWorldMap(localModel.position.x, localModel.position.z, localModel.rotation.y, othersForMap);
+
+        // Собираем данные о мобах (волках)
+        const mobsForMap: { x: number; z: number; visible: boolean }[] = [];
+        for (const mobId in mobModels) {
+            const mobModel = mobModels[mobId];
+            if (mobModel) {
+                mobsForMap.push({
+                    x: mobModel.position.x,
+                    z: mobModel.position.z,
+                    visible: mobModel.visible,
+                });
+            }
+        }
+        updateMinimap(localModel.position.x, localModel.position.z, localModel.rotation.y, othersForMap, mobsForMap);
+        updateWorldMap(localModel.position.x, localModel.position.z, localModel.rotation.y, othersForMap, mobsForMap);
     }
 
     const IDLE_TIMEOUT = 200;

@@ -15,7 +15,7 @@ export function createNameTag(name: string): CSS2DObject {
     div.style.pointerEvents = 'none';
 
     const label = new CSS2DObject(div);
-    label.position.set(0, 3, 0);
+    label.position.set(0, 3.2, 0);
     label.name = 'nameTag';
     return label;
 }

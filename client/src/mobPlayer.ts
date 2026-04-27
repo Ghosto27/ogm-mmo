@@ -30,7 +30,7 @@ export const wolfModelReady = new Promise<void>((resolve, reject) => {
             if (wolfTemplate.parent) wolfTemplate.parent.remove(wolfTemplate);
 
             wolfAnimations = gltf.animations;
-            wolfTemplate.scale.set(0.8, 0.8, 0.8);
+            wolfTemplate.scale.set(1, 1, 1);
             //console.log('[MOB] Шаблон волка загружен. Анимаций:', wolfAnimations.length);
             //console.log('[MOB] Проверка текстур шаблона волка:');
             wolfTemplate!.traverse((child) => {
@@ -121,7 +121,7 @@ function createWolfInstance(mobId: string): THREE.Group {
 
     // HP-бар
     const hpBar = createHpBar();
-    hpBar.position.set(0, 2.0, 0);
+    hpBar.position.set(0, 2.5, 0);
     model.add(hpBar);
     mobHpBars[mobId] = hpBar;
 

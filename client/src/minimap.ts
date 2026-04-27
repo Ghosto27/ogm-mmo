@@ -33,8 +33,11 @@ export function createMinimap() {
 }
 
 export function updateMinimap(
-    localX: number, localZ: number, localRotationY: number,
-    otherPlayersData: { x: number; z: number; rotationY: number; visible: boolean }[]
+    localX: number,
+    localZ: number,
+    localRotationY: number,
+    otherPlayersData: { x: number; z: number; rotationY: number; visible: boolean }[],
+    mobsData: { x: number; z: number; visible: boolean }[]   // <-- новый параметр
 ) {
     if (!ctx) return;
     const centerX = MAP_SIZE_PX / 2;
@@ -95,6 +98,17 @@ export function updateMinimap(
             ctx.lineTo(px + dx, py + dy);
             ctx.stroke();
         }
+    }
+
+    // Мобы (красные)
+    const mobColor = '#ff3333';   // ярко-красный
+    for (const m of mobsData) {
+        if (!m.visible) continue;
+        const [px, py] = worldToPixel(m.x, m.z);
+        ctx.fillStyle = mobColor;
+        ctx.beginPath();
+        ctx.arc(px, py, 3, 0, Math.PI * 2);
+        ctx.fill();
     }
 
     // Локальный игрок

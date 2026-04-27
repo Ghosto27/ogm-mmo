@@ -38,7 +38,7 @@ export function updateAnimations(deltaTime: number) {
         if (bar && bar.visible) {
             bar.position.x = model.position.x;
             bar.position.z = model.position.z;
-            bar.position.y = model.position.y + 2.2;
+            bar.position.y = model.position.y + 3;
         }
     }
 }
