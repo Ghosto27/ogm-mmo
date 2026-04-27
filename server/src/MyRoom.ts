@@ -11,6 +11,7 @@ import { PlayerStats } from "./models/PlayerStats";
 import { EquipmentSystem } from "./systems/EquipmentSystem";
 import { PlayerPersistence } from "./systems/PlayerPersistence";
 import { ItemSlot } from "./models/ItemSlot";
+import { ChatManager } from "./chat/ChatManager";
 
 export class Player extends Schema {
     @type("number") x: number = 0;
@@ -42,6 +43,10 @@ export class MyRoom extends Room<MyRoomState> {
 
     onCreate() {
         this.setState(new MyRoomState());
+
+        this.onMessage("chatMessage", (client, message) => {
+            ChatManager.sendMessage(this, client, message);
+        });
 
         this.onMessage("move", (client, message) => {
             const player = this.state.players.get(client.sessionId);

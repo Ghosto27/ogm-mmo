@@ -16,6 +16,7 @@ import { updateInventoryUI } from './inventoryUI';
 import { lootMeshes, updateLootMeshes, spawnLootMesh } from './render/LootRenderer';
 import { getCurrentBagId, updateLootSlots, hideLootUI } from './ui/LootWindowUI';
 import { updateCharacterPanel } from './characterPanel';
+import { setupChatListeners } from './chat/chatNetwork';
 
 export const client = new Client(SERVER_URL);
 export let room: any = null;
@@ -63,6 +64,8 @@ function join(playerName: string) {
 
         room.onStateChange((state: any) => {
             if (!room || !localModel) return;
+            // Подключаем чат (комната уже готова)
+            setupChatListeners(room)
 
             // ---------- Локальный игрок ----------
             const myPlayer = state.players.get(room.sessionId);

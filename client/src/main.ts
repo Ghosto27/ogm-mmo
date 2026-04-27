@@ -19,6 +19,9 @@ import { createInventoryUI, toggleInventory, updateInventoryUI } from './invento
 import { createLootUI } from './ui/LootWindowUI';
 import { animateLootMeshes } from './render/LootRenderer';
 import {createCharacterPanel, toggleCharacterPanel, updateCharacterPanel} from './characterPanel';
+import { createChatInput, isChatActive } from './chat/chatInput';
+import { setupChatListeners } from './chat/chatNetwork';
+import { normalizeKey } from './keyboard';
 
 let playerName = localStorage.getItem(STORAGE_KEY) || '';
 
@@ -41,28 +44,34 @@ modelReady.then(() => {
     createWorldMap();
     createInventoryUI();
     createLootUI();
-    createCharacterPanel()
+    createCharacterPanel();
+    createChatInput();
     setTimeout(() => {
         fsm['local']?.transitionTo('idle');
     }, 500);
 });
 
-window.addEventListener('keydown', (e) => {
-    if (e.key.toLowerCase() === 'm' || e.key.toLowerCase() === 'ь') {
+document.addEventListener('keydown', (e) => {
+    const key = normalizeKey(e.key);
+    if (isChatActive()) {
+        // Если чат активен, не обрабатываем клавиши меню и не даём повторно фокусироваться по T
+        if (key === 't') {
+            e.preventDefault(); // на всякий случай
+        }
+        return;
+    }
+    if (key === 't') {
         if (document.activeElement === document.body) {
-            toggleWorldMap();
+            const chatInput = document.getElementById('chat-input');
+            if (chatInput) {
+                chatInput.focus();
+                e.preventDefault();
+            }
         }
     }
-    if (e.key.toLowerCase() === 'b' || e.key.toLowerCase() === 'и') {
-        if (document.activeElement === document.body) {
-            toggleInventory();
-        }
-    }
-    if (e.key.toLowerCase() === 'c' || e.key.toLowerCase() === 'с') {
-        if (document.activeElement === document.body) {
-            toggleCharacterPanel();
-        }
-    }
+    if (key === 'm') { toggleWorldMap(); }
+    if (key === 'i') { toggleInventory(); }
+    if (key === 'c') { toggleCharacterPanel(); }
 });
 
 
@@ -98,17 +107,21 @@ function loop() {
                 localModel.rotation.y += angleDiff * Math.min(1, rotationSpeed * deltaTime);
             }
         } else {
-            const raw = getMovementInput();
-            moveVec = new THREE.Vector3(0, 0, 0);
-            if (raw.x !== 0 || raw.z !== 0) {
-                const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(localModel!.quaternion);
-                forward.y = 0; forward.normalize();
-                const right = new THREE.Vector3(1, 0, 0).applyQuaternion(localModel!.quaternion);
-                right.y = 0; right.normalize();
+            if (isChatActive()) {    // <-- не двигаемся при чате
+                moveVec = new THREE.Vector3(0,0,0);
+            } else {
+                const raw = getMovementInput();
+                moveVec = new THREE.Vector3(0, 0, 0);
+                if (raw.x !== 0 || raw.z !== 0) {
+                    const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(localModel!.quaternion);
+                    forward.y = 0; forward.normalize();
+                    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(localModel!.quaternion);
+                    right.y = 0; right.normalize();
 
-                moveVec.add(forward.multiplyScalar(-raw.z));
-                moveVec.add(right.multiplyScalar(raw.x));
-                moveVec.normalize();
+                    moveVec.add(forward.multiplyScalar(-raw.z));
+                    moveVec.add(right.multiplyScalar(raw.x));
+                    moveVec.normalize();
+                }
             }
         }
 

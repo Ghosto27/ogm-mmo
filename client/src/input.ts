@@ -2,12 +2,20 @@ import * as THREE from 'three';
 import { room } from './network';
 import { camera } from './scene';
 import { otherPlayers } from './player';
+import { isChatActive } from './chat/chatInput';
+import { normalizeKey } from './keyboard';
 
 // ---------- КЛАВИШИ ----------
 const keys: Record<string, boolean> = {};
 
-window.addEventListener('keydown', (e) => { keys[e.key.toLowerCase()] = true; });
-window.addEventListener('keyup',   (e) => { keys[e.key.toLowerCase()] = false; });
+window.addEventListener('keydown', (e) => {
+    if (isChatActive()) return;   // игрок печатает – не обрабатываем
+    keys[normalizeKey(e.key)] = true;
+});
+window.addEventListener('keyup', (e) => {
+    if (isChatActive()) return;
+    keys[normalizeKey(e.key)] = false;
+});
 
 export function getMovementInput(): { x: number; z: number } {
     let x = 0, z = 0;
