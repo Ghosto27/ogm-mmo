@@ -3,7 +3,7 @@ import { SERVER_URL } from './config';
 import {
     localModel, initLocalModel, otherPlayers, hpBars,
     showLocalHpBar, hideLocalHpBar, updateOtherPlayer, removeOtherPlayerVisuals,
-    deathAnimating, fsm, actions
+    deathAnimating, fsm
 } from './player';
 import { setTargetPosition } from './animationUtils';
 import { updateHpBarSprite } from './utils';
@@ -17,6 +17,8 @@ import { lootMeshes, updateLootMeshes, spawnLootMesh } from './render/LootRender
 import { getCurrentBagId, updateLootSlots, hideLootUI } from './ui/LootWindowUI';
 import { updateCharacterPanel } from './characterPanel';
 import { setupChatListeners } from './chat/chatNetwork';
+import { PlayerSyncManager } from './sync/PlayerSyncManager';
+import type { LocalPlayerUpdate, RemotePlayerUpdate } from './sync/PlayerSyncManager';
 
 export const client = new Client(SERVER_URL);
 export let room: any = null;
@@ -25,10 +27,13 @@ let reconnectTimer: any = null;
 let firstSync = true;
 let wasDead = false;
 
-const prevHp: { [sessionId: string]: number } = {};
-const prevPositions: { [sessionId: string]: { x: number; z: number } } = {};
-const playerWasDead: { [sessionId: string]: boolean } = {};
-export const lastMoveTimes: { [sessionId: string]: number } = {};
+// Создаём экземпляр менеджера синхронизации (заменяет глобальные переменные)
+const syncManager = new PlayerSyncManager();
+
+// Экспортируем lastMoveTimes для main.ts (таймер остановки анимации)
+export const lastMoveTimes = {
+    get: (sessionId: string) => syncManager.getLastMoveTime(sessionId),
+};
 
 function join(playerName: string) {
     console.log('[JOIN] Игрок:', playerName);
@@ -36,11 +41,13 @@ function join(playerName: string) {
         room = roomInstance;
         console.log('[JOIN] Успех, sessionId:', room.sessionId);
         
+        // Гарантированно создаём локальную модель, если её ещё нет
         if (!localModel) {
             const storedName = localStorage.getItem('ogm_playerName') || 'Герой';
             initLocalModel(storedName);
             console.log('[NET] localModel принудительно создана с ником', storedName);
         }
+        // Явно показываем модель (на случай, если она была скрыта)
         if (localModel) {
             localModel.visible = true;
             const existingTag = localModel.getObjectByName('nameTag');
@@ -49,6 +56,7 @@ function join(playerName: string) {
                 attachNameTag(localModel, tag);
                 console.log('[NET] Тег создан принудительно');
             }
+            // Отправляем начальное состояние, раз уж модель готова
             room.send("move", { x: localModel.position.x, z: localModel.position.z, r: localModel.rotation.y });
         }
         if (reconnectTimer) {
@@ -60,59 +68,54 @@ function join(playerName: string) {
         wasDead = false;
 
         if (!localModel) initLocalModel();
+
         if (fsm['local']) fsm['local'].transitionTo('idle');
 
         room.onStateChange((state: any) => {
             if (!room || !localModel) return;
+
             // Подключаем чат (комната уже готова)
-            setupChatListeners(room)
+            setupChatListeners(room);
+
+            // Получаем структурированный результат от менеджера синхронизации
+            const syncResult = syncManager.processStateChange(state, room.sessionId);
 
             // ---------- Локальный игрок ----------
-            const myPlayer = state.players.get(room.sessionId);
-            if (myPlayer) {
-                const alive = myPlayer.hp > 0;
-
-                if (firstSync && alive) {
-                    localModel.position.x = myPlayer.x;
-                    localModel.position.z = myPlayer.z;
-                    localModel.rotation.y = myPlayer.rotationY ?? 0;
+            const local = syncResult.localPlayer;
+            if (local) {
+                if (firstSync && local.alive) {
+                    localModel.position.x = local.x;
+                    localModel.position.z = local.z;
+                    localModel.rotation.y = local.rotationY;
                     firstSync = false;
-                    console.log('[SYNC] Позиция восстановлена:', myPlayer.x, myPlayer.z);
+                    console.log('[SYNC] Позиция восстановлена:', local.x, local.z);
                 }
 
-                if (alive && wasDead) {
+                if (local.resurrected) {
                     if (fsm['local']?.isDying) return;
                     fsm['local']?.revive();
                     deathAnimating['local'] = false;
                     localModel!.visible = true;
                     wasDead = false;
-                    console.log(`[RESPAWN] localPlayer x=${myPlayer.x} z=${myPlayer.z}`);
+                    console.log(`[RESPAWN] localPlayer x=${local.x} z=${local.z}`);
                     // Принудительно ставим позицию, т.к. сервер всегда возрождает в (0,0)
-                    if (myPlayer.x === undefined || myPlayer.z === undefined || (myPlayer.x === 0 && myPlayer.z === 0)) {
+                    if (local.x === undefined || local.z === undefined || (local.x === 0 && local.z === 0)) {
                         localModel!.position.set(0, 0, 0);
                     } else {
-                        localModel!.position.set(myPlayer.x, myPlayer.z, 0);
+                        localModel!.position.set(local.x, local.z, 0);
                     }
                 }
 
-                const localOldHp = prevHp[room.sessionId] ?? myPlayer.hp;
-                if (myPlayer.hp < localOldHp && alive) {
-                    if (myPlayer.hp <= 0) {
-                        // Урон смертельный, recievehit не нужен
-                    } else {
-                        fsm['local']?.playOneShot('recievehit', 0.1);
-                    }
+                if (local.tookDamage) {
+                    fsm['local']?.playOneShot('recievehit', 0.1);
                 }
-                prevHp[room.sessionId] = myPlayer.hp;
 
-                if (!alive && !wasDead) {
+                if (local.died) {
                     if (deathAnimating['local']) return;
                     fsm['local']?.playOneShot('death', 0.1, () => {
-                        // Оставляем труп на 2 секунды
                         setTimeout(() => {
                             if (localModel) localModel.visible = false;
                             deathAnimating['local'] = false;
-                            // Снимаем блокировку FSM после скрытия трупа
                             if (fsm['local']) {
                                 fsm['local'].isDead = false;
                                 fsm['local'].isDying = false;
@@ -122,15 +125,19 @@ function join(playerName: string) {
                     });
                     deathAnimating['local'] = true;
                     wasDead = true;
-                    showLocalHpBar(myPlayer.x, myPlayer.z, 0, myPlayer.maxHp);
+                    showLocalHpBar(local.x, local.z, 0, local.maxHp);
                     hideLocalHpBar();
                 }
 
-                if (alive) {
-                    showLocalHpBar(myPlayer.x, myPlayer.z, myPlayer.hp, myPlayer.maxHp);
-                    updatePlayerUI(myPlayer.hp, myPlayer.maxHp, myPlayer.level, myPlayer.exp, myPlayer.expToLevel);
-                    updateCharacterPanel(myPlayer);
-                    updateInventoryUI(myPlayer.inventory);
+                if (local.alive) {
+                    showLocalHpBar(local.x, local.z, local.hp, local.maxHp);
+                    // Получаем актуального myPlayer для доступа к level, exp, expToLevel, inventory
+                    const myPlayer = state.players.get(room.sessionId);
+                    if (myPlayer) {
+                        updatePlayerUI(local.hp, local.maxHp, myPlayer.level, myPlayer.exp, myPlayer.expToLevel);
+                        updateCharacterPanel(myPlayer);
+                        updateInventoryUI(myPlayer.inventory);
+                    }
                     localModel.visible = true;
                 } else {
                     hideLocalHpBar();
@@ -138,91 +145,66 @@ function join(playerName: string) {
             }
 
             // ---------- Другие игроки ----------
-            state.players.forEach((player: any, sessionId: string) => {
-                if (sessionId === room.sessionId) return;
-
-                if (player.hp > 0 && playerWasDead[sessionId]) {
-                    if (fsm[sessionId]?.isDying) return;
-                    fsm[sessionId]?.revive();
-                    playerWasDead[sessionId] = false;
-                    //if (otherPlayers[sessionId]) otherPlayers[sessionId].visible = true;
-                    const model = otherPlayers[sessionId];
+            for (const remote of syncResult.remotePlayers) {
+                if (remote.resurrected) {
+                    if (fsm[remote.sessionId]?.isDying) return;
+                    fsm[remote.sessionId]?.revive();
+                    const model = otherPlayers[remote.sessionId];
                     if (model) {
                         model.visible = true;
-                        // Принудительно перемещаем модель в точку возрождения
-                        model.position.set(player.x, 0, player.z);
-                        // Сбрасываем цель интерполяции, чтобы избежать полёта
-                        setTargetPosition(sessionId, player.x, player.z);
+                        model.position.set(remote.x, 0, remote.z);
+                        setTargetPosition(remote.sessionId, remote.x, remote.z);
                     }
                 }
 
-                const prev = prevPositions[sessionId];
-                let moving = false;
-                if (prev) {
-                    const dx = player.x - prev.x;
-                    const dz = player.z - prev.z;
-                    moving = (dx * dx + dz * dz) > 0.001;
-                }
-                prevPositions[sessionId] = { x: player.x, z: player.z };
-                lastMoveTimes[sessionId] = Date.now();
-
-                const oldHp = prevHp[sessionId] ?? player.hp;
-                if (player.hp < oldHp && player.hp > 0) {
-                    fsm[sessionId]?.playOneShot('recievehit', 0.1);
-                }
-                prevHp[sessionId] = player.hp;
-
-                if (sessionId === getSelectedTarget()) {
-                    updateTargetHP(player.hp, player.maxHp);
+                if (remote.tookDamage) {
+                    fsm[remote.sessionId]?.playOneShot('recievehit', 0.1);
                 }
 
-                if (player.hp <= 0 && !deathAnimating[sessionId]) {
-                    if (deathAnimating[sessionId]) return;
-                    deathAnimating[sessionId] = true;
-                    playerWasDead[sessionId] = true;
-                    if (hpBars[sessionId]) {
-                        updateHpBarSprite(hpBars[sessionId], 0, player.maxHp);
+                if (remote.sessionId === getSelectedTarget()) {
+                    updateTargetHP(remote.hp, remote.maxHp);
+                }
+
+                if (remote.died) {
+                    if (deathAnimating[remote.sessionId]) return;
+                    deathAnimating[remote.sessionId] = true;
+                    if (hpBars[remote.sessionId]) {
+                        updateHpBarSprite(hpBars[remote.sessionId], 0, remote.maxHp);
                     }
-                    fsm[sessionId]?.playOneShot('death', 0.1, () => {
+                    fsm[remote.sessionId]?.playOneShot('death', 0.1, () => {
                         setTimeout(() => {
-                            if (otherPlayers[sessionId]) otherPlayers[sessionId].visible = false;
-                            if (hpBars[sessionId]) hpBars[sessionId].visible = false;
-                            deathAnimating[sessionId] = false;
-                            // Снимаем блокировку FSM после скрытия трупа
-                            if (fsm[sessionId]) {
-                                fsm[sessionId].isDead = false;
-                                fsm[sessionId].isDying = false;
+                            if (otherPlayers[remote.sessionId]) otherPlayers[remote.sessionId].visible = false;
+                            if (hpBars[remote.sessionId]) hpBars[remote.sessionId].visible = false;
+                            deathAnimating[remote.sessionId] = false;
+                            if (fsm[remote.sessionId]) {
+                                fsm[remote.sessionId].isDead = false;
+                                fsm[remote.sessionId].isDying = false;
                             }
-                            console.log(`[DEATH] ${sessionId} model hidden`);
+                            console.log(`[DEATH] ${remote.sessionId} model hidden`);
                         }, 500);
                     });
                 }
 
-                setTargetPosition(sessionId, player.x, player.z);
-                updateOtherPlayer(sessionId, player.x, player.z, player.hp, player.maxHp, player.hp > 0, player.name);
-                if (otherPlayers[sessionId]) {
-                    otherPlayers[sessionId].rotation.y = player.rotationY ?? 0;
+                setTargetPosition(remote.sessionId, remote.x, remote.z);
+                updateOtherPlayer(remote.sessionId, remote.x, remote.z, remote.hp, remote.maxHp, remote.alive, remote.name);
+                if (otherPlayers[remote.sessionId]) {
+                    otherPlayers[remote.sessionId].rotation.y = remote.rotationY;
                 }
 
-                if (player.hp > 0) {
-                    if (moving && fsm[sessionId]) {
-                        fsm[sessionId].transitionTo('walk');
-                    } else if (!moving && fsm[sessionId] && fsm[sessionId].currentStateName !== 'idle') {
-                        fsm[sessionId].transitionTo('idle');
+                if (remote.alive) {
+                    if (remote.isMoving && fsm[remote.sessionId]) {
+                        fsm[remote.sessionId].transitionTo('walk');
+                    } else if (!remote.isMoving && fsm[remote.sessionId] && fsm[remote.sessionId].currentStateName !== 'idle') {
+                        fsm[remote.sessionId].transitionTo('idle');
                     }
                 }
-            });
+            }
 
-            // Удаление вышедших игроков
-            for (const sessionId in otherPlayers) {
-                if (!state.players.has(sessionId)) {
-                    removeOtherPlayerVisuals(sessionId);
-                    delete prevHp[sessionId];
-                    delete prevPositions[sessionId];
-                    delete lastMoveTimes[sessionId];
-                    delete deathAnimating[sessionId];
-                    delete playerWasDead[sessionId];
-                }
+            // Очистка вышедших игроков
+            for (const sessionId of syncResult.needCleanup) {
+                removeOtherPlayerVisuals(sessionId);
+                syncManager.cleanup(sessionId);
+                delete deathAnimating[sessionId];
             }
 
             // ---------- Мобы ----------
@@ -257,6 +239,7 @@ function join(playerName: string) {
                 }
             });
 
+            // Обновление визуала всех мешков (удаление пустых/неактуальных)
             updateLootMeshes(state.lootBags);
 
             // Закрываем окно лута, если отошли от мешка
@@ -297,8 +280,8 @@ function join(playerName: string) {
         });
 
         room.onMessage("mobAttackAnim", (data: { mobId: string }) => {
-            const fsm = mobFSM[data.mobId];
-            fsm?.playOneShot('attack', 0.1);
+            const f = mobFSM[data.mobId];
+            f?.playOneShot('attack', 0.1);
         });
 
         room.onLeave((code: number) => {

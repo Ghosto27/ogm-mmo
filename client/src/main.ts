@@ -190,7 +190,7 @@ function loop() {
 
     const IDLE_TIMEOUT = 200;
     for (const sessionId in otherPlayers) {
-        const lastMove = lastMoveTimes[sessionId] || 0;
+        const lastMove = lastMoveTimes.get(sessionId) || 0;
         if (Date.now() - lastMove > IDLE_TIMEOUT && !deathAnimating[sessionId]) {
             fsm[sessionId]?.transitionTo('idle');
         }
