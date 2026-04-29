@@ -100,7 +100,12 @@ function join(playerName: string) {
                 }
 
                 if (local.resurrected) {
-                    if (fsm['local']?.isDying) return;
+                    // Снимаем блокирующие флаги вручную перед вызовом revive
+                    if (fsm['local']) {
+                        fsm['local'].isDying = false;
+                        fsm['local'].isDead = false;
+                        fsm['local'].isPlayingOneShot = false;
+                    }
                     fsm['local']?.revive();
                     deathAnimating['local'] = false;
                     localModel!.visible = true;
@@ -160,7 +165,10 @@ function join(playerName: string) {
             // ---------- Другие игроки ----------
             for (const remote of syncResult.remotePlayers) {
                 if (remote.resurrected) {
-                    if (fsm[remote.sessionId]?.isDying) return;
+                    if (fsm[remote.sessionId]) {
+                        fsm[remote.sessionId].isDying = false;
+                        fsm[remote.sessionId].isDead = false;
+                    }
                     fsm[remote.sessionId]?.revive();
                     const model = otherPlayers[remote.sessionId];
                     if (model) {
