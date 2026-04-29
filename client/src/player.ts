@@ -81,12 +81,6 @@ function createModelInstance(sessionId?: string): THREE.Group {
         actions[id][mappedName] = action;
     });
 
-    // Создаём FSM
-    const filteredActions: Record<string, THREE.AnimationAction> = {};
-    for (const key in actions[id]) {
-        const act = actions[id][key];
-        if (act) filteredActions[key] = act;
-    }
     // Устанавливаем loop для одноразовых анимаций
     const oneShotActions = ['sword_attack', 'death', 'recievehit'];
     for (const name of oneShotActions) {
@@ -96,6 +90,14 @@ function createModelInstance(sessionId?: string): THREE.Group {
             action.clampWhenFinished = true;
         }
     }
+    
+    // Создаём FSM
+    const filteredActions: Record<string, THREE.AnimationAction> = {};
+    for (const key in actions[id]) {
+        const act = actions[id][key];
+        if (act) filteredActions[key] = act;
+    }
+    
     //console.log('[PLAYER] Available animations:', Object.keys(actions[id]));
     fsm[id] = new AnimationStateMachine(mixer, filteredActions, id);
     if (!actions[id]['idle']?.isRunning()) {

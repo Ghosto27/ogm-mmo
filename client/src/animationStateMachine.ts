@@ -85,7 +85,7 @@ export class AnimationStateMachine {
             this.isPlayingOneShot = false;
 
             if (autoReturn && stateName !== 'death') {
-                this.transitionTo('idle', 0.2);
+                this.resetToIdle();
             }
         };
         this.mixer.addEventListener('finished', onFinished);
@@ -121,5 +121,14 @@ export class AnimationStateMachine {
             a.stop();
         });
         this.transitionTo('idle');
+    }
+
+    resetToIdle() {
+        Object.values(this.actions).forEach(a => a?.stop());
+        const idleAction = this.actions['idle'];
+        if (idleAction) {
+            idleAction.reset().play();
+            this.currentStateName = 'idle';
+        }
     }
 }
