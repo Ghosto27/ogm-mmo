@@ -199,10 +199,10 @@ export function updateMobState(mobId: string, x: number, z: number, hp: number, 
             if (lowerState === 'death') {
                 if (!mobDeathAnimating[mobId]) {
                     mobDeathAnimating[mobId] = true;
-                    fsm.transitionTo(lowerState, 0.1, false);   // autoReturn = false
+                    fsm.transitionTo(lowerState, 0.1);   // autoReturn = false
                 }
             } else {
-                fsm.transitionTo(lowerState, 0.1, false);       // autoReturn = false для всех одноразовых
+                fsm.transitionTo(lowerState, 0.1);       // autoReturn = false для всех одноразовых
             }
         }
     } else {

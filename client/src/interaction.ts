@@ -50,7 +50,7 @@ window.addEventListener('mouseup', (event) => {
                     const dist = targetModel.position.distanceTo(localModel.position);
                     if (dist <= 4) {
                         room.send("attack", { target: targetId });
-                        fsm['local']?.transitionTo('sword_attack');
+                        fsm['local']?.requestAttack();
                         console.log(`[ATTACK] Игрок ${targetId} (дист. ${dist.toFixed(2)})`);
                     } else {
                         console.log(`[ATTACK] Игрок далеко (${dist.toFixed(2)})`);
@@ -76,7 +76,7 @@ window.addEventListener('mouseup', (event) => {
                         const ATTACK_RANGE = 4;   // можно изменить на нужную дистанцию
                         if (dist <= ATTACK_RANGE) {
                             room.send("attackMob", { mobId });
-                            fsm['local']?.transitionTo('sword_attack');
+                            fsm['local']?.requestAttack();
                             console.log(`[ATTACK] Атака на моба ${mobId} (дист. ${dist.toFixed(2)})`);
                         } else {
                             console.log(`[ATTACK] Моб далеко (${dist.toFixed(2)})`);

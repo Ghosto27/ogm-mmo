@@ -150,15 +150,14 @@ function loop() {
                     lastSend = nowSend;
                 } catch (e) {}
             }
-                if (!deathAnimating['local'] && !fsm['local']?.isPlayingOneShot) {
+                if (!deathAnimating['local']) {
                  fsm['local']?.transitionTo(sprintKey ? 'run' : 'walk'); // пока обе walk, позже заменим на 'run'
             }
         } else {
-            if (!deathAnimating['local'] && !fsm['local']?.isPlayingOneShot) {
+            if (!deathAnimating['local']) {
                 // Гарантируем, что idle действительно проигрывается
-                if (fsm['local']?.currentStateName === 'idle' && !actions['local']['idle']?.isRunning()) {
-                    fsm['local']?.transitionTo('idle');
-                }
+                fsm['local']?.transitionTo('idle');
+                
             }
         }
     }

@@ -301,7 +301,7 @@ function join(playerName: string) {
 
         room.onMessage("attackAnim", (message: { attacker: string }) => {
             if (message.attacker !== room.sessionId) {
-                fsm[message.attacker]?.transitionTo('sword_attack');
+                fsm[message.attacker]?.requestAttack();
             }
         });
 

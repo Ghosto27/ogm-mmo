@@ -15,7 +15,7 @@ function lerp(a: number, b: number, t: number) {
 }
 
 export function updateAnimations(deltaTime: number) {
-    console.log('[ANIM] updateAnimations called, mixers:', Object.keys(mixers).length);
+    //console.log('[ANIM] updateAnimations called, mixers:', Object.keys(mixers).length);
     // Обновляем все скелетные миксеры
     for (const id in mixers) {
         mixers[id].update(deltaTime);
@@ -46,16 +46,16 @@ export function updateAnimations(deltaTime: number) {
     // Диагностика: проверяем завершение одноразовых анимаций
     for (const id in mixers) {
         const fsmObj = fsm[id];
-        console.log(`[CHECK] ${id} isPlayingOneShot=${fsmObj?.isPlayingOneShot}`);
+        //console.log(`[CHECK] ${id} isPlayingOneShot=${fsmObj?.isPlayingOneShot}`);
         if (!fsmObj || !fsmObj.isPlayingOneShot) continue;
         const curState = fsmObj.currentStateName;
         const action = actions[id]?.[curState || ''];
         if (!action) continue;
         const elapsed = action.time;
         const duration = action.getClip().duration;
-        console.log(`[CHECK] ${id} "${curState}" time=${elapsed.toFixed(3)}/${duration.toFixed(3)} running=${action.isRunning()}`);
+        //console.log(`[CHECK] ${id} "${curState}" time=${elapsed.toFixed(3)}/${duration.toFixed(3)} running=${action.isRunning()}`);
         if (!action.isRunning() || elapsed >= duration) {
-            console.log(`[CHECK] ${id} marking as finished, returning to idle`);
+            //console.log(`[CHECK] ${id} marking as finished, returning to idle`);
             fsmObj.isPlayingOneShot = false;
             Object.values(actions[id]).forEach(a => {
                 if (a && a.loop === THREE.LoopRepeat) a.paused = false;

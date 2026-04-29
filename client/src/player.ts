@@ -90,7 +90,7 @@ function createModelInstance(sessionId?: string): THREE.Group {
             action.clampWhenFinished = true;
         }
     }
-    
+
     // Создаём FSM
     const filteredActions: Record<string, THREE.AnimationAction> = {};
     for (const key in actions[id]) {
@@ -122,6 +122,7 @@ export function initLocalModel(playerName?: string): THREE.Group {
     if (localModel) {
         scene.add(localModel);
         localModel.visible = true;
+            (window as any).localModel = localModel; 
 
         // Принудительно создаём тег с именем из localStorage или переданным
         const displayName = playerName || localStorage.getItem('ogm_playerName') || 'Герой';
