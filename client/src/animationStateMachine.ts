@@ -80,7 +80,7 @@ export class AnimationStateMachine {
         this.isDying = false;
         this.isPlayingOneShot = false;
         Object.values(this.actions).forEach(a => { a.enabled = true; a.stop(); });
-        this.transitionTo('idle');
+        this._returnToIdle();   // Прямой вызов без проверок
     }
 
     // ---------- Приватный запуск одноразовой анимации ----------
