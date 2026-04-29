@@ -29,7 +29,7 @@ scene.add(dirLight);
 
 // Пол (зелёная плоскость)
 const floor = new THREE.Mesh(
-    new THREE.PlaneGeometry(50, 50),
+    new THREE.PlaneGeometry(200, 200),
     new THREE.MeshStandardMaterial({ color: 0x3a9d23 })
 );
 floor.rotation.x = -Math.PI / 2;
@@ -37,7 +37,7 @@ floor.position.y = -0.5;
 scene.add(floor);
 
 // Вспомогательная сетка
-const grid = new THREE.GridHelper(50, 50, 0x000000, 0x333333);
+const grid = new THREE.GridHelper(200, 200, 0x000000, 0x333333);
 grid.position.y = -0.49;
 scene.add(grid);
 

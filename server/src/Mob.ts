@@ -13,4 +13,5 @@ export class Mob extends Schema {
     @type("number") lastAttackTime: number = 0;
     @type("number") idleTimer: number = 0;
     @type("number") patrolAngle: number = Math.random() * Math.PI * 2;
+    @type("number") spawnZoneIndex: number = 0;
 }

@@ -16,6 +16,8 @@ import { NPC } from "./schemas/NPC";
 import { dialogs } from "./data/dialogs";
 import { QuestManager } from "./systems/QuestManager";
 import { quests } from "./data/quests";
+import { WorldObject } from "./schemas/WorldObject";
+import { LocationLoader } from "./systems/LocationLoader";
 
 export class Player extends Schema {
     @type("number") x: number = 0;
@@ -41,6 +43,7 @@ class MyRoomState extends Schema {
     @type({ map: Mob }) mobs = new MapSchema<Mob>();
     @type({ map: LootBag }) lootBags = new MapSchema<LootBag>();
     @type({ map: NPC }) npcs = new MapSchema<NPC>();
+    @type({ map: WorldObject }) worldObjects = new MapSchema<WorldObject>();
 }
 
 export class MyRoom extends Room<MyRoomState> {
@@ -302,13 +305,14 @@ export class MyRoom extends Room<MyRoomState> {
         });
 
         this.spawner = new MobSpawner(this);
+        LocationLoader.load(this, "village");
 
         // Создаём тестового NPC – рыцаря
         const knight = new NPC();
         knight.id = "knight_01";
         knight.name = "Рыцарь";
-        knight.x = 30;
-        knight.z = 0;
+        knight.x = 0;
+        knight.z = -25;
         knight.availableQuestIds.push("kill_5_wolves", "kill_10_wolves");
         this.state.npcs.set(knight.id, knight);
         console.log(`[NPC] Рыцарь появился на (${knight.x}, ${knight.z})`);

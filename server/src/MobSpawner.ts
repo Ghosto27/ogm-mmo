@@ -6,10 +6,9 @@ import { ItemSlot } from "./models/ItemSlot";
 import { itemDatabase } from "./data/items";
 import { QuestManager } from "./systems/QuestManager";
 import { PlayerPersistence } from "./systems/PlayerPersistence";
+import { wolfSpawnZones } from "./data/spawnZones";
 
-const MAX_MOBS = 2;
-const SPAWN_RADIUS = 30; // от центра
-const RESPAWN_DELAY = 10_000; // 10 секунд
+const RESPAWN_DELAY = 10_000;      // 10 секунд
 
 export class MobSpawner {
     private room: MyRoom;
@@ -21,59 +20,55 @@ export class MobSpawner {
     }
 
     private spawnInitial() {
-        for (let i = 0; i < MAX_MOBS; i++) {
-            this.spawnOne();
-        }
+        // Спавним волков по зонам
+        wolfSpawnZones.forEach((zone, index) => {
+            for (let i = 0; i < zone.count; i++) {
+                this.spawnOneInZone(index);
+            }
+        });
     }
 
-    private spawnOne() {
+    /** Создаёт волка в указанной зоне */
+    private spawnOneInZone(zoneIndex: number) {
+        const zone = wolfSpawnZones[zoneIndex];
+        if (!zone) return;
+
         const mob = new Mob();
         const angle = Math.random() * Math.PI * 2;
-        const dist = Math.random() * SPAWN_RADIUS;
-        mob.x = Math.cos(angle) * dist;
-        mob.z = Math.sin(angle) * dist;
+        const dist = Math.random() * zone.radius;
+        mob.x = zone.centerX + Math.cos(angle) * dist;
+        mob.z = zone.centerZ + Math.sin(angle) * dist;
         mob.rotationY = Math.random() * Math.PI * 2;
+        mob.spawnZoneIndex = zoneIndex;   // запоминаем зону
 
         const mobId = `mob_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         this.room.state.mobs.set(mobId, mob);
         this.mobCount++;
-        console.log(`[SPAWN] Волк ${mobId} появился на (${mob.x.toFixed(1)}, ${mob.z.toFixed(1)})`);
-
-        this.scheduleRespawn(mobId);
+        console.log(`[SPAWN] Волк ${mobId} появился в зоне ${zoneIndex} (${mob.x.toFixed(1)}, ${mob.z.toFixed(1)})`);
     }
 
-    private scheduleRespawn(mobId: string) {
-        // Через RESPAWN_DELAY после смерти моб возродится (но удалять пока не будем — это делается при смерти)
-        // На самом деле респаун лучше запускать при удалении моба, но пока упростим: каждые 10 секунд проверяем,
-        // есть ли мёртвый моб с таким id и если да – воскрешаем.
-        // Но для первого раза оставим просто создание нового моба при старте, а смерть и респаун будут в FSM.
+    /** Респавн: используется та же зона, что и у умершего волка */
+    private respawnMob(zoneIndex: number) {
+        this.spawnOneInZone(zoneIndex);
     }
 
     public onMobDied(mobId: string, killerSessionId?: string) {
         const mob = this.room.state.mobs.get(mobId);
         if (!mob) return;
 
-        // Устанавливаем состояние смерти (клиент проиграет анимацию)
         mob.state = 'death';
+        const spawnZoneIndex = mob.spawnZoneIndex; // запоминаем зону до удаления
 
-        // Опыт только убийце (если передан)
         if (killerSessionId) {
             const killer = this.room.state.players.get(killerSessionId);
             if (killer) {
                 this.room.addExperience(killer, mob.expReward);
-            }
-        }
-
-        // Засчитываем прогресс квеста только убийце
-         if (killerSessionId) {
-            const killer = this.room.state.players.get(killerSessionId);
-            if (killer) {
                 QuestManager.onMobKilled(this.room, killer, 'wolf');
                 PlayerPersistence.savePlayer(killer);
             }
-         }
+        }
 
-        // Создание мешка с лутом
+        // ... создание лута и удаление ...
         const lootItems: { item: Item, quantity: number }[] = [];
         const potion = Object.assign(new Item(), itemDatabase["potion_hp_01"]);
         const sword = Object.assign(new Item(), itemDatabase["sword_01"]);
@@ -89,12 +84,13 @@ export class MobSpawner {
         const bag = new LootBag(bagId, landX, landZ, mob.x, mob.z, lootItems);
         this.room.state.lootBags.set(bagId, bag);
 
-        // Даём время на проигрывание анимации смерти (3 секунды)
         setTimeout(() => {
             this.room.state.mobs.delete(mobId);
             this.mobCount--;
-            // Респавн через 10 секунд после удаления
-            setTimeout(() => this.spawnOne(), 10000);
+            // Респавн в той же зоне
+            if (spawnZoneIndex >= 0 && spawnZoneIndex < wolfSpawnZones.length) {
+                setTimeout(() => this.respawnMob(spawnZoneIndex), RESPAWN_DELAY);
+            }
         }, 3000);
     }
 }

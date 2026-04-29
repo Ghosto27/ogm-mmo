@@ -24,6 +24,7 @@ import { updateNPCMeshes, setNPCProximity, npcMeshes } from './render/NPCRendere
 import { createQuestJournal, toggleQuestJournal, updateQuestList } from './quest/QuestJournalUI';
 import { showNotification } from './ui/notificationUI'; 
 import { setQuestDefs, getQuestName } from './quest/questData';
+import { updateWorldObjects } from './render/WorldRenderer';
 
 export const client = new Client(SERVER_URL);
 export let room: any = null;
@@ -290,6 +291,11 @@ function join(playerName: string) {
                 } else {
                     hideLootUI();
                 }
+            }
+
+            // ---------- Мировые объекты ----------
+            if (state.worldObjects) {
+                updateWorldObjects(state.worldObjects);
             }
         });
 
