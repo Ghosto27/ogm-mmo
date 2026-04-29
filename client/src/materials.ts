@@ -22,42 +22,55 @@ const createGradientMap = (): THREE.CanvasTexture => {
 
 export const toonGradientMap = createGradientMap();
 
-export const createLocalToonMaterial = (map: THREE.Texture | null) => {
+export const createLocalToonMaterial = (map: THREE.Texture | null, vertexColors: boolean = false) => {
     return new THREE.MeshToonMaterial({
         color: 0xffffff,
         gradientMap: toonGradientMap,
         map: map,
+        vertexColors: vertexColors,
     });
 };
 
-export const createEnemyToonMaterial = (map: THREE.Texture | null) => {
+export const createEnemyToonMaterial = (map: THREE.Texture | null, vertexColors: boolean = false) => {
     return new THREE.MeshToonMaterial({
         color: 0x3399ff,
         gradientMap: toonGradientMap,
         map: map,
+        vertexColors: vertexColors,
     });
 };
 
-export function cloneMaterial(original: THREE.MeshStandardMaterial, sessionId?: string): THREE.MeshToonMaterial {
-    const map = original.map ?? null;
-    const newMat = sessionId ? createEnemyToonMaterial(map) : createLocalToonMaterial(map);
+export function cloneMaterial(original: THREE.Material, sessionId?: string): THREE.MeshToonMaterial {
+    const phys = original as THREE.MeshPhysicalMaterial;
+    const map = (phys as any).map ?? null;
+    const newMat = sessionId
+        ? createEnemyToonMaterial(map, phys.vertexColors)
+        : createLocalToonMaterial(map, phys.vertexColors);
 
-    (newMat as any).alphaMap = original.alphaMap ?? null;
-    (newMat as any).emissiveMap = original.emissiveMap ?? null;
-    (newMat as any).aoMap = original.aoMap ?? null;
-    (newMat as any).normalMap = original.normalMap ?? null;
+    // Явно дублируем ключевые свойства, чтобы гарантировать их применение
+    newMat.vertexColors = phys.vertexColors;        // ← теперь точно скопируется
+    // Принудительно делаем emissive белым, чтобы модель не была тёмной
+    newMat.emissive = new THREE.Color(0xffffff);
+    newMat.emissiveIntensity = 0.5;
 
-    newMat.transparent = original.transparent;
-    newMat.alphaTest = original.alphaTest;
-    newMat.side = original.side;
-    newMat.depthWrite = original.depthWrite;
-    newMat.depthTest = original.depthTest;
-    newMat.opacity = original.opacity;
+    // ❗ Временно отключаем градиентную карту
+    newMat.gradientMap = null;
 
-    newMat.vertexColors = original.vertexColors;
-    newMat.wireframe = original.wireframe;
-    newMat.emissive = original.emissive;
-    newMat.emissiveIntensity = original.emissiveIntensity;
+    (newMat as any).alphaMap = (phys as any).alphaMap ?? null;
+    (newMat as any).emissiveMap = (phys as any).emissiveMap ?? null;
+    (newMat as any).aoMap = (phys as any).aoMap ?? null;
+    (newMat as any).normalMap = (phys as any).normalMap ?? null;
+
+    newMat.transparent = phys.transparent;
+    newMat.alphaTest = phys.alphaTest;
+    newMat.side = phys.side;
+    newMat.depthWrite = phys.depthWrite;
+    newMat.depthTest = phys.depthTest;
+    newMat.opacity = phys.opacity;
+
+    newMat.wireframe = phys.wireframe;
+
+    newMat.needsUpdate = true;
 
     return newMat;
 }

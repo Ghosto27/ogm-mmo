@@ -115,7 +115,7 @@ function join(playerName: string) {
                 }
 
                 if (local.tookDamage) {
-                    fsm['local']?.playOneShot('recievehit', 0.1);
+                    //fsm['local']?.playOneShot('recievehit', 0.1);
                 }
 
                 if (local.died) {

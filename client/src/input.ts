@@ -5,15 +5,19 @@ import { otherPlayers } from './player';
 import { isChatActive } from './chat/chatInput';
 import { normalizeKey } from './keyboard';
 
+export let sprintKey = false;
+
 // ---------- КЛАВИШИ ----------
 const keys: Record<string, boolean> = {};
 
 window.addEventListener('keydown', (e) => {
     if (isChatActive()) return;   // игрок печатает – не обрабатываем
+    if (e.key === 'Shift') sprintKey = true;
     keys[normalizeKey(e.key)] = true;
 });
 window.addEventListener('keyup', (e) => {
     if (isChatActive()) return;
+    if (e.key === 'Shift') sprintKey = false;
     keys[normalizeKey(e.key)] = false;
 });
 

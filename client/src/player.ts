@@ -14,15 +14,16 @@ let defaultAnimations: THREE.AnimationClip[] = [];
 export const modelReady = new Promise<void>((resolve, reject) => {
     const loader = new GLTFLoader();
     loader.load(
-        '/models/Warrior.gltf',
+        '/models/player.glb',
         (gltf) => {
             modelTemplate = gltf.scene;
+            (window as any).playerTemplate = modelTemplate;
             modelTemplate.visible = false;
             modelTemplate.matrixAutoUpdate = false;
             if (modelTemplate.parent) modelTemplate.parent.remove(modelTemplate);
             defaultAnimations = gltf.animations;
             //modelTemplate.scale.set(1, 1, 1);
-            console.log('[MODEL] Шаблон Warrior загружен. Анимаций:', defaultAnimations.length);
+            console.log('[MODEL] Шаблон Player загружен. Анимаций:', defaultAnimations.length);
             resolve();
         },
         undefined,
@@ -42,13 +43,15 @@ function createModelInstance(sessionId?: string): THREE.Group {
     const model = clone(modelTemplate) as unknown as THREE.Group;
     model.visible = true;
     model.matrixAutoUpdate = true;
-    model.rotation.set(0, Math.PI, 0);
+    //model.rotation.set(0, Math.PI, 0);
+    model.scale.set(1.5, 1.5, 1.5);
 
     model.traverse((child: THREE.Object3D) => {
         if (child instanceof THREE.Mesh) {
             const orig = child.material as THREE.MeshStandardMaterial;
-            const newMat = cloneMaterial(orig, sessionId);
-            child.material = newMat;
+            //const newMat = cloneMaterial(orig, sessionId);
+            //child.material = newMat;
+            //console.log(`[MAT] ${child.name}: vertexColors orig=${orig.vertexColors}, new=${(child.material as any).vertexColors}`);
             child.castShadow = true;
             child.receiveShadow = true;
             if (sessionId) child.userData.sessionId = sessionId;
@@ -60,9 +63,20 @@ function createModelInstance(sessionId?: string): THREE.Group {
     mixers[id] = mixer;
     actions[id] = {};
 
+    const nameMapping: Record<string, string> = {
+        'mm_idle': 'idle',
+        'mf_walk_fwd': 'walk',
+        'mf_run_fwd': 'run',
+        'death01': 'death',
+        'mm_attack_01': 'sword_attack',
+        // позже добавим hit react и т.д.
+    };
+
     defaultAnimations.forEach((clip) => {
         const action = mixer.clipAction(clip, model);
-        actions[id][clip.name.toLowerCase()] = action;
+        const rawName = clip.name.toLowerCase();
+        const mappedName = nameMapping[rawName] || rawName; // если нет в маппинге – оставляем оригинальное имя
+        actions[id][mappedName] = action;
     });
 
     // Создаём FSM
@@ -71,6 +85,7 @@ function createModelInstance(sessionId?: string): THREE.Group {
         const act = actions[id][key];
         if (act) filteredActions[key] = act;
     }
+    //console.log('[PLAYER] Available animations:', Object.keys(actions[id]));
     fsm[id] = new AnimationStateMachine(mixer, filteredActions, id);
     if (!actions[id]['idle']?.isRunning()) {
         fsm[id].transitionTo('idle');

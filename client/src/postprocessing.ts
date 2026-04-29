@@ -3,7 +3,6 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { OutlinePass } from 'three/examples/jsm/postprocessing/OutlinePass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
-import { ToonShader1 } from 'three/examples/jsm/shaders/ToonShader.js';
 import { scene, camera, renderer } from './scene';
 
 // 1. Настраиваем цветовое пространство рендерера (важно!)
@@ -15,13 +14,32 @@ composer.setSize(window.innerWidth, window.innerHeight);
 const renderPass = new RenderPass(scene, camera);
 composer.addPass(renderPass);
 
-// 2. Используем ToonShader1
-const toonPass = new ShaderPass(ToonShader1);
-toonPass.uniforms['uDirLightPos'].value = new THREE.Vector3(10, 20, 5);
-toonPass.uniforms['uDirLightColor'].value = new THREE.Color(0xffffff);
-toonPass.uniforms['uAmbientLightColor'].value = new THREE.Color(0x606060);
-//composer.addPass(toonPass);
-
+// Наш кастомный шейдер для toon
+const toonColorPass = new ShaderPass({
+    uniforms: {
+        tDiffuse: { value: null },
+        levels: { value: 9.0 } // Чем меньше число, тем более "мультяшным" будет эффект
+    },
+    vertexShader: /* glsl */ `
+        varying vec2 vUv;
+        void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+    `,
+    fragmentShader: /* glsl */ `
+        varying vec2 vUv;
+        uniform sampler2D tDiffuse;
+        uniform float levels;
+        void main() {
+            vec4 color = texture2D(tDiffuse, vUv);
+            // Волшебная формула: уменьшаем количество цветов
+            color.rgb = floor(color.rgb * levels) / levels;
+            gl_FragColor = color;
+        }
+    `
+});
+composer.addPass(toonColorPass);
 
 // Обводка
 export const outlinePass = new OutlinePass(

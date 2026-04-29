@@ -1,7 +1,7 @@
 import * as THREE from 'three';
-import { PLAYER_SPEED, STORAGE_KEY } from './config';
+import { PLAYER_SPEED, STORAGE_KEY, SPRINT_MULTIPLIER } from './config';
 import { scene, camera, renderer } from './scene';
-import { getMovementInput, getCameraRelativeMovement } from './input';
+import { getMovementInput, getCameraRelativeMovement, sprintKey } from './input';
 import { localModel, otherPlayers, modelReady, fsm, deathAnimating } from './player';
 import { room, startConnection, lastMoveTimes } from './network';
 import { composer, outlinePass } from './postprocessing';
@@ -138,7 +138,8 @@ function loop() {
 
         const isMoving = moveVec.lengthSq() > 0;
         if (isMoving) {
-            const delta = PLAYER_SPEED * 0.016;
+            const speedMultiplier = sprintKey ? SPRINT_MULTIPLIER : 1.0;
+            const delta = PLAYER_SPEED * 0.016 * speedMultiplier;
             localModel.position.x += moveVec.x * delta;
             localModel.position.z += moveVec.z * delta;
 
@@ -150,7 +151,7 @@ function loop() {
                 } catch (e) {}
             }
                 if (!deathAnimating['local']) {
-                 fsm['local']?.transitionTo('walk');
+                 fsm['local']?.transitionTo(sprintKey ? 'run' : 'walk'); // пока обе walk, позже заменим на 'run'
             }
         } else {
             if (!deathAnimating['local']) {
@@ -164,6 +165,7 @@ function loop() {
         const box = new THREE.Box3().setFromObject(localModel);
         const center = new THREE.Vector3();
         box.getCenter(center);
+        center.y += 1.4; // поднимаем точку фокуса до уровня плеч
         setCameraTarget(center.x, center.y, center.z);
     }
     updateCamera();
