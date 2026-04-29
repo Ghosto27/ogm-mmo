@@ -120,7 +120,7 @@ function join(playerName: string) {
 
                 if (local.died) {
                     if (deathAnimating['local']) return;
-                    fsm['local']?.playOneShot('death', 0.1, () => {
+                    fsm['local']?.playDeath(() => {
                         setTimeout(() => {
                             if (localModel) localModel.visible = false;
                             deathAnimating['local'] = false;
@@ -171,7 +171,7 @@ function join(playerName: string) {
                 }
 
                 if (remote.tookDamage) {
-                    fsm[remote.sessionId]?.playOneShot('recievehit', 0.1);
+                    fsm[remote.sessionId]?.transitionTo('recievehit');
                 }
 
                 if (remote.sessionId === getSelectedTarget()) {
@@ -184,7 +184,7 @@ function join(playerName: string) {
                     if (hpBars[remote.sessionId]) {
                         updateHpBarSprite(hpBars[remote.sessionId], 0, remote.maxHp);
                     }
-                    fsm[remote.sessionId]?.playOneShot('death', 0.1, () => {
+                    fsm[remote.sessionId]?.playDeath(() => {
                         setTimeout(() => {
                             if (otherPlayers[remote.sessionId]) otherPlayers[remote.sessionId].visible = false;
                             if (hpBars[remote.sessionId]) hpBars[remote.sessionId].visible = false;
@@ -301,7 +301,7 @@ function join(playerName: string) {
 
         room.onMessage("attackAnim", (message: { attacker: string }) => {
             if (message.attacker !== room.sessionId) {
-                fsm[message.attacker]?.playOneShot('sword_attack', 0.1);
+                fsm[message.attacker]?.transitionTo('sword_attack');
             }
         });
 
@@ -322,7 +322,7 @@ function join(playerName: string) {
 
         room.onMessage("mobAttackAnim", (data: { mobId: string }) => {
             const f = mobFSM[data.mobId];
-            f?.playOneShot('attack', 0.1);
+            f?.transitionTo('attack');
         });
 
         room.onMessage("dialogueStart", (data: { npcName: string; text: string; choices: { text: string }[] }) => {

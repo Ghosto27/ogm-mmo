@@ -37,6 +37,8 @@ export const actions: { [id: string]: Record<string, THREE.AnimationAction | nul
 export const deathAnimating: { [id: string]: boolean } = {};
 export const fsm: { [id: string]: AnimationStateMachine } = {};
 
+(window as any).actions = actions;
+
 // ---------- СОЗДАНИЕ ЭКЗЕМПЛЯРА ИГРОКА ----------
 function createModelInstance(sessionId?: string): THREE.Group {
     if (!modelTemplate) throw new Error('Шаблон ещё не загружен');
@@ -67,8 +69,8 @@ function createModelInstance(sessionId?: string): THREE.Group {
         'mm_idle': 'idle',
         'mf_walk_fwd': 'walk',
         'mf_run_fwd': 'run',
-        'death01': 'death',
-        'mm_attack_01': 'sword_attack',
+        'mm_death01': 'death',
+        'mm_punch01': 'sword_attack',
         // позже добавим hit react и т.д.
     };
 
@@ -85,11 +87,22 @@ function createModelInstance(sessionId?: string): THREE.Group {
         const act = actions[id][key];
         if (act) filteredActions[key] = act;
     }
+    // Устанавливаем loop для одноразовых анимаций
+    const oneShotActions = ['sword_attack', 'death', 'recievehit'];
+    for (const name of oneShotActions) {
+        const action = actions[id][name];
+        if (action) {
+            action.setLoop(THREE.LoopOnce, 1);
+            action.clampWhenFinished = true;
+        }
+    }
     //console.log('[PLAYER] Available animations:', Object.keys(actions[id]));
     fsm[id] = new AnimationStateMachine(mixer, filteredActions, id);
     if (!actions[id]['idle']?.isRunning()) {
         fsm[id].transitionTo('idle');
     }
+    
+    (window as any).fsm = fsm;
 
     return model;
 }

@@ -100,12 +100,24 @@ function createWolfInstance(mobId: string): THREE.Group {
         actions[clip.name.toLowerCase()] = action;
     });
 
+    // Устанавливаем loop для одноразовых анимаций
+    const oneShotActions = ['attack', 'death', 'idle_hitreact1', 'idle_hitreact2', 'gallop_jump'];
+    for (const name of oneShotActions) {
+        const action = actions[name];
+        if (action) {
+            action.setLoop(THREE.LoopOnce, 1);
+            action.clampWhenFinished = true;
+        }
+    }
+
     mobMixers[mobId] = mixer;
     mobActions[mobId] = actions;
 
     // Создаём FSM для моба
     const fsm = new AnimationStateMachine(mixer, actions as Record<string, THREE.AnimationAction>, mobId);
     mobFSM[mobId] = fsm;
+
+    
 
     // Запускаем idle по умолчанию
     if (actions['idle']) {
@@ -153,7 +165,7 @@ export function spawnMob(mobId: string, x: number, z: number, hp: number, maxHp:
     setMobTargetPosition(mobId, x, z);
 }
 
-export function updateMobState(mobId: string, x: number, z: number, hp: number, maxHp: number, state: string, subState?: string) {
+export function updateMobState(mobId: string, x: number, z: number, hp: number, maxHp: number, state: string) {
     const model = mobModels[mobId];
     if (!model) return;
     
@@ -168,32 +180,36 @@ export function updateMobState(mobId: string, x: number, z: number, hp: number, 
     updateHpBarSprite(mobHpBars[mobId], hp, maxHp);
     
     const fsm = mobFSM[mobId];
-    if (fsm) {
-         const lowerState = state.toLowerCase();
-        // Игнорируем любые анимации, если уже проигрывается смерть
-        if (mobDeathAnimating[mobId] && lowerState !== 'death') {
-            return;
-        }
-        if (lowerState === 'attack' || lowerState === 'death' || 
-            lowerState === 'idle_hitreact1' || lowerState === 'idle_hitreact2' || 
-            lowerState === 'gallop_jump') {
-            if (fsm.currentStateName !== lowerState) {
-                // Для смерти взводим флаг и не даём перезапустить
-                if (lowerState === 'death') {
-                    if (!mobDeathAnimating[mobId]) {
-                        mobDeathAnimating[mobId] = true;
-                        fsm.playOneShot(lowerState, 0.1);
-                    }
-                } else {
-                    fsm.playOneShot(lowerState, 0.1);
+    if (!fsm) return;
+
+    const lowerState = state.toLowerCase();
+
+    // Игнорируем любые анимации, если уже проигрывается смерть
+    if (mobDeathAnimating[mobId] && lowerState !== 'death') {
+        return;
+    }
+
+    // Одноразовые анимации (атака, смерть, реакции на урон, прыжок)
+    if (lowerState === 'attack' || lowerState === 'death' || 
+        lowerState === 'idle_hitreact1' || lowerState === 'idle_hitreact2' || 
+        lowerState === 'gallop_jump') {
+        
+        if (fsm.currentStateName !== lowerState) {
+            // Для смерти взводим флаг и не даём перезапустить
+            if (lowerState === 'death') {
+                if (!mobDeathAnimating[mobId]) {
+                    mobDeathAnimating[mobId] = true;
+                    fsm.transitionTo(lowerState, 0.1, false);   // autoReturn = false
                 }
+            } else {
+                fsm.transitionTo(lowerState, 0.1, false);       // autoReturn = false для всех одноразовых
             }
-        } else {
-            // Циклические анимации (idle, idle_2, idle_2_headlow, walk, gallop)
-            if (mobDeathAnimating[mobId]) return;
-            if (fsm.currentStateName !== lowerState) {
-                fsm.transitionTo(lowerState);
-            }
+        }
+    } else {
+        // Циклические анимации (idle, idle_2, idle_2_headlow, walk, gallop)
+        if (mobDeathAnimating[mobId]) return;
+        if (fsm.currentStateName !== lowerState) {
+            fsm.transitionTo(lowerState);
         }
     }
 }

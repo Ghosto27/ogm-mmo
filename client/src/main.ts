@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { PLAYER_SPEED, STORAGE_KEY, SPRINT_MULTIPLIER } from './config';
 import { scene, camera, renderer } from './scene';
 import { getMovementInput, getCameraRelativeMovement, sprintKey } from './input';
-import { localModel, otherPlayers, modelReady, fsm, deathAnimating } from './player';
+import { localModel, otherPlayers, modelReady, fsm, deathAnimating, actions } from './player';
 import { room, startConnection, lastMoveTimes } from './network';
 import { composer, outlinePass } from './postprocessing';
 import { updateAnimations } from './animationUtils';
@@ -150,12 +150,15 @@ function loop() {
                     lastSend = nowSend;
                 } catch (e) {}
             }
-                if (!deathAnimating['local']) {
+                if (!deathAnimating['local'] && !fsm['local']?.isPlayingOneShot) {
                  fsm['local']?.transitionTo(sprintKey ? 'run' : 'walk'); // пока обе walk, позже заменим на 'run'
             }
         } else {
-            if (!deathAnimating['local']) {
-                fsm['local']?.transitionTo('idle');
+            if (!deathAnimating['local'] && !fsm['local']?.isPlayingOneShot) {
+                // Гарантируем, что idle действительно проигрывается
+                if (fsm['local']?.currentStateName === 'idle' && !actions['local']['idle']?.isRunning()) {
+                    fsm['local']?.transitionTo('idle');
+                }
             }
         }
     }
