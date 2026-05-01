@@ -622,7 +622,7 @@ export class MyRoom extends Room<MyRoomState> {
         }
 
         // Добавляем игрока в комнату
-        setTimeout(() => {
+        //setTimeout(() => {
             this.state.players.set(client.sessionId, player);
             this.broadcast("initialPosition", {
                 sessionId: client.sessionId,
@@ -638,7 +638,7 @@ export class MyRoom extends Room<MyRoomState> {
             });
             console.log(`[SERVER] Игрок ${name} добавлен в стейт с x=${player.x}, z=${player.z}`);
             PlayerPersistence.savePlayer(player);   // <-- сохраняем уже полностью загруженного игрока
-        }, 20);
+        //}, 20);
     }
 
     onLeave(client: Client) {

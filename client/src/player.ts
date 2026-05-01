@@ -177,19 +177,23 @@ export function updateOtherPlayer(
 ) {
     if (alive) {
         if (!otherPlayers[sessionId]) {
+            console.log(`[OTHER] create model for ${sessionId}, x=${x}, z=${z}`);
+            if (x === 0 && z === 0) return;
             otherPlayers[sessionId] = createOtherPlayerModel(sessionId);
             if (name) {
                 const tag = createNameTag(name);
                 attachNameTag(otherPlayers[sessionId], tag);
             }
-            // Показываем модель только если координаты уже не нулевые
-            otherPlayers[sessionId].visible = !(x === 0 && z === 0);
-            // Сразу устанавливаем позицию
+            // Сразу ставим модель на место, а не в (0,0)
             otherPlayers[sessionId].position.set(x, 0, z);
+            // Не показываем модель, пока координаты не станут ненулевыми
+            otherPlayers[sessionId].visible = true;
         } else {
             // Если модель была невидимой, а теперь координаты стали ненулевыми – показываем
+            if (x === 0 && z === 0) return;
             if (otherPlayers[sessionId].visible === false && (x !== 0 || z !== 0)) {
                 otherPlayers[sessionId].visible = true;
+                otherPlayers[sessionId].position.set(x, 0, z);
             }
         }
         otherPlayers[sessionId].visible = true;

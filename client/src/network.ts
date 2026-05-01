@@ -208,6 +208,7 @@ function join(playerName: string) {
 
                 setTargetPosition(remote.sessionId, remote.x, remote.z);
                 updateOtherPlayer(remote.sessionId, remote.x, remote.z, remote.hp, remote.maxHp, remote.alive, remote.name);
+                console.log(`[NET] updateOtherPlayer called for ${remote.sessionId}, x=${remote.x}, z=${remote.z}`);
                 if (otherPlayers[remote.sessionId]) {
                     otherPlayers[remote.sessionId].rotation.y = remote.rotationY;
                 }
