@@ -37,9 +37,9 @@ floor.position.y = -0.5;
 scene.add(floor); */
 
 // Вспомогательная сетка
-const grid = new THREE.GridHelper(200, 200, 0x000000, 0x333333);
+/* const grid = new THREE.GridHelper(200, 200, 0x000000, 0x333333);
 grid.position.y = -0.49;
-scene.add(grid);
+scene.add(grid); */
 
 // Реакция на изменение размера окна
 window.addEventListener('resize', () => {

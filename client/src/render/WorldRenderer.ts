@@ -1,12 +1,11 @@
-// client/src/render/WorldRenderer.ts
 import * as THREE from 'three';
 import { scene } from '../scene';
+import { getTerrainHeightAt } from '../render/TerrainRenderer';
 
 const worldMeshes: { [id: string]: THREE.Mesh } = {};
 
 export function updateWorldObjects(worldObjects: any) {
     if (!worldObjects || !worldObjects.forEach) return;
-    // Удаляем объекты, которых больше нет в стейте
     for (const id in worldMeshes) {
         if (!worldObjects.has(id)) {
             scene.remove(worldMeshes[id]);
@@ -14,17 +13,17 @@ export function updateWorldObjects(worldObjects: any) {
         }
     }
 
-    // Создаём новые объекты
     worldObjects.forEach((obj: any, id: string) => {
-        if (worldMeshes[id]) return; // уже есть
+        if (worldMeshes[id]) return;
 
         const mesh = createMesh(obj);
         if (mesh) {
-            mesh.position.set(obj.x, 0, obj.z);
-            // Масштаб
+            const y = getTerrainHeightAt(obj.x, obj.z);
+            const offset = obj.modelName === 'plane' ? 0.05 : (obj.scaleY || 1) / 2;
+            mesh.position.set(obj.x, y + offset, obj.z);
             mesh.scale.set(obj.scaleX, obj.scaleY, obj.scaleZ);
-            // Поворот (если нужно)
-            //mesh.rotation.y = obj.rotationY || 0;
+            mesh.rotation.y = obj.rotationY || 0;
+            mesh.rotation.x = obj.rotationX || 0;
             scene.add(mesh);
             worldMeshes[id] = mesh;
         }
@@ -48,10 +47,5 @@ function createMesh(obj: any): THREE.Mesh | null {
             return null;
     }
     const material = new THREE.MeshStandardMaterial({ color: obj.color || '#ffffff' });
-    const mesh = new THREE.Mesh(geometry, material);
-    // Немного приподнимем, чтобы объекты не утопали в землю
-    mesh.position.y = (obj.scaleY || 1) / 2;
-    mesh.rotation.y = obj.rotationY || 0;
-    mesh.rotation.x = obj.rotationX || 0;
-    return mesh;
+    return new THREE.Mesh(geometry, material);
 }

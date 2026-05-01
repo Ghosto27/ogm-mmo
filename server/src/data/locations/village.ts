@@ -13,8 +13,8 @@ export const villageData = [
   { id: "fence_top_2",   modelName: "cube", x:  18,  z: -30,  scaleX: 36, scaleY: 4.5, scaleZ: 0.6, color: "#D2B48C" },
 
   // --- Колодец (оставлен в центре) ---
-  { id: "well", modelName: "cylinder", x: 15, z: 0, scaleX: 1.5, scaleY: 1.2, scaleZ: 1.5, color: "#696969" },
+  { id: "well", modelName: "cylinder", x: 30, z: 0, scaleX: 1.5, scaleY: 1.2, scaleZ: 1.5, color: "#696969" },
 
   // --- Дорога к колодцу (удлинена) ---
-  { id: "road_to_well", modelName: "plane", x: 0, z: 0, scaleX: 9, scaleY: 60, scaleZ: 1, color: "#A9A9A9", rotationY:Math.PI, rotationX: Math.PI / 2 }
+  //{ id: "road_to_well", modelName: "plane", x: 0, z: 0, scaleX: 9, scaleY: 60, scaleZ: 1, color: "#A9A9A9", rotationY:Math.PI, rotationX: Math.PI / 2 }
 ];

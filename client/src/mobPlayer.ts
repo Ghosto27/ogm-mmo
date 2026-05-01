@@ -5,6 +5,7 @@ import { AnimationStateMachine } from './animationStateMachine';
 import { scene } from './scene';
 import { createHpBar, updateHpBarSprite } from './utils';
 import { createEnemyToonMaterial, createLocalToonMaterial, cloneMaterial, toonGradientMap } from './materials';
+import { getTerrainHeightAt } from './render/TerrainRenderer';
 
 const lastMobPositions: { [mobId: string]: THREE.Vector3 } = {};
 const mobTargetAngles: { [mobId: string]: number } = {};
@@ -154,7 +155,8 @@ export function spawnMob(mobId: string, x: number, z: number, hp: number, maxHp:
     if (mobModels[mobId]) return;
 
     const model = createWolfInstance(mobId);
-    model.position.set(x, 0, z);
+    const y = getTerrainHeightAt(x, z);
+    model.position.set(x, y + 0.5, z);
     if (rotationY !== undefined) {
         model.rotation.y = rotationY;
         setMobTargetAngle(mobId, rotationY);
@@ -245,6 +247,8 @@ export function interpolateMobPositions(deltaTime: number) {
             const t = Math.min(MOB_INTERPOLATION_SPEED * deltaTime, 1.0);
             model.position.x += (targetPos.x - model.position.x) * t;
             model.position.z += (targetPos.z - model.position.z) * t;
+            const y = getTerrainHeightAt(model.position.x, model.position.z);
+            model.position.y = y + 0.5;
 
             // Вычисляем угол движения по разнице между целевой и предыдущей позицией
             const prevPos = lastMobPositions[mobId];

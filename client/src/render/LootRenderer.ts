@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { scene } from '../scene';
+import { getTerrainHeightAt } from '../render/TerrainRenderer';
 
 // Хранилище моделей мешков
 export const lootMeshes: { [bagId: string]: THREE.Mesh } = {};
@@ -15,28 +16,26 @@ const lootAnimations: { [bagId: string]: {
 /**
  * Создаёт кубик и запускает анимацию вылета из точки start в точку target.
  */
-export function spawnLootMesh(
-    bagId: string,
-    startX: number,
-    startZ: number,
-    targetX: number,
-    targetZ: number
-) {
-    // Если модель для этого мешка уже существует – не дублируем
+export function spawnLootMesh(bagId: string, startX: number, startZ: number, targetX: number, targetZ: number) {
     if (lootMeshes[bagId]) return;
+
+    // Вычисляем высоту на стартовой и целевой точках
+    const yStart = getTerrainHeightAt(startX, startZ);
+    const yTarget = getTerrainHeightAt(targetX, targetZ);
 
     const geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
     const material = new THREE.MeshStandardMaterial({ color: 0xffff00 });
     const cube = new THREE.Mesh(geometry, material);
-    cube.position.set(startX, 0.3, startZ);
+    cube.position.set(startX, yStart + 0.3, startZ);
     scene.add(cube);
     lootMeshes[bagId] = cube;
 
+    // Создаём запись анимации сразу с корректными высотами
     lootAnimations[bagId] = {
-        startPos: new THREE.Vector3(startX, 0.3, startZ),
-        targetPos: new THREE.Vector3(targetX, 0.3, targetZ),
+        startPos: new THREE.Vector3(startX, yStart + 0.3, startZ),
+        targetPos: new THREE.Vector3(targetX, yTarget + 0.3, targetZ),
         startTime: performance.now(),
-        duration: 0.5 + Math.random() * 0.3, // 0.5–0.8 секунды
+        duration: 0.5 + Math.random() * 0.3,
     };
 }
 
@@ -86,6 +85,8 @@ export function animateLootMeshes() {
 
         const point = curve.getPoint(t);
         mesh.position.copy(point);
+        const groundY = getTerrainHeightAt(mesh.position.x, mesh.position.z);
+        mesh.position.y = Math.max(mesh.position.y, groundY + 0.3);
 
         // Лёгкое вращение для эффекта
         mesh.rotation.x += 0.1;

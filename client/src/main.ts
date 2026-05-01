@@ -26,6 +26,7 @@ import { createDialogUI } from './ui/DialogUI';
 import { createQuestJournal, toggleQuestJournal, updateQuestList } from './quest/QuestJournalUI';
 import { createNotificationUI } from './ui/notificationUI';
 import { getTerrainHeightAt } from './render/TerrainRenderer';
+import { updateFPS } from './utils/fpsCounter';
 
 let playerName = localStorage.getItem(STORAGE_KEY) || '';
 
@@ -93,6 +94,7 @@ let lastSend = 0;
 let lastTime = performance.now();
 
 function loop() {
+    updateFPS();
     requestAnimationFrame(loop);
 
     const now = performance.now();
@@ -229,6 +231,7 @@ function loop() {
     animateLootMeshes();
 
     composer.render();
+    //renderer.render(scene, camera);
     renderLabels(scene, camera);
 }
 
