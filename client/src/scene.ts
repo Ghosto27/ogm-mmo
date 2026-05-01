@@ -34,7 +34,7 @@ const floor = new THREE.Mesh(
 );
 floor.rotation.x = -Math.PI / 2;
 floor.position.y = -0.5;
-scene.add(floor);
+//scene.add(floor);
 
 // Вспомогательная сетка
 const grid = new THREE.GridHelper(200, 200, 0x000000, 0x333333);

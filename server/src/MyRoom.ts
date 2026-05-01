@@ -18,6 +18,7 @@ import { QuestManager } from "./systems/QuestManager";
 import { quests } from "./data/quests";
 import { WorldObject } from "./schemas/WorldObject";
 import { LocationLoader } from "./systems/LocationLoader";
+import { WorldTerrain } from "./schemas/WorldTerrain";
 
 export class Player extends Schema {
     @type("number") x: number = 0;
@@ -44,6 +45,7 @@ class MyRoomState extends Schema {
     @type({ map: LootBag }) lootBags = new MapSchema<LootBag>();
     @type({ map: NPC }) npcs = new MapSchema<NPC>();
     @type({ map: WorldObject }) worldObjects = new MapSchema<WorldObject>();
+    @type(WorldTerrain) terrain: WorldTerrain = new WorldTerrain();
 }
 
 export class MyRoom extends Room<MyRoomState> {
@@ -306,6 +308,14 @@ export class MyRoom extends Room<MyRoomState> {
 
         this.spawner = new MobSpawner(this);
         LocationLoader.load(this, "village");
+
+        const terrain = new WorldTerrain();
+        terrain.heightmapPath = "/textures/heightmap.png";
+        terrain.width = 100;
+        terrain.depth = 100;
+        terrain.segments = 128;
+        terrain.maxHeight = 5; // подбери под свою картинку
+        this.state.terrain = terrain;
 
         // Создаём тестового NPC – рыцаря
         const knight = new NPC();

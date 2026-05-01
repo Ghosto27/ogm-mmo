@@ -25,6 +25,7 @@ import { createQuestJournal, toggleQuestJournal, updateQuestList } from './quest
 import { showNotification } from './ui/notificationUI'; 
 import { setQuestDefs, getQuestName } from './quest/questData';
 import { updateWorldObjects } from './render/WorldRenderer';
+import { updateTerrain } from './render/TerrainRenderer';
 
 export const client = new Client(SERVER_URL);
 export let room: any = null;
@@ -308,6 +309,9 @@ function join(playerName: string) {
             // ---------- Мировые объекты ----------
             if (state.worldObjects) {
                 updateWorldObjects(state.worldObjects);
+            }
+            if (state.terrain) {
+                updateTerrain(state.terrain);
             }
         });
 
