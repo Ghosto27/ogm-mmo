@@ -6,6 +6,7 @@ import { scene } from './scene';
 import { createHpBar, updateHpBarSprite } from './utils';
 import { createLocalToonMaterial, createEnemyToonMaterial, cloneMaterial } from './materials';
 import { createNameTag, attachNameTag, removeNameTag } from './nameTags';
+import { setTargetPosition } from './animationUtils';
 
 // ---------- ШАБЛОН ----------
 let modelTemplate: THREE.Group | null = null;
@@ -177,7 +178,7 @@ export function updateOtherPlayer(
 ) {
     if (alive) {
         if (!otherPlayers[sessionId]) {
-            console.log(`[OTHER] create model for ${sessionId}, x=${x}, z=${z}`);
+            //console.log(`[OTHER] create model for ${sessionId}, x=${x}, z=${z}`);
             if (x === 0 && z === 0) return;
             otherPlayers[sessionId] = createOtherPlayerModel(sessionId);
             if (name) {
@@ -186,15 +187,17 @@ export function updateOtherPlayer(
             }
             // Сразу ставим модель на место, а не в (0,0)
             otherPlayers[sessionId].position.set(x, 0, z);
+            // Сразу задаём цель интерполяции, чтобы избежать полёта от (0,0)
+            setTargetPosition(sessionId, x, z);
             // Не показываем модель, пока координаты не станут ненулевыми
             otherPlayers[sessionId].visible = true;
         } else {
             // Если модель была невидимой, а теперь координаты стали ненулевыми – показываем
+            
             if (x === 0 && z === 0) return;
-            if (otherPlayers[sessionId].visible === false && (x !== 0 || z !== 0)) {
-                otherPlayers[sessionId].visible = true;
-                otherPlayers[sessionId].position.set(x, 0, z);
-            }
+            //console.log(`[DEV] ${sessionId}, x=${x}, z=${z}`);
+            // Иначе обновляем видимость
+            otherPlayers[sessionId].visible = true;
         }
         otherPlayers[sessionId].visible = true;
 
