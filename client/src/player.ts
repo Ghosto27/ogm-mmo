@@ -7,7 +7,7 @@ import { createHpBar, updateHpBarSprite } from './utils';
 import { createLocalToonMaterial, createEnemyToonMaterial, cloneMaterial } from './materials';
 import { createNameTag, attachNameTag, removeNameTag } from './nameTags';
 import { setTargetPosition } from './animationUtils';
-import { updateTerrain, getTerrainHeightAt } from './render/TerrainRenderer';
+import { updateTerrain, getTerrainHeightAt, terrainReady } from './render/TerrainRenderer';
 
 // ---------- ШАБЛОН ----------
 let modelTemplate: THREE.Group | null = null;
@@ -179,19 +179,23 @@ export function updateOtherPlayer(
 ) {
     if (alive) {
         if (!otherPlayers[sessionId]) {
-            //console.log(`[OTHER] create model for ${sessionId}, x=${x}, z=${z}`);
-            if (x === 0 && z === 0) return;
-            otherPlayers[sessionId] = createOtherPlayerModel(sessionId);
-            if (name) {
-                const tag = createNameTag(name);
-                attachNameTag(otherPlayers[sessionId], tag);
-            }
-            const y = getTerrainHeightAt(x, z);
-            otherPlayers[sessionId].position.set(x, y + 0.5, z);
-            // Сразу задаём цель интерполяции, чтобы избежать полёта от (0,0)
-            setTargetPosition(sessionId, x, z);
-            // Не показываем модель, пока координаты не станут ненулевыми
-            otherPlayers[sessionId].visible = true;
+            if (x === 0 && z === 0) return; // ждём реальные координаты
+            const nameForModel = name;
+            setTimeout(() => {
+                terrainReady.then(() => {
+                    if (!otherPlayers[sessionId]) {
+                        otherPlayers[sessionId] = createOtherPlayerModel(sessionId);
+                        if (nameForModel) {
+                            const tag = createNameTag(nameForModel);
+                            attachNameTag(otherPlayers[sessionId], tag);
+                        }
+                        const terrainY = getTerrainHeightAt(x, z);
+                        otherPlayers[sessionId].position.set(x, terrainY + 0.5, z);
+                        otherPlayers[sessionId].visible = true;
+                    }
+                });
+            }, 500);
+            return;
         } else {
             // Если модель была невидимой, а теперь координаты стали ненулевыми – показываем
             
@@ -200,7 +204,6 @@ export function updateOtherPlayer(
             // Иначе обновляем видимость
             otherPlayers[sessionId].visible = true;
         }
-        otherPlayers[sessionId].visible = true;
 
         if (!hpBars[sessionId]) {
             hpBars[sessionId] = createHpBar();

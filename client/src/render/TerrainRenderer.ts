@@ -4,6 +4,11 @@ import { scene } from '../scene';
 let terrainMesh: THREE.Mesh | null = null;
 let lastTerrainKey: string = '';
 
+let terrainReadyResolve: () => void;
+export const terrainReady = new Promise<void>((resolve) => {
+    terrainReadyResolve = resolve;
+});
+
 export function updateTerrain(terrain: any) {
     if (!terrain) return;
 
@@ -61,6 +66,7 @@ export function updateTerrain(terrain: any) {
         terrainMesh = new THREE.Mesh(geometry, material);
         terrainMesh.receiveShadow = true;
         scene.add(terrainMesh);
+        terrainReadyResolve();
     };
     image.src = terrain.heightmapPath;
 }

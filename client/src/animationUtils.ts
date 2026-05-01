@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { localModel, otherPlayers, mixers, hpBars, localHpBar, actions, fsm } from './player';
 import { mobModels } from './mobPlayer';
+import { updateTerrain, getTerrainHeightAt, terrainReady } from './render/TerrainRenderer';
 
 const targetPositions: { [id: string]: THREE.Vector3 } = {};
 const INTERPOLATION_SPEED = 10.0;
@@ -29,6 +30,11 @@ export function updateAnimations(deltaTime: number) {
         const t = Math.min(INTERPOLATION_SPEED * deltaTime, 1.0);
         model.position.x = lerp(model.position.x, target.x, t);
         model.position.z = lerp(model.position.z, target.z, t);
+        // Для удалённых игроков корректируем высоту по ландшафту
+        if (id !== 'local') {
+            const y = getTerrainHeightAt(model.position.x, model.position.z);
+            model.position.y = y + 0.5;
+        }
     }
 
     // Перемещаем HP-бары за моделями

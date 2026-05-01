@@ -25,7 +25,7 @@ import { createQuestJournal, toggleQuestJournal, updateQuestList } from './quest
 import { showNotification } from './ui/notificationUI'; 
 import { setQuestDefs, getQuestName } from './quest/questData';
 import { updateWorldObjects } from './render/WorldRenderer';
-import { updateTerrain, getTerrainHeightAt } from './render/TerrainRenderer';
+import { updateTerrain, getTerrainHeightAt, terrainReady } from './render/TerrainRenderer';
 
 export const client = new Client(SERVER_URL);
 export let room: any = null;
@@ -78,7 +78,7 @@ function join(playerName: string) {
         if (!localModel) initLocalModel();
 
         if (fsm['local']) fsm['local'].transitionTo('idle');
-
+        
         room.onStateChange((state: any) => {
             if (!room || !localModel) return;
 
@@ -94,13 +94,19 @@ function join(playerName: string) {
             
             if (local) {
                 if (firstSync && local.alive) {
+                    if (!localModel) return;
                     localModel.position.x = local.x;
                     localModel.position.z = local.z;
-                    const y = getTerrainHeightAt(local.x, local.z);
-                    localModel.position.y = y + 0.2;
                     localModel.rotation.y = local.rotationY;
                     firstSync = false;
                     console.log('[SYNC] Позиция восстановлена:', local.x, local.z);
+                    // Ждём готовности ландшафта, затем применяем высоту
+                    terrainReady.then(() => {
+                        if (localModel) { // дополнительная проверка внутри коллбека
+                            const y = getTerrainHeightAt(local.x, local.z);
+                            localModel.position.y = y + 0.5;
+                        }
+                    });
                 }
 
                 if (local.resurrected) {
@@ -116,11 +122,20 @@ function join(playerName: string) {
                     wasDead = false;
                     console.log(`[RESPAWN] localPlayer x=${local.x} z=${local.z}`);
 
+                    terrainReady.then(() => {
+                        const spawnX = local.x ?? 0;
+                        const spawnZ = local.z ?? 0;
+                        const y = getTerrainHeightAt(spawnX, spawnZ);
+                        localModel!.position.set(spawnX, y + 0.5, spawnZ);
+                    });
+
                     // Всегда используем серверные координаты (обычно 0,0)
-                    const spawnX = local.x ?? 0;
-                    const spawnZ = local.z ?? 0;
-                    const y = getTerrainHeightAt(spawnX, spawnZ);
-                    localModel!.position.set(spawnX, y + 0.5, spawnZ);
+                    setTimeout(() => {
+                        const spawnX = local.x ?? 0;
+                        const spawnZ = local.z ?? 0;
+                        const y = getTerrainHeightAt(spawnX, spawnZ);
+                        localModel!.position.set(spawnX, y + 0.5, spawnZ);
+                    }, 500);
                 }
 
                 if (local.tookDamage) {
