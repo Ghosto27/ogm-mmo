@@ -25,7 +25,7 @@ import { createQuestJournal, toggleQuestJournal, updateQuestList } from './quest
 import { showNotification } from './ui/notificationUI'; 
 import { setQuestDefs, getQuestName } from './quest/questData';
 import { updateWorldObjects } from './render/WorldRenderer';
-import { updateTerrain } from './render/TerrainRenderer';
+import { updateTerrain, getTerrainHeightAt } from './render/TerrainRenderer';
 
 export const client = new Client(SERVER_URL);
 export let room: any = null;
@@ -91,10 +91,13 @@ function join(playerName: string) {
 
             // ---------- Локальный игрок ----------
             const local = syncResult.localPlayer;
+            
             if (local) {
                 if (firstSync && local.alive) {
                     localModel.position.x = local.x;
                     localModel.position.z = local.z;
+                    const y = getTerrainHeightAt(local.x, local.z);
+                    localModel.position.y = y + 0.2;
                     localModel.rotation.y = local.rotationY;
                     firstSync = false;
                     console.log('[SYNC] Позиция восстановлена:', local.x, local.z);
@@ -112,12 +115,12 @@ function join(playerName: string) {
                     localModel!.visible = true;
                     wasDead = false;
                     console.log(`[RESPAWN] localPlayer x=${local.x} z=${local.z}`);
-                    // Принудительно ставим позицию, т.к. сервер всегда возрождает в (0,0)
-                    if (local.x === undefined || local.z === undefined || (local.x === 0 && local.z === 0)) {
-                        localModel!.position.set(0, 0, 0);
-                    } else {
-                        localModel!.position.set(local.x, local.z, 0);
-                    }
+
+                    // Всегда используем серверные координаты (обычно 0,0)
+                    const spawnX = local.x ?? 0;
+                    const spawnZ = local.z ?? 0;
+                    const y = getTerrainHeightAt(spawnX, spawnZ);
+                    localModel!.position.set(spawnX, y + 0.5, spawnZ);
                 }
 
                 if (local.tookDamage) {

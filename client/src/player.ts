@@ -7,6 +7,7 @@ import { createHpBar, updateHpBarSprite } from './utils';
 import { createLocalToonMaterial, createEnemyToonMaterial, cloneMaterial } from './materials';
 import { createNameTag, attachNameTag, removeNameTag } from './nameTags';
 import { setTargetPosition } from './animationUtils';
+import { updateTerrain, getTerrainHeightAt } from './render/TerrainRenderer';
 
 // ---------- ШАБЛОН ----------
 let modelTemplate: THREE.Group | null = null;
@@ -185,8 +186,8 @@ export function updateOtherPlayer(
                 const tag = createNameTag(name);
                 attachNameTag(otherPlayers[sessionId], tag);
             }
-            // Сразу ставим модель на место, а не в (0,0)
-            otherPlayers[sessionId].position.set(x, 0, z);
+            const y = getTerrainHeightAt(x, z);
+            otherPlayers[sessionId].position.set(x, y + 0.5, z);
             // Сразу задаём цель интерполяции, чтобы избежать полёта от (0,0)
             setTargetPosition(sessionId, x, z);
             // Не показываем модель, пока координаты не станут ненулевыми

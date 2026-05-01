@@ -21,6 +21,8 @@ https://gltf-viewer.donmccurdy.com/
 читай в raw формате
 
 
+(window as any).wolfTemplate = wolfTemplate;
+
 =========== баги ===========
 
 

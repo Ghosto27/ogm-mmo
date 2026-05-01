@@ -25,6 +25,7 @@ import { normalizeKey } from './keyboard';
 import { createDialogUI } from './ui/DialogUI';
 import { createQuestJournal, toggleQuestJournal, updateQuestList } from './quest/QuestJournalUI';
 import { createNotificationUI } from './ui/notificationUI';
+import { getTerrainHeightAt } from './render/TerrainRenderer';
 
 let playerName = localStorage.getItem(STORAGE_KEY) || '';
 
@@ -142,6 +143,10 @@ function loop() {
             const delta = PLAYER_SPEED * 0.016 * speedMultiplier;
             localModel.position.x += moveVec.x * delta;
             localModel.position.z += moveVec.z * delta;
+            if (localModel) {
+                const terrainY = getTerrainHeightAt(localModel.position.x, localModel.position.z);
+                localModel.position.y = terrainY + 0.2; // полметра над землёй
+            }
 
             const nowSend = Date.now();
             if (nowSend - lastSend > 50) {
