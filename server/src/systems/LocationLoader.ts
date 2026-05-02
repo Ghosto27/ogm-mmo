@@ -15,8 +15,8 @@ export class LocationLoader {
         wo.scaleX = obj.scaleX;
         wo.scaleY = obj.scaleY;
         wo.scaleZ = obj.scaleZ;
-        wo.rotationY = obj.rotationY || 0;
-        wo.rotationX = obj.rotationX || 0;
+        wo.rotationY = (obj as any).rotationY || 0;
+        wo.rotationX = (obj as any).rotationX || 0;
         wo.color = obj.color;
         room.state.worldObjects.set(wo.id, wo);
       }

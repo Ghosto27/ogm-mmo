@@ -311,10 +311,10 @@ export class MyRoom extends Room<MyRoomState> {
 
         const terrain = new WorldTerrain();
         terrain.heightmapPath = "/textures/heightmap.png";
-        terrain.width = 512;
-        terrain.depth = 512;
+        terrain.width = 2048;
+        terrain.depth = 2048;
         terrain.segments = 128;
-        terrain.maxHeight = 80; // подбери под свою картинку
+        terrain.maxHeight = 160; // подбери под свою картинку
         this.state.terrain = terrain;
 
         // Создаём тестового NPC – рыцаря

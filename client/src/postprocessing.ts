@@ -18,7 +18,7 @@ composer.addPass(renderPass);
 const toonColorPass = new ShaderPass({
     uniforms: {
         tDiffuse: { value: null },
-        levels: { value: 9.0 } // Чем меньше число, тем более "мультяшным" будет эффект
+        levels: { value: 15.0 } // Чем меньше число, тем более "мультяшным" будет эффект
     },
     vertexShader: /* glsl */ `
         varying vec2 vUv;
