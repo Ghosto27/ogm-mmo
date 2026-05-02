@@ -63,8 +63,8 @@ const MOB_INTERPOLATION_SPEED = 10.0;
 // ---------- ФУНКЦИЯ СОЗДАНИЯ ЭКЗЕМПЛЯРА МОБА ----------
 function createWolfInstance(mobId: string): THREE.Group {
     if (!wolfTemplate) throw new Error('Шаблон волка ещё не загружен');
-
     const model = clone(wolfTemplate) as unknown as THREE.Group;
+    model.scale.set(0.4, 0.4, 0.4);
     model.visible = true;
     model.matrixAutoUpdate = true;
     model.rotation.set(0, Math.PI, 0);
@@ -92,6 +92,11 @@ function createWolfInstance(mobId: string): THREE.Group {
             child.receiveShadow = true;
         }
     });
+
+    /* model.updateMatrixWorld();
+    const box = new THREE.Box3().setFromObject(model);
+    const finalHeight = box.max.y - box.min.y;
+    console.log(`[PLAYER] WOLF Final visible height: ${finalHeight.toFixed(3)} units`); */
 
     // Миксер и FSM
     const mixer = new THREE.AnimationMixer(model);
@@ -156,7 +161,7 @@ export function spawnMob(mobId: string, x: number, z: number, hp: number, maxHp:
 
     const model = createWolfInstance(mobId);
     const y = getTerrainHeightAt(x, z);
-    model.position.set(x, y + 0.5, z);
+    model.position.set(x, y + 0.1, z);
     if (rotationY !== undefined) {
         model.rotation.y = rotationY;
         setMobTargetAngle(mobId, rotationY);
@@ -248,7 +253,7 @@ export function interpolateMobPositions(deltaTime: number) {
             model.position.x += (targetPos.x - model.position.x) * t;
             model.position.z += (targetPos.z - model.position.z) * t;
             const y = getTerrainHeightAt(model.position.x, model.position.z);
-            model.position.y = y + 0.5;
+            model.position.y = y + 0.1;
 
             // Вычисляем угол движения по разнице между целевой и предыдущей позицией
             const prevPos = lastMobPositions[mobId];

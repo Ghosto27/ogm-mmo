@@ -323,6 +323,7 @@ export class MyRoom extends Room<MyRoomState> {
         knight.name = "Рыцарь";
         knight.x = 0;
         knight.z = -25;
+        knight.y = 2;
         knight.availableQuestIds.push("kill_5_wolves", "kill_10_wolves");
         this.state.npcs.set(knight.id, knight);
         console.log(`[NPC] Рыцарь появился на (${knight.x}, ${knight.z})`);

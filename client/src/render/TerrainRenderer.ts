@@ -44,11 +44,6 @@ export function updateTerrain(terrain: any) {
             const py = Math.floor((1 - v) * (image.height - 1));
             const pixelIndex = (py * image.width + px) * 4;
             const r = data[pixelIndex];
-            if (i === 0) {
-                console.log('First pixel data (R,G,B,A):', r, data[pixelIndex+1], data[pixelIndex+2], data[pixelIndex+3]);
-                console.log('Applied height:', (r / 255) * terrain.maxHeight);
-                console.log('maxHeight from server:', terrain.maxHeight);
-            }
 
             vertices[i + 1] = (r / 255) * terrain.maxHeight;
         }

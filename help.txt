@@ -22,7 +22,8 @@ https://gltf-viewer.donmccurdy.com/
 
 составь поэтапный план исправления если есть ошибки.
 
-(window as any).wolfTemplate = wolfTemplate;
+(window as any).X = X;
+console.log(`[DEV] ${y} `);
 
 =========== баги ===========
 

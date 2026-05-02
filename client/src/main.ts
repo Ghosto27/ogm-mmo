@@ -147,7 +147,7 @@ function loop() {
             localModel.position.z += moveVec.z * delta;
             if (localModel) {
                 const terrainY = getTerrainHeightAt(localModel.position.x, localModel.position.z);
-                localModel.position.y = terrainY + 0.2; // полметра над землёй
+                localModel.position.y = terrainY + 0.1; // полметра над землёй
             }
 
             const nowSend = Date.now();

@@ -104,7 +104,7 @@ function join(playerName: string) {
                     terrainReady.then(() => {
                         if (localModel) { // дополнительная проверка внутри коллбека
                             const y = getTerrainHeightAt(local.x, local.z);
-                            localModel.position.y = y + 0.5;
+                            localModel.position.y = y + 0.1;
                         }
                     });
                 }
@@ -126,7 +126,7 @@ function join(playerName: string) {
                         const spawnX = local.x ?? 0;
                         const spawnZ = local.z ?? 0;
                         const y = getTerrainHeightAt(spawnX, spawnZ);
-                        localModel!.position.set(spawnX, y + 0.5, spawnZ);
+                        localModel!.position.set(spawnX, y + 0.1, spawnZ);
                     });
 
                     // Всегда используем серверные координаты (обычно 0,0)
@@ -134,7 +134,7 @@ function join(playerName: string) {
                         const spawnX = local.x ?? 0;
                         const spawnZ = local.z ?? 0;
                         const y = getTerrainHeightAt(spawnX, spawnZ);
-                        localModel!.position.set(spawnX, y + 0.5, spawnZ);
+                        localModel!.position.set(spawnX, y + 0.1, spawnZ);
                     }, 500);
                 }
 

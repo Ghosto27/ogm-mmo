@@ -22,7 +22,7 @@ export function updateNPCMeshes(npcs: any) {
 
     npcs.forEach((npc: any, npcId: string) => {
         if (!npcMeshes[npcId]) {
-            const geometry = new THREE.BoxGeometry(0.8, 0.8, 0.8);
+            const geometry = new THREE.BoxGeometry(1, 1.8, 1);
             const material = new THREE.MeshStandardMaterial({ color: 0xffff00 });
             const cube = new THREE.Mesh(geometry, material);
             const y = getTerrainHeightAt(npc.x, npc.z);
@@ -44,7 +44,7 @@ export function updateNPCMeshes(npcs: any) {
             npcLabels[npcId] = label;
         } else {
             const y = getTerrainHeightAt(npc.x, npc.z);
-            npcMeshes[npcId].position.set(npc.x, y + 0.5, npc.z);
+            npcMeshes[npcId].position.set(npc.x, y + 1, npc.z);
         }
     });
 }

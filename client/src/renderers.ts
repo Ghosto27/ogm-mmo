@@ -13,3 +13,6 @@ document.body.appendChild(labelRenderer.domElement);
 export function renderLabels(scene: THREE.Scene, camera: THREE.Camera) {
     labelRenderer.render(scene, camera);
 }
+window.addEventListener('resize', () => {
+    labelRenderer.setSize(window.innerWidth, window.innerHeight);
+});

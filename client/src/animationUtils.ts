@@ -33,7 +33,7 @@ export function updateAnimations(deltaTime: number) {
         // Для удалённых игроков корректируем высоту по ландшафту
         if (id !== 'local') {
             const y = getTerrainHeightAt(model.position.x, model.position.z);
-            model.position.y = y + 0.5;
+            model.position.y = y + 0.1;
         }
     }
 
@@ -45,7 +45,7 @@ export function updateAnimations(deltaTime: number) {
         if (bar && bar.visible) {
             bar.position.x = model.position.x;
             bar.position.z = model.position.z;
-            bar.position.y = model.position.y + 3;
+            bar.position.y = model.position.y + 2;
         }
     }
 

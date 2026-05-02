@@ -47,8 +47,11 @@ function createModelInstance(sessionId?: string): THREE.Group {
     const model = clone(modelTemplate) as unknown as THREE.Group;
     model.visible = true;
     model.matrixAutoUpdate = true;
+
+
+    
     //model.rotation.set(0, Math.PI, 0);
-    model.scale.set(1.5, 1.5, 1.5);
+    model.scale.set(1, 1, 1);
 
     model.traverse((child: THREE.Object3D) => {
         if (child instanceof THREE.Mesh) {
@@ -61,6 +64,10 @@ function createModelInstance(sessionId?: string): THREE.Group {
             if (sessionId) child.userData.sessionId = sessionId;
         }
     });
+    /* model.updateMatrixWorld();
+    const box = new THREE.Box3().setFromObject(model);
+    const finalHeight = box.max.y - box.min.y;
+    console.log(`[PLAYER] Final visible height: ${finalHeight.toFixed(3)} units`); */
 
     const mixer = new THREE.AnimationMixer(model);
     const id = sessionId || 'local';

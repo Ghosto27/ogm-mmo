@@ -23,10 +23,10 @@ export function spawnLootMesh(bagId: string, startX: number, startZ: number, tar
     const yStart = getTerrainHeightAt(startX, startZ);
     const yTarget = getTerrainHeightAt(targetX, targetZ);
 
-    const geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+    const geometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
     const material = new THREE.MeshStandardMaterial({ color: 0xffff00 });
     const cube = new THREE.Mesh(geometry, material);
-    cube.position.set(startX, yStart + 0.3, startZ);
+    cube.position.set(startX, yStart + 0.1, startZ);
     scene.add(cube);
     lootMeshes[bagId] = cube;
 
@@ -86,7 +86,7 @@ export function animateLootMeshes() {
         const point = curve.getPoint(t);
         mesh.position.copy(point);
         const groundY = getTerrainHeightAt(mesh.position.x, mesh.position.z);
-        mesh.position.y = Math.max(mesh.position.y, groundY + 0.3);
+        mesh.position.y = Math.max(mesh.position.y, groundY + 0.1);
 
         // Лёгкое вращение для эффекта
         mesh.rotation.x += 0.1;

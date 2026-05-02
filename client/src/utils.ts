@@ -7,8 +7,8 @@ export function createHpBar(): THREE.Sprite {
     const texture = new THREE.CanvasTexture(canvas);
     const material = new THREE.SpriteMaterial({ map: texture, depthTest: false });
     const bar = new THREE.Sprite(material);
-    bar.scale.set(1.5, 0.2, 1);
-    bar.position.y = 1.3;
+    bar.scale.set(1.5, 0.15, 1);
+    bar.position.y = 0.5;
     return bar;
 }
 
