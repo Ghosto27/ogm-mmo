@@ -26,6 +26,7 @@ import { showNotification } from './ui/notificationUI';
 import { setQuestDefs, getQuestName } from './quest/questData';
 import { updateWorldObjects } from './render/WorldRenderer';
 import { updateTerrain, getTerrainHeightAt, terrainReady } from './render/TerrainRenderer';
+import { addVegetationInstance, finalizeVegetation, isVegetationLoaded } from './render/VegetationRenderer';
 
 export const client = new Client(SERVER_URL);
 export let room: any = null;
@@ -34,6 +35,7 @@ export const interactionState = { currentInteractNpcId: '' };
 let reconnectTimer: any = null;
 let firstSync = true;
 let wasDead = false;
+let vegetationLoaded = false;
 
 // Создаём экземпляр менеджера синхронизации (заменяет глобальные переменные)
 const syncManager = new PlayerSyncManager();
@@ -65,7 +67,7 @@ function join(playerName: string) {
                 console.log('[NET] Тег создан принудительно');
             }
             // Отправляем начальное состояние, раз уж модель готова
-            room.send("move", { x: localModel.position.x, z: localModel.position.z, r: localModel.rotation.y });
+            //room.send("move", { x: localModel.position.x, z: localModel.position.z, r: localModel.rotation.y });
         }
         if (reconnectTimer) {
             clearTimeout(reconnectTimer);
@@ -324,13 +326,31 @@ function join(playerName: string) {
                 }
             }
 
-            // ---------- Мировые объекты ----------
-            if (state.worldObjects) {
-                updateWorldObjects(state.worldObjects);
+            // ------ Растительность (только один раз) ------
+            if (!isVegetationLoaded()) {
+                const vegetPromises: Promise<void>[] = [];
+
+                state.worldObjects.forEach((obj: any, objId: string) => {
+                    if (objId.startsWith('pine_') || objId.startsWith('rocky_')) {
+                        if (!obj) return;
+                        // addVegetationInstance теперь async, поэтому добавляем промис
+                        vegetPromises.push(addVegetationInstance(obj));
+                    }
+                });
+
+                // Дожидаемся загрузки всех моделей и только потом финализируем
+                Promise.all(vegetPromises).then(() => {
+                    finalizeVegetation();
+                });
             }
-            if (state.terrain) {
-                updateTerrain(state.terrain);
-            }
+
+            // ------ Статические объекты ------
+            updateWorldObjects(state.worldObjects);
+
+            // ------ Ландшафт ------
+            if (state.terrain) updateTerrain(state.terrain);
+
+            
         });
 
         room.onMessage("attackAnim", (message: { attacker: string }) => {

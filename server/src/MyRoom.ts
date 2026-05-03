@@ -19,6 +19,7 @@ import { quests } from "./data/quests";
 import { WorldObject } from "./schemas/WorldObject";
 import { LocationLoader } from "./systems/LocationLoader";
 import { WorldTerrain } from "./schemas/WorldTerrain";
+import { VegetationSpawner } from "./systems/VegetationSpawner";
 
 export class Player extends Schema {
     @type("number") x: number = 0;
@@ -308,6 +309,7 @@ export class MyRoom extends Room<MyRoomState> {
 
         this.spawner = new MobSpawner(this);
         LocationLoader.load(this, "village");
+        VegetationSpawner.loadAndSpawn(this);
 
         const terrain = new WorldTerrain();
         terrain.heightmapPath = "/textures/heightmap.png";
@@ -544,6 +546,7 @@ export class MyRoom extends Room<MyRoomState> {
         });
 
         console.log("Комната 'world' создана");
+        
     }
 
     onDispose() {

@@ -18,6 +18,8 @@ export function updateWorldObjects(worldObjects: any) {
     // Дожидаемся готовности ландшафта перед применением высоты
     terrainReady.then(() => {
         worldObjects.forEach((obj: any, id: string) => {
+            // Пропускаем объекты растительности – их обрабатывает VegetationRenderer
+            if (id.startsWith('pine_') || id.startsWith('rocky_')) return;
             if (worldMeshes[id]) return; // уже создан
 
             const mesh = createMesh(obj);

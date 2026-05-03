@@ -39,7 +39,7 @@ const toonColorPass = new ShaderPass({
         }
     `
 });
-composer.addPass(toonColorPass);
+//composer.addPass(toonColorPass);
 
 // Обводка
 export const outlinePass = new OutlinePass(
@@ -53,7 +53,7 @@ outlinePass.edgeThickness = 1.0;
 outlinePass.pulsePeriod = 0;
 outlinePass.visibleEdgeColor.set('#000000');
 outlinePass.hiddenEdgeColor.set('#000000');
-composer.addPass(outlinePass);
+//composer.addPass(outlinePass);
 
 window.addEventListener('resize', () => {
     composer.setSize(window.innerWidth, window.innerHeight);
