@@ -6,7 +6,7 @@ export interface SpawnZone {
 }
 
 export const wolfSpawnZones: SpawnZone[] = [
-  { centerX: -100, centerZ: -100, radius: 15, count: 1 },
+  { centerX: -151, centerZ: -264, radius: 15, count: 10 },
   //{ centerX:  40, centerZ: -40, radius: 15, count: 3 },
   //{ centerX: -40, centerZ:  40, radius: 15, count: 2 },
   //{ centerX:  40, centerZ:  40, radius: 15, count: 3 },

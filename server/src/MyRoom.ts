@@ -361,7 +361,7 @@ export class MyRoom extends Room<MyRoomState> {
 
                 // Ищем ближайшего живого игрока в радиусе 12
                 let closestPlayer: Player | null = null;
-                let closestDist = 12;
+                let closestDist = 20;
                 this.state.players.forEach((player: Player) => {
                     if (player.hp <= 0) return;
                     const d = Math.sqrt((mob.x - player.x) ** 2 + (mob.z - player.z) ** 2);

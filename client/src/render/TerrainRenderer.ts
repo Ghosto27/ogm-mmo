@@ -3,6 +3,14 @@ import { scene } from '../scene';
 
 let terrainMesh: THREE.Mesh | null = null;
 let lastTerrainKey: string = '';
+export let heightmapData: { data: Uint8ClampedArray; width: number; height: number } | null = null;
+
+// Храним текущие параметры ландшафта для быстрого доступа
+let terrainWidth = 0;
+let terrainDepth = 0;
+let terrainMaxHeight = 0;
+let imageWidth = 0;
+let imageHeight = 0;
 
 let terrainReadyResolve: () => void;
 export const terrainReady = new Promise<void>((resolve) => {
@@ -49,6 +57,14 @@ export function updateTerrain(terrain: any) {
         ctx.drawImage(image, 0, 0);
         const data = ctx.getImageData(0, 0, image.width, image.height).data;
 
+        // Сохраняем данные для быстрого сэмплирования
+        heightmapData = { data, width: image.width, height: image.height };
+        imageWidth = image.width;
+        imageHeight = image.height;
+        terrainWidth = terrain.width;
+        terrainDepth = terrain.depth;
+        terrainMaxHeight = terrain.maxHeight;
+
         const vertices = geometry.attributes.position.array;
         for (let i = 0; i < vertices.length; i += 3) {
             const uvIndex = Math.floor(i / 3);
@@ -90,7 +106,7 @@ export function updateTerrain(terrain: any) {
                         void main() {
                             vUv = uv;
                             vec4 worldPos = modelMatrix * vec4(position, 1.0);
-                            vHeight = worldPos.y; // высота в мировых координатах
+                            vHeight = worldPos.y;
                             vNormal = normalize(mat3(modelMatrix) * normal);
                             gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
                         }
@@ -110,7 +126,6 @@ export function updateTerrain(terrain: any) {
 
                         void main() {
                             float normalizedHeight = vHeight / maxHeight;
-                            // Пороги: трава до 0.3, cliff от 0.3 до 0.7, rock выше 0.7
                             float grassFactor = 1.0 - smoothstep(0.03 - heightTransition, 0.03 + heightTransition, normalizedHeight);
                             float rockFactor  = smoothstep(0.3 - heightTransition, 0.3 + heightTransition, normalizedHeight);
                             float cliffFactor = 1.0 - grassFactor - rockFactor;
@@ -142,6 +157,8 @@ export function updateTerrain(terrain: any) {
     image.src = terrain.heightmapPath;
 }
 
+// ---------- Функции получения высоты ----------
+
 const raycaster = new THREE.Raycaster();
 const down = new THREE.Vector3(0, -1, 0);
 
@@ -152,4 +169,42 @@ export function getTerrainHeightAt(x: number, z: number): number {
     const intersects = raycaster.intersectObject(terrainMesh);
     if (intersects.length > 0) return intersects[0].point.y;
     return 0;
+}
+
+/** Быстрое сэмплирование высоты без raycasting (для 60+ FPS) */
+export function getTerrainHeightAtFast(x: number, z: number): number {
+    if (!heightmapData || terrainWidth === 0 || terrainDepth === 0) return 0;
+
+    // Мировые координаты -> UV (0..1)
+    const u = (x / terrainWidth) + 0.5;
+    const v = (z / terrainDepth) + 0.5;
+
+    if (u < 0 || u > 1 || v < 0 || v > 1) return 0;
+
+    // Билинейная интерполяция
+    const imgW = heightmapData.width;
+    const imgH = heightmapData.height;
+    const px = u * (imgW - 1);
+    const py = (1 - v) * (imgH - 1);
+
+    const x1 = Math.floor(px);
+    const x2 = Math.min(x1 + 1, imgW - 1);
+    const y1 = Math.floor(py);
+    const y2 = Math.min(y1 + 1, imgH - 1);
+
+    const idx = (y: number, x: number) => (y * imgW + x) * 4;
+
+    const r11 = heightmapData.data[idx(y1, x1)];
+    const r21 = heightmapData.data[idx(y1, x2)];
+    const r12 = heightmapData.data[idx(y2, x1)];
+    const r22 = heightmapData.data[idx(y2, x2)];
+
+    const fx = px - x1;
+    const fy = py - y1;
+
+    const rTop = r11 + (r21 - r11) * fx;
+    const rBottom = r12 + (r22 - r12) * fx;
+    const r = rTop + (rBottom - rTop) * fy;
+
+    return (r / 255) * terrainMaxHeight;
 }
