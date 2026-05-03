@@ -314,7 +314,7 @@ export class MyRoom extends Room<MyRoomState> {
         terrain.width = 2048;
         terrain.depth = 2048;
         terrain.segments = 128;
-        terrain.maxHeight = 160; // подбери под свою картинку
+        terrain.maxHeight = 200; // подбери под свою картинку
         this.state.terrain = terrain;
 
         // Создаём тестового NPC – рыцаря
