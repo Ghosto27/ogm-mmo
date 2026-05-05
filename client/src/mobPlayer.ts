@@ -64,7 +64,7 @@ const MOB_INTERPOLATION_SPEED = 10.0;
 function createWolfInstance(mobId: string): THREE.Group {
     if (!wolfTemplate) throw new Error('Шаблон волка ещё не загружен');
     const model = clone(wolfTemplate) as unknown as THREE.Group;
-    model.scale.set(0.4, 0.4, 0.4);
+    model.scale.set(0.5, 0.5, 0.5);
     model.visible = true;
     model.matrixAutoUpdate = true;
     model.rotation.set(0, Math.PI, 0);
@@ -252,7 +252,7 @@ export function interpolateMobPositions(deltaTime: number) {
             const t = Math.min(MOB_INTERPOLATION_SPEED * deltaTime, 1.0);
             model.position.x += (targetPos.x - model.position.x) * t;
             model.position.z += (targetPos.z - model.position.z) * t;
-            const targetY = getTerrainHeightAtFast(model.position.x, model.position.z) + 0.5;
+            const targetY = getTerrainHeightAtFast(model.position.x, model.position.z) + 0.1;
             const lerpFactor = 0.2; // скорость сглаживания (0..1)
             model.position.y += (targetY - model.position.y) * lerpFactor;
 

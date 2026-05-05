@@ -6,6 +6,7 @@ export class WorldObject extends Schema {
     @type("string") modelName: string = "cube";   // "cube", "cylinder", "plane"
     @type("number") x: number = 0;
     @type("number") z: number = 0;
+    @type("number") y: number = 0;
     @type("number") rotationY: number = 0;
     @type("number") rotationX: number = 0;
     @type("number") scaleX: number = 1;

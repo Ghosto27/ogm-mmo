@@ -53,7 +53,11 @@ export class MyRoom extends Room<MyRoomState> {
     allowReconnectionTime = 10;
     maxClients = 100;
     spawner!: MobSpawner;
-    private mobInterval?: NodeJS.Timeout;
+    private timers: NodeJS.Timeout[] = [];
+
+    public addTimer(timer: NodeJS.Timeout) {
+        this.timers.push(timer);
+    }
 
     onCreate() {
         this.setState(new MyRoomState());
@@ -290,7 +294,7 @@ export class MyRoom extends Room<MyRoomState> {
                 console.log(`[DEATH] ${target.name} погиб. Возрождение через 5 сек.`);
                 // Запускаем таймер возрождения
                 const deadTargetId = targetId;
-                setTimeout(() => {
+                const respawnTimer = setTimeout(() => {
                     const deadPlayer = this.state.players.get(deadTargetId);
                     if (deadPlayer && deadPlayer.hp <= 0) {
                         deadPlayer.hp = deadPlayer.maxHp;
@@ -303,6 +307,7 @@ export class MyRoom extends Room<MyRoomState> {
                         console.log(`[DEBUG] Попытка возродить ${deadTargetId}, deadPlayer =`, deadPlayer);
                     }
                 }, 5000);
+                this.addTimer(respawnTimer);
                 //console.log(`[DEBUG] Таймер возрождения запущен для ${deadTargetId}`);
             }
         });
@@ -357,7 +362,7 @@ export class MyRoom extends Room<MyRoomState> {
         });
 
         // Игровой цикл мобов (каждые 250 мс)
-        this.mobInterval = setInterval(() => {
+        const intervalTimer = setInterval(() => {
             this.state.mobs.forEach((mob, mobId) => {
                 if (mob.hp <= 0) return;
 
@@ -465,6 +470,7 @@ export class MyRoom extends Room<MyRoomState> {
                 }
             });
         }, 250);
+        this.addTimer(intervalTimer);
 
         this.onMessage("lootItem", (client, message) => {
             const player = this.state.players.get(client.sessionId);
@@ -550,11 +556,12 @@ export class MyRoom extends Room<MyRoomState> {
     }
 
     onDispose() {
-        if (this.mobInterval) {
-            clearInterval(this.mobInterval);
-            this.mobInterval = undefined;
+        for (const timer of this.timers) {
+            clearTimeout(timer);
+            clearInterval(timer);
         }
-    }
+        this.timers = [];
+     }
 
     onJoin(client: Client, options: { name: string }) {
         const name = options.name || "Гость";

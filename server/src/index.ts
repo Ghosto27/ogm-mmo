@@ -3,6 +3,9 @@ import { createServer } from "http";
 import express from "express";
 import cors from "cors";
 import { MyRoom } from "./MyRoom";
+import { Encoder } from "@colyseus/schema";
+
+Encoder.BUFFER_SIZE = 128 * 1024; // 32 КБ (можно увеличить до 64 * 1024 при необходимости)
 
 const app = express();
 const port = 2567;

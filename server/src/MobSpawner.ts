@@ -84,13 +84,15 @@ export class MobSpawner {
         const bag = new LootBag(bagId, landX, landZ, mob.x, mob.z, lootItems);
         this.room.state.lootBags.set(bagId, bag);
 
-        setTimeout(() => {
+        const removalTimer = setTimeout(() => {
             this.room.state.mobs.delete(mobId);
             this.mobCount--;
             // Респавн в той же зоне
             if (spawnZoneIndex >= 0 && spawnZoneIndex < wolfSpawnZones.length) {
-                setTimeout(() => this.respawnMob(spawnZoneIndex), RESPAWN_DELAY);
+                const respawnTimer = setTimeout(() => this.respawnMob(spawnZoneIndex), RESPAWN_DELAY);
+                this.room.addTimer(respawnTimer);
             }
         }, 3000);
+        this.room.addTimer(removalTimer);
     }
 }

@@ -19,7 +19,7 @@ export interface VegetationZone {
 }
 
 export const wolfSpawnZones: SpawnZone[] = [
-  { centerX: -151, centerZ: -264, radius: 15, count: 10 },
+  { centerX: -180, centerZ: 0, radius: 100, count: 10 },
   //{ centerX:  40, centerZ: -40, radius: 15, count: 3 },
   //{ centerX: -40, centerZ:  40, radius: 15, count: 2 },
   //{ centerX:  40, centerZ:  40, radius: 15, count: 3 },
@@ -30,19 +30,19 @@ export const forestZones: VegetationZone[] = [
   {
     id: "pine_forest_north",
     centerX: -180, centerZ: 0,   // координаты центра зоны
-    width: 150, depth: 300,          // размеры зоны
+    width: 200, depth: 400,          // размеры зоны
     objectType: 'tree',
     modelNames: ['Tree_1', 'Tree_10', 'Tree_11', 'Tree_14'], // без расширения, будем добавлять позже
     count: 100,                      // 30 деревьев
-    minScale: 0.7, maxScale: 1.4,
+    minScale: 1, maxScale: 5,
   },
   {
     id: "rocky_area_south",
     centerX: 100, centerZ: 100,
-    width: 100, depth: 100,
+    width: 100, depth: 400,
     objectType: 'rock',
     modelNames: ['Rock_4', 'Rock_2', 'Rock_3', 'Rock_5', 'Rock_6', 'Rock_7', 'Rock_8'],
     count: 100,
-    minScale: 0.5, maxScale: 1.5,
+    minScale: 1, maxScale: 3,
   }
 ];
