@@ -1,12 +1,13 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { scene } from '../scene';
-import { getTerrainHeightAtFast } from '../render/TerrainRenderer';
+import { getTerrainHeightAtFast, getTerrainHeightAt } from '../render/TerrainRenderer';
 
 const instanceMeshes: Map<string, THREE.InstancedMesh> = new Map();
 const nextIndices: Map<string, number> = new Map();
 const addedIds: Set<string> = new Set();
 const loadingPromises: Map<string, Promise<THREE.InstancedMesh>> = new Map();
+const modelHeights: Map<string, number> = new Map();
 
 let vegetationLoaded = false;
 
@@ -29,6 +30,10 @@ async function loadModel(modelName: string): Promise<THREE.InstancedMesh> {
             const template: THREE.Mesh = found;
             const geo = template.geometry.clone() as THREE.BufferGeometry;
             const mat = template.material;
+            const box = new THREE.Box3().setFromObject(template);
+            const height = box.max.y - box.min.y;
+            modelHeights.set(modelName, height);
+            //console.log(`[VEGETATION] Model ${modelName} height: ${height.toFixed(2)} units`);
 
             const mesh = new THREE.InstancedMesh(geo, mat, 5000);
             mesh.castShadow = true;
@@ -70,7 +75,9 @@ export async function addVegetationInstance(obj: any): Promise<void> {
 
     const matrix = new THREE.Matrix4();
     const y = getTerrainHeightAtFast(obj.x, obj.z);
+    //console.log('YYY:', y);
     const scale = obj.scaleX || 1;
+
     matrix.compose(
         new THREE.Vector3(obj.x, y, obj.z),
         new THREE.Quaternion().setFromEuler(new THREE.Euler(0, obj.rotationY || 0, 0)),

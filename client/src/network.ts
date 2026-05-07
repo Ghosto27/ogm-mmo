@@ -328,21 +328,19 @@ function join(playerName: string) {
 
             // ------ Растительность (только один раз) ------
             if (!isVegetationLoaded()) {
+            terrainReady.then(() => {
                 const vegetPromises: Promise<void>[] = [];
-
                 state.worldObjects.forEach((obj: any, objId: string) => {
                     if (objId.startsWith('pine_') || objId.startsWith('rocky_')) {
                         if (!obj) return;
-                        // addVegetationInstance теперь async, поэтому добавляем промис
                         vegetPromises.push(addVegetationInstance(obj));
                     }
                 });
-
-                // Дожидаемся загрузки всех моделей и только потом финализируем
                 Promise.all(vegetPromises).then(() => {
                     finalizeVegetation();
                 });
-            }
+            });
+        }
 
             // ------ Статические объекты ------
             updateWorldObjects(state.worldObjects);

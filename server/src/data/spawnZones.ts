@@ -38,10 +38,10 @@ export const forestZones: VegetationZone[] = [
   },
   {
     id: "rocky_area_south",
-    centerX: 100, centerZ: 100,
-    width: 100, depth: 400,
+    centerX: -180, centerZ: 0,
+    width: 200, depth: 400,
     objectType: 'rock',
-    modelNames: ['Rock_4', 'Rock_2', 'Rock_3', 'Rock_5', 'Rock_6', 'Rock_7', 'Rock_8'],
+    modelNames: ['Rock_2', 'Rock_3', 'Rock_5', 'Rock_6', 'Rock_7', 'Rock_8'],
     count: 100,
     minScale: 1, maxScale: 3,
   }
