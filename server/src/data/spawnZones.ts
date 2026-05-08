@@ -30,7 +30,7 @@ export const forestZones: VegetationZone[] = [
   {
     id: "pine_forest_north",
     centerX: -180, centerZ: 0,   // координаты центра зоны
-    width: 200, depth: 400,          // размеры зоны
+    width: 200, depth: 600,          // размеры зоны
     objectType: 'tree',
     modelNames: ['Tree_1', 'Tree_10', 'Tree_11', 'Tree_14'], // без расширения, будем добавлять позже
     count: 100,                      // 30 деревьев
@@ -39,7 +39,7 @@ export const forestZones: VegetationZone[] = [
   {
     id: "rocky_area_south",
     centerX: -180, centerZ: 0,
-    width: 200, depth: 400,
+    width: 200, depth: 600,
     objectType: 'rock',
     modelNames: ['Rock_2', 'Rock_3', 'Rock_5', 'Rock_6', 'Rock_7', 'Rock_8'],
     count: 100,

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { camera } from './scene';
+import { scene, camera, renderer } from './scene';
 import { localModel, otherPlayers, fsm } from './player';
 import { mobModels } from './mobPlayer';
 import { room, interactionState } from './network';
@@ -10,6 +10,8 @@ import { showLootUI, hideLootUI } from './ui/LootWindowUI';
 import { lootMeshes } from './render/LootRenderer';
 import { npcMeshes } from './render/NPCRenderer';
 import { hideDialog } from './ui/DialogUI';
+import { getAllInstancedMeshes } from './render/VegetationRenderer';
+import { getTerrainHeightAtFast, getTerrainHeightAt } from './render/TerrainRenderer';
 
 console.log('[INTERACTION] Module loaded');
 
@@ -105,6 +107,42 @@ window.addEventListener('mouseup', (event) => {
                 }
             }
         }
+
+        // Проверяем клик по растительности
+        const vegMeshes = getAllInstancedMeshes();
+        for (const instMesh of vegMeshes) {
+            const vegIntersects = raycaster.intersectObject(instMesh);
+            if (vegIntersects.length > 0) {
+                const intersect = vegIntersects[0];
+                const instanceIndex = intersect.instanceId;
+                if (instanceIndex !== undefined) {
+                    const matrix = new THREE.Matrix4();
+                    instMesh.getMatrixAt(instanceIndex, matrix);
+                    const pos = new THREE.Vector3();
+                    matrix.decompose(pos, new THREE.Quaternion(), new THREE.Vector3());
+                    
+                    const modelName = instMesh.userData.modelName || 'unknown';
+                    console.group(`[VEG-CLICK] Instance #${instanceIndex} of ${modelName}`);
+                    console.log('World position:', pos.x.toFixed(1), pos.y.toFixed(2), pos.z.toFixed(1));
+                    const groundY = getTerrainHeightAtFast(pos.x, pos.z);
+                    console.log('Terrain height:', groundY.toFixed(2));
+                    console.log('Delta (modelY - terrain):', (pos.y - groundY).toFixed(2));
+                    
+                    // Красная сфера для визуального сравнения
+                    const sphere = new THREE.Mesh(
+                        new THREE.SphereGeometry(0.3, 8, 8),
+                        new THREE.MeshBasicMaterial({ color: 0xff0000 })
+                    );
+                    sphere.position.set(pos.x, groundY, pos.z);
+                    scene.add(sphere);
+                    setTimeout(() => scene.remove(sphere), 5000);
+                    
+                    console.groupEnd();
+                }
+                return; // обработали клик, выходим
+            }
+        }
+
 
         const mobTargets: THREE.Object3D[] = Object.values(mobModels).filter(m => m.visible);
         const mobInters = getIntersections(event, mobTargets);

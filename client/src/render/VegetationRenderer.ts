@@ -36,6 +36,7 @@ async function loadModel(modelName: string): Promise<THREE.InstancedMesh> {
             //console.log(`[VEGETATION] Model ${modelName} height: ${height.toFixed(2)} units`);
 
             const mesh = new THREE.InstancedMesh(geo, mat, 5000);
+            mesh.userData.modelName = modelName;
             mesh.castShadow = true;
             mesh.receiveShadow = true;
             scene.add(mesh);
@@ -100,6 +101,7 @@ export async function finalizeVegetation() {
         }
 
         const newMesh = new THREE.InstancedMesh(mesh.geometry, mesh.material, usedCount);
+        newMesh.userData = mesh.userData;
         newMesh.castShadow = mesh.castShadow;
         newMesh.receiveShadow = mesh.receiveShadow;
 
@@ -135,4 +137,8 @@ export function clearAllVegetation() {
     addedIds.clear();
     loadingPromises.clear();
     vegetationLoaded = false;
+}
+
+export function getAllInstancedMeshes(): THREE.InstancedMesh[] {
+    return Array.from(instanceMeshes.values());
 }

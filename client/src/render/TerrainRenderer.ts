@@ -126,8 +126,8 @@ export function updateTerrain(terrain: any) {
 
                         void main() {
                             float normalizedHeight = vHeight / maxHeight;
-                            float grassFactor = 1.0 - smoothstep(0.03 - heightTransition, 0.03 + heightTransition, normalizedHeight);
-                            float rockFactor  = smoothstep(0.3 - heightTransition, 0.3 + heightTransition, normalizedHeight);
+                            float grassFactor = 1.0 - smoothstep(0.01 - heightTransition, 0.01 + heightTransition, normalizedHeight);
+                            float rockFactor  = smoothstep(0.2 - heightTransition, 0.2 + heightTransition, normalizedHeight);
                             float cliffFactor = 1.0 - grassFactor - rockFactor;
 
                             vec4 grassColor = texture2D(grassTexture, vUv * repeatGrass);
@@ -155,6 +155,9 @@ export function updateTerrain(terrain: any) {
             });
     };
     image.src = terrain.heightmapPath;
+    (window as any).terrainWidth = terrainWidth;
+    (window as any).terrainDepth = terrainDepth;
+    (window as any).heightmapData = heightmapData;
 }
 
 // ---------- Функции получения высоты ----------
@@ -174,6 +177,10 @@ export function getTerrainHeightAt(x: number, z: number): number {
 /** Быстрое сэмплирование высоты без raycasting (для 60+ FPS) */
 export function getTerrainHeightAtFast(x: number, z: number): number {
     if (!heightmapData || terrainWidth === 0 || terrainDepth === 0) return 0;
+    if (!heightmapData || terrainWidth === 0 || terrainDepth === 0) {
+        console.warn(`[FAST] Missing data (heightmapData: ${!!heightmapData}, terrainWidth: ${terrainWidth}, terrainDepth: ${terrainDepth})`);
+        return 0;
+    }
 
     // Мировые координаты -> UV (0..1)
     const u = (x / terrainWidth) + 0.5;
