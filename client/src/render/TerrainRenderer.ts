@@ -6,9 +6,9 @@ let lastTerrainKey: string = '';
 export let heightmapData: { data: Uint8ClampedArray; width: number; height: number } | null = null;
 
 // Храним текущие параметры ландшафта для быстрого доступа
-let terrainWidth = 0;
-let terrainDepth = 0;
-let terrainMaxHeight = 0;
+export let terrainWidth = 0;
+export let terrainDepth = 0;
+export let terrainMaxHeight = 0;
 let imageWidth = 0;
 let imageHeight = 0;
 

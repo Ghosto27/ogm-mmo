@@ -33,14 +33,12 @@ async function loadModel(modelName: string): Promise<THREE.InstancedMesh> {
             const box = new THREE.Box3().setFromObject(template);
             const height = box.max.y - box.min.y;
             modelHeights.set(modelName, height);
-            //console.log(`[VEGETATION] Model ${modelName} height: ${height.toFixed(2)} units`);
 
             const mesh = new THREE.InstancedMesh(geo, mat, 5000);
             mesh.userData.modelName = modelName;
             mesh.castShadow = true;
             mesh.receiveShadow = true;
             scene.add(mesh);
-            //console.log(`[VEGETATION] Loaded model '${modelName}' into InstancedMesh.`);
             resolve(mesh);
         } catch (err) {
             reject(err);
@@ -70,13 +68,11 @@ export async function addVegetationInstance(obj: any): Promise<void> {
 
     const idx = nextIndices.get(modelName) || 0;
     if (idx >= mesh.count) {
-        //console.warn(`[VEGETATION] InstancedMesh for '${modelName}' is full!`);
         return;
     }
 
     const matrix = new THREE.Matrix4();
     const y = getTerrainHeightAtFast(obj.x, obj.z);
-    //console.log('YYY:', y);
     const scale = obj.scaleX || 1;
 
     matrix.compose(
@@ -117,7 +113,6 @@ export async function finalizeVegetation() {
         mesh.dispose();
 
         instanceMeshes.set(modelName, newMesh);
-        //console.log(`[VEGETATION] Finalized ${modelName}: ${usedCount} instances, new mesh created.`);
     }
 
     vegetationLoaded = true;
