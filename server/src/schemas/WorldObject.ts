@@ -3,7 +3,7 @@ import { Schema, type } from "@colyseus/schema";
 
 export class WorldObject extends Schema {
     @type("string") id: string = "";
-    @type("string") modelName: string = "cube";   // "cube", "cylinder", "plane"
+    @type("string") modelName: string = "";      // cube, cylinder, или имя glb модели
     @type("number") x: number = 0;
     @type("number") z: number = 0;
     @type("number") y: number = 0;

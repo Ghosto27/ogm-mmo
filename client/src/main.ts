@@ -29,6 +29,8 @@ import { updateFPS } from './utils/fpsCounter';
 import { applyMovementWithCollisions, addSphereCollider, allColliders, updateDynamicColliders, getAllColliders } from './collision';
 import { updateCollisionDebug } from './debug/collisionDebug';
 import { isCollisionDebugVisible } from './debug/debugState';
+import { initEditor, updateEditor } from './editor/Editor';
+import { isEditorActive } from './editor/EditorState';
 
 let playerName = localStorage.getItem(STORAGE_KEY) || '';
 
@@ -56,12 +58,14 @@ modelReady.then(() => {
     createDialogUI();
     createQuestJournal();
     createNotificationUI();
+    initEditor();
     setTimeout(() => {
         fsm['local']?.transitionTo('idle');
     }, 500);
 });
 
 document.addEventListener('keydown', (e) => {
+    if (isEditorActive()) return;
     const key = normalizeKey(e.key);
     if (isChatActive()) {
         // Если чат активен, не обрабатываем клавиши меню и не даём повторно фокусироваться по T
@@ -104,14 +108,31 @@ function loop() {
 
     if (!room || !localModel) return;
 
+    // =================== РЕЖИМ РЕДАКТОРА ===================
+    if (isEditorActive()) {
+        // Обновляем TransformControls (они используют камеру)
+        updateEditor(deltaTime)
+
+        // Рендер сцены (без обновления анимаций игрока и мобов)
+        updateCollisionDebug(
+            isCollisionDebugVisible() ? getAllColliders() : [],
+            localModel.position,
+            30
+        );
+        composer.render();
+        renderLabels(scene, camera);
+        return; // прерываем выполнение игровой логики
+    }
+
+    // =================== ИГРОВОЙ РЕЖИМ ===================
     const myPlayer = room.state?.players?.get(room.sessionId);
     const alive = myPlayer && myPlayer.hp > 0;
 
     if (alive) {
         let moveVec: THREE.Vector3;
+
         if (isRightDragging) {
             moveVec = getCameraRelativeMovement(camera);
-            // Разворот модели по направлению движения (только при зажатой ПКМ)
             if (moveVec.lengthSq() > 0) {
                 const targetAngle = Math.atan2(moveVec.x, moveVec.z);
                 const rotationSpeed = 10.0;
@@ -122,15 +143,17 @@ function loop() {
                 localModel.rotation.y += angleDiff * Math.min(1, rotationSpeed * deltaTime);
             }
         } else {
-            if (isChatActive()) {    // <-- не двигаемся при чате
-                moveVec = new THREE.Vector3(0,0,0);
+            if (isChatActive()) {
+                moveVec = new THREE.Vector3(0, 0, 0);
             } else {
                 const raw = getMovementInput();
                 moveVec = new THREE.Vector3(0, 0, 0);
                 if (raw.x !== 0 || raw.z !== 0) {
-                    const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(localModel!.quaternion);
+                    const forward = new THREE.Vector3(0, 0, 1)
+                        .applyQuaternion(localModel!.quaternion);
                     forward.y = 0; forward.normalize();
-                    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(localModel!.quaternion);
+                    const right = new THREE.Vector3(1, 0, 0)
+                        .applyQuaternion(localModel!.quaternion);
                     right.y = 0; right.normalize();
 
                     moveVec.add(forward.multiplyScalar(-raw.z));
@@ -141,45 +164,40 @@ function loop() {
         }
 
         const isMoving = moveVec.lengthSq() > 0;
+
         if (isMoving) {
             const speedMultiplier = sprintKey ? SPRINT_MULTIPLIER : 1.0;
             const delta = PLAYER_SPEED * 0.016 * speedMultiplier;
 
-            // --- Динамические коллайдеры (другие игроки и мобы) ---
+            // Динамические коллайдеры (другие игроки и мобы)
             const dynamicEntities: { position: THREE.Vector3; radius: number }[] = [];
 
-            // Другие игроки
             for (const id in otherPlayers) {
                 const model = otherPlayers[id];
                 if (model && model.visible && id !== room.sessionId) {
                     dynamicEntities.push({
                         position: model.position.clone(),
-                        radius: 0.3, // можно подобрать под размеры персонажа
+                        radius: 0.5,
                     });
                 }
             }
 
-            // Мобы
             for (const mobId in mobModels) {
                 const mob = mobModels[mobId];
                 if (mob && mob.visible) {
                     dynamicEntities.push({
                         position: mob.position.clone(),
-                        radius: 0.5, // волки чуть крупнее?
+                        radius: 0.6,
                     });
                 }
             }
 
             updateDynamicColliders(dynamicEntities);
 
-            // Вычисляем сырое желаемое смещение
             const rawDelta = new THREE.Vector3(moveVec.x * delta, 0, moveVec.z * delta);
-
-            // Применяем слайдинг с учётом коллизий
             const currentPos = localModel.position.clone();
             const newPos = applyMovementWithCollisions(currentPos, rawDelta);
 
-            // Применяем результат
             localModel.position.x = newPos.x;
             localModel.position.z = newPos.z;
 
@@ -210,17 +228,17 @@ function loop() {
         }
     }
 
-
+    // Камера следует за игроком
     if (localModel) {
         const box = new THREE.Box3().setFromObject(localModel);
         const center = new THREE.Vector3();
         box.getCenter(center);
-        center.y += 1.4; // поднимаем точку фокуса до уровня плеч
+        center.y += 1.4;
         setCameraTarget(center.x, center.y, center.z);
     }
     updateCamera();
 
-    // Миникарта
+    // Миникарта и большая карта
     if (localModel) {
         const othersForMap: { x: number; z: number; rotationY: number; visible: boolean }[] = [];
         for (const id in otherPlayers) {
@@ -235,7 +253,6 @@ function loop() {
             }
         }
 
-        // Собираем данные о мобах (волках)
         const mobsForMap: { x: number; z: number; visible: boolean }[] = [];
         for (const mobId in mobModels) {
             const mobModel = mobModels[mobId];
@@ -248,7 +265,6 @@ function loop() {
             }
         }
 
-        // Сбор данных NPC для карт
         const npcsForMap: { x: number; z: number; visible: boolean }[] = [];
         if (room.state.npcs) {
             room.state.npcs.forEach((npc: { x: number; z: number }) => {
@@ -260,6 +276,7 @@ function loop() {
         updateWorldMap(localModel.position.x, localModel.position.z, localModel.rotation.y, othersForMap, mobsForMap, npcsForMap);
     }
 
+    // Idle-анимация для других игроков
     const IDLE_TIMEOUT = 200;
     for (const sessionId in otherPlayers) {
         const lastMove = lastMoveTimes.get(sessionId) || 0;
@@ -268,6 +285,7 @@ function loop() {
         }
     }
 
+    // Outline выбранных объектов
     const selectedObjects: THREE.Object3D[] = [localModel];
     for (const id in otherPlayers) {
         const model = otherPlayers[id];
@@ -275,20 +293,23 @@ function loop() {
     }
     outlinePass.selectedObjects = selectedObjects;
 
+    // Обновление анимаций и позиций
     updateAnimations(deltaTime);
     updateMobAnimations(deltaTime);
     interpolateMobPositions(deltaTime);
     animateLootMeshes();
-    if (isCollisionDebugVisible() && localModel) {
-        // Показываем коллизии только в радиусе 30 метров от игрока
-        updateCollisionDebug(getAllColliders(), localModel.position, 30);
-    } else {
-        updateCollisionDebug([]);
-    }
 
+    // Отладка коллизий
+    updateCollisionDebug(
+        isCollisionDebugVisible() ? getAllColliders() : [],
+        localModel.position,
+        30
+    );
+
+    // Рендер
     composer.render();
-    //renderer.render(scene, camera);
     renderLabels(scene, camera);
 }
+
 console.log('TEST')
 loop();

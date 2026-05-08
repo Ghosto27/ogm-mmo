@@ -7,18 +7,38 @@ import { normalizeKey } from './keyboard';
 
 export let sprintKey = false;
 
+// Состояние осей движения (для редактора и других потребителей)
+export const inputState = {
+    forward: false,
+    backward: false,
+    left: false,
+    right: false,
+};
+
 // ---------- КЛАВИШИ ----------
 const keys: Record<string, boolean> = {};
 
 window.addEventListener('keydown', (e) => {
-    if (isChatActive()) return;   // игрок печатает – не обрабатываем
+    if (isChatActive()) return;
     if (e.key === 'Shift') sprintKey = true;
-    keys[normalizeKey(e.key)] = true;
+    const normalized = normalizeKey(e.key);
+    keys[normalized] = true;
+    // Обновляем inputState
+    if (normalized === 'w' || normalized === 'arrowup' || normalized === 'ц') inputState.forward = true;
+    if (normalized === 's' || normalized === 'arrowdown' || normalized === 'ы') inputState.backward = true;
+    if (normalized === 'a' || normalized === 'arrowleft' || normalized === 'ф') inputState.left = true;
+    if (normalized === 'd' || normalized === 'arrowright' || normalized === 'в') inputState.right = true;
 });
 window.addEventListener('keyup', (e) => {
     if (isChatActive()) return;
     if (e.key === 'Shift') sprintKey = false;
-    keys[normalizeKey(e.key)] = false;
+    const normalized = normalizeKey(e.key);
+    keys[normalized] = false;
+    // Обновляем inputState
+    if (normalized === 'w' || normalized === 'arrowup' || normalized === 'ц') inputState.forward = false;
+    if (normalized === 's' || normalized === 'arrowdown' || normalized === 'ы') inputState.backward = false;
+    if (normalized === 'a' || normalized === 'arrowleft' || normalized === 'ф') inputState.left = false;
+    if (normalized === 'd' || normalized === 'arrowright' || normalized === 'в') inputState.right = false;
 });
 
 export function getMovementInput(): { x: number; z: number } {

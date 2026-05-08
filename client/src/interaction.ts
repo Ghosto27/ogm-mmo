@@ -14,6 +14,7 @@ import { hideDialog } from './ui/DialogUI';
 import { getAllInstancedMeshes } from './render/VegetationRenderer';
 import { getTerrainHeightAtFast, getTerrainHeightAt } from './render/TerrainRenderer';
 import { toggleCollisionDebug } from './debug/debugState';
+import { isEditorActive } from './editor/EditorState';
 
 console.log('[INTERACTION] Module loaded');
 
@@ -32,12 +33,14 @@ function getIntersections(event: MouseEvent, targets: THREE.Object3D[]): THREE.I
 
 // ---------- Обработка нажатия кнопок мыши ----------
 window.addEventListener('mousedown', (event) => {
+    if (isEditorActive()) return;
     if (event.button === 2) {
         rightButtonDownTime = Date.now();
     }
 });
 
 window.addEventListener('mouseup', (event) => {
+    if (isEditorActive()) return;
     if (event.button === 2) {
         // Правая кнопка: атака (короткий клик)
         const duration = Date.now() - rightButtonDownTime;
@@ -93,6 +96,7 @@ window.addEventListener('mouseup', (event) => {
     }
 
     if (event.button === 0) {
+        if (isEditorActive()) return;
         // Левая кнопка: выделение
         const playerTargets = Object.values(otherPlayers).filter(m => m.visible);
         const playerInters = getIntersections(event, playerTargets);
@@ -175,6 +179,7 @@ window.addEventListener('mouseup', (event) => {
 
 // В mousedown или keydown (я предлагаю keydown для F)
 window.addEventListener('keydown', (e) => {
+    if (isEditorActive()) return;
     if (e.key.toLowerCase() === 'f' || e.key.toLowerCase() === 'а') {
         if (!room || !localModel) return;
 
@@ -226,6 +231,7 @@ window.addEventListener('contextmenu', (event) => {
 });
 
 window.addEventListener('keydown', (e) => {
+    if (isEditorActive()) return;
     if (e.key.toLowerCase() === 'h' && localModel && room) {
         const pos = localModel.position;
         const x = pos.x, z = pos.z;
@@ -253,6 +259,7 @@ window.addEventListener('keydown', (e) => {
 
 // ВРЕМЕННЫЙ ТЕСТОВЫЙ КОД: спавн камня по клавише K
 window.addEventListener('keydown', (e) => {
+    if (isEditorActive()) return;
     if (e.key.toLowerCase() === 'k' && localModel && room) {
         const x = localModel.position.x;
         const z = localModel.position.z;

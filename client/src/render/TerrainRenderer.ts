@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { scene } from '../scene';
 
-let terrainMesh: THREE.Mesh | null = null;
+export let terrainMesh: THREE.Mesh | null = null;
 let lastTerrainKey: string = '';
 export let heightmapData: { data: Uint8ClampedArray; width: number; height: number } | null = null;
 

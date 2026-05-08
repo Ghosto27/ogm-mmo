@@ -1,6 +1,8 @@
 import { Room, Client } from "colyseus";
 import { Schema, MapSchema, type } from "@colyseus/schema";
 import { loadPlayer, savePlayer } from "./storage";
+import * as fs from 'fs';
+import * as path from 'path';
 import { Mob } from "./Mob";
 import { MobSpawner } from "./MobSpawner";
 import { Inventory } from "./models/Inventory";
@@ -25,6 +27,7 @@ import { initServerColliders, isPositionBlocked, applyMobMovementWithCollisions,
 export class Player extends Schema {
     @type("number") x: number = 0;
     @type("number") z: number = 0;
+    @type("number") y: number = 0;
     @type("number") rotationY: number = 0;
     @type("string") name: string = "";
     @type("number") hp: number = 100;
@@ -337,6 +340,35 @@ export class MyRoom extends Room<MyRoomState> {
 
         this.spawner = new MobSpawner(this);
         LocationLoader.load(this, "village");
+
+        try {
+            const fs = require('fs');
+            const path = require('path');
+            const filePath = path.join(__dirname, '../data/editor_objects.json');
+            if (fs.existsSync(filePath)) {
+                const raw = fs.readFileSync(filePath, 'utf-8');
+                const data = JSON.parse(raw);
+                for (const obj of data) {
+                    const wo = new WorldObject();
+                    wo.id = obj.id || 'editor_' + Date.now().toString();
+                    wo.modelName = obj.modelName || 'cube';      // ← защита от undefined
+                    wo.x = obj.x || 0;
+                    wo.y = obj.y || 0;
+                    wo.z = obj.z || 0;
+                    wo.scaleX = obj.scaleX || 1;
+                    wo.scaleY = obj.scaleY || 1;
+                    wo.scaleZ = obj.scaleZ || 1;
+                    wo.rotationY = obj.rotationY || 0;
+                    wo.rotationX = obj.rotationX || 0;
+                    wo.color = (obj.color || '#ffffff').startsWith('#') ? obj.color : '#' + obj.color;
+                    this.state.worldObjects.set(wo.id, wo);
+                }
+                console.log(`[EDITOR] Загружено ${data.length} объектов из editor_objects.json`);
+            }
+        } catch (err) {
+            console.error('[EDITOR] Ошибка загрузки editor_objects.json:', err);
+        }
+
         initServerColliders();
         VegetationSpawner.loadAndSpawn(this);
 
@@ -590,6 +622,34 @@ export class MyRoom extends Room<MyRoomState> {
             } else {
                 PlayerPersistence.savePlayer(player);
             }
+        });
+
+        this.onMessage("editorSave", (client, message: { objects: any[] }) => {
+            const fs = require('fs');
+            const path = require('path');
+            const filePath = path.join(__dirname, '../data/editor_objects.json');
+            fs.writeFileSync(filePath, JSON.stringify(message.objects, null, 2));
+
+            // Обновляем стейт: удаляем все editor_-объекты, добавляем новые
+            for (const id of this.state.worldObjects.keys()) {
+                if (id.startsWith('editor_')) this.state.worldObjects.delete(id);
+            }
+            for (const obj of message.objects) {
+                const wo = new WorldObject();
+                wo.id = obj.id;
+                wo.modelName = obj.modelName || 'cube';
+                wo.x = obj.x || 0;
+                wo.y = obj.y || 0;
+                wo.z = obj.z || 0;
+                wo.scaleX = obj.scaleX || 1;
+                wo.scaleY = obj.scaleY || 1;
+                wo.scaleZ = obj.scaleZ || 1;
+                wo.rotationY = obj.rotationY || 0;
+                wo.rotationX = obj.rotationX || 0;
+                wo.color = (obj.color || '#ffffff').startsWith('#') ? obj.color : '#' + obj.color;
+                this.state.worldObjects.set(wo.id, wo);
+            }
+            console.log(`[EDITOR] Сохранено ${message.objects.length} объектов`);
         });
 
         console.log("Комната 'world' создана");

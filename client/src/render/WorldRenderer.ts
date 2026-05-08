@@ -1,14 +1,81 @@
+// WorldRenderer.ts — добавлена поддержка GLTF-моделей
+
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { scene } from '../scene';
 import { getTerrainHeightAt, terrainReady } from './TerrainRenderer';
 import { addBoxCollider, addCylinderCollider } from '../collision';
 
-const worldMeshes: { [id: string]: THREE.Mesh } = {};
+// Теперь храним любые объекты (Mesh или Group)
+export const worldMeshes: { [id: string]: THREE.Object3D } = {};
+const modelCache = new Map<string, Promise<THREE.Group>>();
 
-export function updateWorldObjects(worldObjects: any) {
+/** Загружает GLTF-модель (с кэшированием) */
+async function loadModel(modelName: string): Promise<THREE.Group> {
+    if (modelCache.has(modelName)) return modelCache.get(modelName)!;
+    const loader = new GLTFLoader();
+    const promise = loader.loadAsync(`/models/${modelName}.glb`).then(gltf => gltf.scene);
+    modelCache.set(modelName, promise);
+    return promise;
+}
+
+/**
+ * Создаёт меш или группу в зависимости от modelName.
+ * Для cube, cylinder, plane – примитивы.
+ * Для остальных – загрузка GLTF.
+ */
+export async function createMesh(obj: any): Promise<THREE.Object3D | null> {
+    const { modelName } = obj;
+    if (modelName === 'cube') {
+        const geometry = new THREE.BoxGeometry(1, 1, 1);
+        const material = new THREE.MeshStandardMaterial({ color: obj.color || '#ffffff' });
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.userData.editorMode = true;
+        mesh.userData.editorType = 'cube';
+        return mesh;
+    } else if (modelName === 'cylinder') {
+        const geometry = new THREE.CylinderGeometry(1, 1, 1, 16);
+        const material = new THREE.MeshStandardMaterial({ color: obj.color || '#ffffff' });
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.userData.editorMode = true;
+        mesh.userData.editorType = 'cylinder';
+        return mesh;
+    } else if (modelName === 'plane') {
+        const geometry = new THREE.PlaneGeometry(1, 1);
+        const material = new THREE.MeshStandardMaterial({ color: obj.color || '#ffffff' });
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.userData.editorMode = true;
+        return mesh;
+    } else if (!modelName || modelName === '') {
+        console.warn(`[WORLD] Объект без modelName, создаю куб`);
+        const geometry = new THREE.BoxGeometry(1, 1, 1);
+        const material = new THREE.MeshStandardMaterial({ color: '#ffffff' });
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.userData.editorMode = true;
+        mesh.userData.editorType = 'cube';
+        return mesh;
+    }
+
+    // GLTF модель
+    try {
+        const template = await loadModel(modelName);
+        const clone = template.clone(true);
+        clone.userData.editorMode = true;
+        clone.userData.modelName = modelName;
+        return clone;
+    } catch (err) {
+        console.warn(`[WORLD] Не удалось загрузить модель ${modelName}:`, err);
+        return null;
+    }
+}
+
+/**
+ * Обновляет объекты мира (асинхронно).
+ */
+export async function updateWorldObjects(worldObjects: any) {
     if (!worldObjects || !worldObjects.forEach) return;
 
-    // Удаляем объекты, которых больше нет в стейте
+    // Удаляем объекты, отсутствующие в стейте
     for (const id in worldMeshes) {
         if (!worldObjects.has(id)) {
             scene.remove(worldMeshes[id]);
@@ -16,62 +83,57 @@ export function updateWorldObjects(worldObjects: any) {
         }
     }
 
-    // Дожидаемся готовности ландшафта перед применением высоты
-    terrainReady.then(() => {
-        worldObjects.forEach((obj: any, id: string) => {
-            // Пропускаем объекты растительности – их обрабатывает VegetationRenderer
-            if (id.startsWith('pine_') || id.startsWith('rocky_')) return;
-            if (worldMeshes[id]) return; // уже создан
+    // Ждём готовности ландшафта
+    await terrainReady;
 
-            const mesh = createMesh(obj);
-            if (mesh) {
-                const y = getTerrainHeightAt(obj.x, obj.z);
-                const offset = obj.modelName === 'plane' ? 0.05 : (obj.scaleY || 1) / 2;
-                mesh.position.set(obj.x, y + offset, obj.z);
-                mesh.scale.set(obj.scaleX, obj.scaleY, obj.scaleZ);
-                mesh.rotation.y = obj.rotationY || 0;
-                mesh.rotation.x = obj.rotationX || 0;
-                (window as any).x = obj.x;
-                (window as any).z = obj.z;
+    // Получаем массив записей и обрабатываем последовательно
+    const entries = Array.from(worldObjects.entries()) as [string, any][];
+    for (const [id, obj] of entries) {
+        // Пропускаем растительность
+        if (id.startsWith('pine_') || id.startsWith('rocky_')) continue;
+        if (worldMeshes[id]) continue;
 
-                scene.add(mesh);
+        const obj3D = await createMesh(obj);
+        if (!obj3D) continue;
 
-                // --- Создание коллизии для объекта деревни ---
-                if (obj.modelName === 'cube') {
-                    const halfExtents = new THREE.Vector3(
-                        (obj.scaleX || 1) / 2,
-                        (obj.scaleY || 1) / 2,
-                        (obj.scaleZ || 1) / 2
-                    );
-                    // Центр куба находится там же, где и position (уже с учётом terrain + offset)
-                    addBoxCollider(mesh.position.clone(), halfExtents);
-                } else if (obj.modelName === 'cylinder') {
-                    // Базовая модель цилиндра имеет радиус 1, поэтому после масштабирования радиус = scaleX
-                    const radius = obj.scaleX || 1;
-                    const height = obj.scaleY || 1;
-                    const baseY = mesh.position.y - height / 2;
-                    addCylinderCollider(
-                        new THREE.Vector3(mesh.position.x, baseY, mesh.position.z),
-                        radius,
-                        height
-                    );
-                }
-                worldMeshes[id] = mesh;
-            }
-        });
-    });
-}
+        // Позиция с учётом ландшафта
+        if (obj.y !== undefined) {
+            // Объект редактора – используем сохранённую высоту
+            // Статическая деревня – высчитываем по террейну
+            const y = getTerrainHeightAt(obj.x, obj.z);
+            const offset = obj.modelName === 'plane' ? 0.05 : (obj.scaleY || 1) / 2;
+            obj3D.position.set(obj.x, obj.y, obj.z);
+        } else {
+            // Статическая деревня – высчитываем по террейну
+            const y = getTerrainHeightAt(obj.x, obj.z);
+            const offset = obj.modelName === 'plane' ? 0.05 : (obj.scaleY || 1) / 2;
+            obj3D.position.set(obj.x, y + offset, obj.z);
+        }
+        obj3D.scale.set(obj.scaleX, obj.scaleY, obj.scaleZ);
+        obj3D.rotation.y = obj.rotationY || 0;
+        obj3D.rotation.x = obj.rotationX || 0;
 
-function createMesh(obj: any): THREE.Mesh | null {
-    let geometry: THREE.BufferGeometry;
-    switch (obj.modelName) {
-        case 'cube': geometry = new THREE.BoxGeometry(1, 1, 1); break;
-        case 'cylinder': geometry = new THREE.CylinderGeometry(1, 1, 1, 16); break;
-        case 'plane': geometry = new THREE.PlaneGeometry(1, 1); break;
-        default:
-            console.warn(`[WORLD] Unknown modelName: ${obj.modelName}`);
-            return null;
+        scene.add(obj3D);
+
+        // Коллизии для примитивов
+        if (obj.modelName === 'cube') {
+            const halfExtents = new THREE.Vector3(
+                (obj.scaleX || 1) / 2,
+                (obj.scaleY || 1) / 2,
+                (obj.scaleZ || 1) / 2
+            );
+            addBoxCollider(obj3D.position.clone(), halfExtents);
+        } else if (obj.modelName === 'cylinder') {
+            const radius = obj.scaleX || 1;
+            const height = obj.scaleY || 1;
+            const baseY = obj3D.position.y - height / 2;
+            addCylinderCollider(
+                new THREE.Vector3(obj3D.position.x, baseY, obj3D.position.z),
+                radius,
+                height
+            );
+        }
+
+        worldMeshes[id] = obj3D;
     }
-    const material = new THREE.MeshStandardMaterial({ color: obj.color || '#ffffff' });
-    return new THREE.Mesh(geometry, material);
 }
