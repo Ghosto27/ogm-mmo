@@ -26,7 +26,7 @@ import { createQuestJournal, toggleQuestJournal } from './quest/QuestJournalUI';
 import { createNotificationUI } from './ui/notificationUI';
 import { getTerrainHeightAt, getTerrainHeightAtFast } from './render/TerrainRenderer';
 import { updateFPS } from './utils/fpsCounter';
-import { applyMovementWithCollisions, addSphereCollider, allColliders } from './collision';
+import { applyMovementWithCollisions, addSphereCollider, allColliders, updateDynamicColliders, getAllColliders } from './collision';
 import { updateCollisionDebug } from './debug/collisionDebug';
 import { isCollisionDebugVisible } from './debug/debugState';
 
@@ -59,10 +59,6 @@ modelReady.then(() => {
     setTimeout(() => {
         fsm['local']?.transitionTo('idle');
     }, 500);
-    // ВРЕМЕННО: добавим несколько "препятствий" для теста
-    addSphereCollider(new THREE.Vector3(2, 0, 2), 1.0);
-    addSphereCollider(new THREE.Vector3(-1, 0, 3), 1.5);
-    addSphereCollider(new THREE.Vector3(3, 0, -1), 6.0);
 });
 
 document.addEventListener('keydown', (e) => {
@@ -148,6 +144,33 @@ function loop() {
         if (isMoving) {
             const speedMultiplier = sprintKey ? SPRINT_MULTIPLIER : 1.0;
             const delta = PLAYER_SPEED * 0.016 * speedMultiplier;
+
+            // --- Динамические коллайдеры (другие игроки и мобы) ---
+            const dynamicEntities: { position: THREE.Vector3; radius: number }[] = [];
+
+            // Другие игроки
+            for (const id in otherPlayers) {
+                const model = otherPlayers[id];
+                if (model && model.visible && id !== room.sessionId) {
+                    dynamicEntities.push({
+                        position: model.position.clone(),
+                        radius: 0.3, // можно подобрать под размеры персонажа
+                    });
+                }
+            }
+
+            // Мобы
+            for (const mobId in mobModels) {
+                const mob = mobModels[mobId];
+                if (mob && mob.visible) {
+                    dynamicEntities.push({
+                        position: mob.position.clone(),
+                        radius: 0.5, // волки чуть крупнее?
+                    });
+                }
+            }
+
+            updateDynamicColliders(dynamicEntities);
 
             // Вычисляем сырое желаемое смещение
             const rawDelta = new THREE.Vector3(moveVec.x * delta, 0, moveVec.z * delta);
@@ -256,7 +279,12 @@ function loop() {
     updateMobAnimations(deltaTime);
     interpolateMobPositions(deltaTime);
     animateLootMeshes();
-    updateCollisionDebug(isCollisionDebugVisible() ? allColliders : []);
+    if (isCollisionDebugVisible() && localModel) {
+        // Показываем коллизии только в радиусе 30 метров от игрока
+        updateCollisionDebug(getAllColliders(), localModel.position, 30);
+    } else {
+        updateCollisionDebug([]);
+    }
 
     composer.render();
     //renderer.render(scene, camera);

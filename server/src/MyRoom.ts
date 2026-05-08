@@ -20,6 +20,7 @@ import { WorldObject } from "./schemas/WorldObject";
 import { LocationLoader } from "./systems/LocationLoader";
 import { WorldTerrain } from "./schemas/WorldTerrain";
 import { VegetationSpawner } from "./systems/VegetationSpawner";
+import { initServerColliders, isPositionBlocked, applyMobMovementWithCollisions, isPlayerPositionBlocked } from './collision/ServerCollision';
 
 export class Player extends Schema {
     @type("number") x: number = 0;
@@ -261,12 +262,34 @@ export class MyRoom extends Room<MyRoomState> {
         this.onMessage("move", (client, message) => {
             const player = this.state.players.get(client.sessionId);
             if (!player || player.hp <= 0) return;
-            if (message && typeof message.x === "number" && typeof message.z === "number") {
-                player.x = message.x;
-                player.z = message.z;
-                if (typeof message.r === "number") {
-                    player.rotationY = message.r;
-                }
+
+            const newX = message.x;
+            const newZ = message.z;
+            if (typeof newX !== "number" || typeof newZ !== "number") return;
+
+            // --- 1. Проверка максимальной дистанции (защита от телепорта) ---
+            const MAX_STEP = 5; // максимум 5 юнитов за пакет (с учётом возможного лага)
+            const dx = newX - player.x;
+            const dz = newZ - player.z;
+            const dist = Math.sqrt(dx * dx + dz * dz);
+            if (dist > MAX_STEP) {
+                // Слишком большой скачок — вероятно читерство, отвергаем и корректируем
+                client.send("positionCorrection", { x: player.x, z: player.z });
+                return;
+            }
+
+            // --- 2. Проверка коллизий с объектами деревни ---
+            if (isPlayerPositionBlocked(newX, newZ)) {
+                // Позиция внутри препятствия — отвергаем и отправляем текущую
+                client.send("positionCorrection", { x: player.x, z: player.z });
+                return;
+            }
+
+            // --- 3. Всё ок — применяем движение ---
+            player.x = newX;
+            player.z = newZ;
+            if (typeof message.r === "number") {
+                player.rotationY = message.r;
             }
         });
 
@@ -314,6 +337,7 @@ export class MyRoom extends Room<MyRoomState> {
 
         this.spawner = new MobSpawner(this);
         LocationLoader.load(this, "village");
+        initServerColliders();
         VegetationSpawner.loadAndSpawn(this);
 
         const terrain = new WorldTerrain();
@@ -391,7 +415,7 @@ export class MyRoom extends Room<MyRoomState> {
                         mob.state = 'walk';     // обычное преследование
                     }
 
-                    // 🔥 Прыжок при резком сближении (gallop_jump)
+                    // Прыжок при резком сближении (gallop_jump)
                     if (dist <= 5 && dist > 4 && mob.state !== 'gallop_jump') {
                         mob.state = 'gallop_jump';
                     }
@@ -428,11 +452,17 @@ export class MyRoom extends Room<MyRoomState> {
                             }
                         }
                     } else {
-                        // Движение к игроку с учётом состояния (gallop/walk)
+                        // Движение к игроку со слайдингом
                         const speed = mob.state === 'gallop' ? 4.0 : 2.5;
                         const step = Math.min(speed * 0.25, dist);
-                        mob.x += (dx / dist) * step;
-                        mob.z += (dz / dist) * step;
+                        const desiredDX = (dx / dist) * step;
+                        const desiredDZ = (dz / dist) * step;
+
+                        const newPos = applyMobMovementWithCollisions(mob.x, mob.z, desiredDX, desiredDZ, 0.6);
+                        mob.x = newPos.x;
+                        mob.z = newPos.z;
+
+                        // Поворот в сторону игрока (даже если упёрлись)
                         const targetAngle = Math.atan2(target.z - mob.z, target.x - mob.x);
                         let diff = targetAngle - mob.rotationY;
                         while (diff > Math.PI) diff -= 2 * Math.PI;
@@ -447,14 +477,25 @@ export class MyRoom extends Room<MyRoomState> {
                         mob.patrolAngle = Math.random() * Math.PI * 2;
                         mob.idleTimer = 1.5 + Math.random() * 2.5;
                     }
-                    if (mob.idleTimer > 0.6) { // первую часть времени двигаемся
+                    if (mob.idleTimer > 0.6) {
                         mob.state = 'walk';
-                        mob.x += Math.cos(mob.patrolAngle) * 1.2 * 0.5;
-                        mob.z += Math.sin(mob.patrolAngle) * 1.2 * 0.5;
-                        let diff = mob.patrolAngle - mob.rotationY;
-                        while (diff > Math.PI) diff -= 2 * Math.PI;
-                        while (diff < -Math.PI) diff += 2 * Math.PI;
-                        mob.rotationY += diff * 0.2;
+                        const desiredDX = Math.cos(mob.patrolAngle) * 1.2 * 0.5;
+                        const desiredDZ = Math.sin(mob.patrolAngle) * 1.2 * 0.5;
+
+                        const oldX = mob.x;
+                        const oldZ = mob.z;
+                        const newPos = applyMobMovementWithCollisions(mob.x, mob.z, desiredDX, desiredDZ, 0.6);
+                        mob.x = newPos.x;
+                        mob.z = newPos.z;
+
+                        // Поворот только если был сдвиг
+                        const moved = (newPos.x !== oldX || newPos.z !== oldZ);
+                        if (moved) {
+                            let diff = mob.patrolAngle - mob.rotationY;
+                            while (diff > Math.PI) diff -= 2 * Math.PI;
+                            while (diff < -Math.PI) diff += 2 * Math.PI;
+                            mob.rotationY += diff * 0.2;
+                        }
                     } else {
                         // Разнообразный отдых: случайный выбор между idle, idle_2 и idle_2_headlow
                         const r = Math.random();

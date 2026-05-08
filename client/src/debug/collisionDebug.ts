@@ -3,7 +3,17 @@ import { scene } from '../scene';
 
 let debugGroup: THREE.Group | null = null;
 
-export function updateCollisionDebug(colliders: any[]) {
+/**
+ * @param colliders – массив коллайдеров для отрисовки
+ * @param playerPos – позиция игрока (для фильтрации по расстоянию)
+ * @param maxDistance – максимальная дистанция от игрока, в которой коллайдеры отображаются
+ */
+export function updateCollisionDebug(
+    colliders: any[],
+    playerPos?: THREE.Vector3,
+    maxDistance: number = 50
+) {
+    // Удаляем предыдущую отладку
     if (debugGroup) {
         scene.remove(debugGroup);
         debugGroup.traverse(child => {
@@ -18,6 +28,12 @@ export function updateCollisionDebug(colliders: any[]) {
     debugGroup.name = 'collision_debug';
 
     colliders.forEach(col => {
+        // Фильтр по расстоянию: рисуем только если игрок близко
+        if (playerPos && maxDistance > 0) {
+            const dist = playerPos.distanceTo(col.center || col.position || new THREE.Vector3());
+            if (dist > maxDistance) return;
+        }
+
         if (col.type === 'sphere') {
             const geo = new THREE.SphereGeometry(col.radius, 16, 16);
             const mat = new THREE.MeshBasicMaterial({

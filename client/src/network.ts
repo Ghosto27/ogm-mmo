@@ -25,7 +25,7 @@ import { createQuestJournal, toggleQuestJournal, updateQuestList } from './quest
 import { showNotification } from './ui/notificationUI'; 
 import { setQuestDefs, getQuestName } from './quest/questData';
 import { updateWorldObjects } from './render/WorldRenderer';
-import { updateTerrain, getTerrainHeightAt, terrainReady } from './render/TerrainRenderer';
+import { updateTerrain, getTerrainHeightAt, terrainReady, getTerrainHeightAtFast } from './render/TerrainRenderer';
 import { addVegetationInstance, finalizeVegetation, isVegetationLoaded } from './render/VegetationRenderer';
 
 export const client = new Client(SERVER_URL);
@@ -419,6 +419,15 @@ function join(playerName: string) {
                     reconnectTimer = null;
                     join(playerName);
                 }, 2000);
+            }
+        });
+
+        room.onMessage("positionCorrection", (message: { x: number; z: number }) => {
+            if (localModel) {
+                localModel.position.x = message.x;
+                localModel.position.z = message.z;
+                const terrainY = getTerrainHeightAtFast(message.x, message.z);
+                localModel.position.y = terrainY + 0.1;
             }
         });
 
