@@ -60,7 +60,7 @@ export function updateMinimap(
     if (!ctx) return;
 
     const WORLD_SIZE = terrainWidth > 0 ? terrainWidth : 2048;
-    const VIEW_SIZE = 2048;                  // сколько метров показывать вокруг игрока
+    const VIEW_SIZE = 512;                  // сколько метров показывать вокруг игрока
     const SCALE = MAP_SIZE_PX / VIEW_SIZE;  // пикселей на метр
     const centerX = MAP_SIZE_PX / 2;
     const centerY = MAP_SIZE_PX / 2;
@@ -102,37 +102,53 @@ export function updateMinimap(
         }
     }
 
-    // ---------- 2. Очистка и фон ----------
+  // ---------- 2. Очистка и фон ----------
     ctx.clearRect(0, 0, MAP_SIZE_PX, MAP_SIZE_PX);
+
+    // Рисуем фон (пустоту) за границами мира
+    ctx.fillStyle = '#1a1a2e';  // тёмный фон для пустоты
+    ctx.fillRect(0, 0, MAP_SIZE_PX, MAP_SIZE_PX);
 
     if (fullMapCanvas) {
         const worldLeft = localX - VIEW_SIZE / 2;
-        const worldTop  = localZ - VIEW_SIZE / 2;
+        const worldTop = localZ - VIEW_SIZE / 2;
 
-        // UV-координаты с учётом того, что центр мира (0,0) соответствует центру картинки
+        // UV-координаты: 0 = левый/верхний край мира, 1 = правый/нижний
         const uMin = (worldLeft / WORLD_SIZE) + 0.5;
-        const vMin = (worldTop  / WORLD_SIZE) + 0.5;
+        const vMin = (worldTop / WORLD_SIZE) + 0.5;
         const uMax = uMin + VIEW_SIZE / WORLD_SIZE;
         const vMax = vMin + VIEW_SIZE / WORLD_SIZE;
 
-        // Обрезаем по краям [0,1]
-        const srcX = Math.max(0, uMin * (fullMapCanvas.width - 1));
-        const srcY = Math.max(0, vMin * (fullMapCanvas.height - 1));
-        const srcW = Math.min(fullMapCanvas.width - 1, uMax * (fullMapCanvas.width - 1)) - srcX;
-        const srcH = Math.min(fullMapCanvas.height - 1, vMax * (fullMapCanvas.height - 1)) - srcY;
+        // Размер одного UV-юнита в пикселях fullMapCanvas
+        const canvasW = fullMapCanvas.width;
+        const canvasH = fullMapCanvas.height;
 
-        // Часть миникарты, которую займёт картинка (может быть неполной, если вышли за границы)
-        const dstX = (srcX > 0) ? 0 : -srcX * (MAP_SIZE_PX / (uMax - uMin) / fullMapCanvas.width);
-        const dstY = (srcY > 0) ? 0 : -srcY * (MAP_SIZE_PX / (vMax - vMin) / fullMapCanvas.height);
+        // Регион-источник в fullMapCanvas (с обрезкой)
+        const srcX = Math.max(0, Math.floor(uMin * (canvasW - 1)));
+        const srcY = Math.max(0, Math.floor(vMin * (canvasH - 1)));
+        const srcW = Math.min(canvasW - 1, Math.ceil(uMax * (canvasW - 1))) - srcX;
+        const srcH = Math.min(canvasH - 1, Math.ceil(vMax * (canvasH - 1))) - srcY;
 
-        ctx.drawImage(
-            fullMapCanvas,
-            srcX, srcY, srcW, srcH,
-            dstX, dstY, MAP_SIZE_PX, MAP_SIZE_PX
-        );
-    } else {
-        ctx.fillStyle = '#2d5a27';
-        ctx.fillRect(0, 0, MAP_SIZE_PX, MAP_SIZE_PX);
+        // Масштаб: сколько пикселей миникарты приходится на один пиксель fullMapCanvas
+        const scaleX = MAP_SIZE_PX / (VIEW_SIZE / WORLD_SIZE) / canvasW;
+        const scaleY = MAP_SIZE_PX / (VIEW_SIZE / WORLD_SIZE) / canvasH;
+
+        // Размеры региона назначения на миникарте
+        const dstW = srcW * scaleX;
+        const dstH = srcH * scaleY;
+
+        // Смещение, чтобы карта рисовалась в правильной позиции даже при частичном выходе за границы
+        const dstX = uMin >= 0 ? 0 : -uMin * (MAP_SIZE_PX / (VIEW_SIZE / WORLD_SIZE));
+        const dstY = vMin >= 0 ? 0 : -vMin * (MAP_SIZE_PX / (VIEW_SIZE / WORLD_SIZE));
+
+        // Рисуем только видимую часть карты высот
+        if (srcW > 0 && srcH > 0) {
+            ctx.drawImage(
+                fullMapCanvas,
+                srcX, srcY, srcW, srcH,
+                dstX, dstY, dstW, dstH
+            );
+        }
     }
 
     // ---------- 3. Сетка ----------

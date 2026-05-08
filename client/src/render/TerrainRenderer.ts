@@ -72,7 +72,7 @@ export function updateTerrain(terrain: any) {
             const v = Math.floor(uvIndex / (terrain.segments + 1)) / terrain.segments;
 
             const px = Math.floor(u * (image.width - 1));
-            const py = Math.floor((1 - v) * (image.height - 1));
+            const py = Math.floor(v * (image.height - 1));
             const pixelIndex = (py * image.width + px) * 4;
             const r = data[pixelIndex];
 
@@ -192,7 +192,7 @@ export function getTerrainHeightAtFast(x: number, z: number): number {
     const imgW = heightmapData.width;
     const imgH = heightmapData.height;
     const px = u * (imgW - 1);
-    const py = (1 - v) * (imgH - 1);
+    const py = v * (imgH - 1);
 
     const x1 = Math.floor(px);
     const x2 = Math.min(x1 + 1, imgW - 1);
