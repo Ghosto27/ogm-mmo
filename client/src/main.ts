@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { PLAYER_SPEED, STORAGE_KEY, SPRINT_MULTIPLIER } from './config';
 import { scene, camera, renderer } from './scene';
 import { getMovementInput, getCameraRelativeMovement, sprintKey } from './input';
@@ -11,23 +10,25 @@ import { setCameraTarget, updateCamera, isRightDragging } from './cameraControls
 import { cleanUpScene } from './startupCleanup';
 import { createMinimap, updateMinimap } from './minimap';
 import { createWorldMap, updateWorldMap, toggleWorldMap } from './worldMap';
-import { createPlayerUI, updatePlayerUI } from './playerUI';
+import { createPlayerUI } from './playerUI';
 import { createTargetUI } from './targetUI';
 import { updateMobAnimations, interpolateMobPositions, mobModels } from './mobPlayer';
 import { renderLabels } from './renderers';
 import './interaction';
-import { createInventoryUI, toggleInventory, updateInventoryUI } from './inventoryUI';
+import { createInventoryUI, toggleInventory } from './inventoryUI';
 import { createLootUI } from './ui/LootWindowUI';
 import { animateLootMeshes } from './render/LootRenderer';
-import {createCharacterPanel, toggleCharacterPanel, updateCharacterPanel} from './characterPanel';
+import {createCharacterPanel, toggleCharacterPanel} from './characterPanel';
 import { createChatInput, isChatActive } from './chat/chatInput';
-import { setupChatListeners } from './chat/chatNetwork';
 import { normalizeKey } from './keyboard';
 import { createDialogUI } from './ui/DialogUI';
-import { createQuestJournal, toggleQuestJournal, updateQuestList } from './quest/QuestJournalUI';
+import { createQuestJournal, toggleQuestJournal } from './quest/QuestJournalUI';
 import { createNotificationUI } from './ui/notificationUI';
 import { getTerrainHeightAt, getTerrainHeightAtFast } from './render/TerrainRenderer';
 import { updateFPS } from './utils/fpsCounter';
+import { applyMovementWithCollisions, addSphereCollider, allColliders } from './collision';
+import { updateCollisionDebug } from './debug/collisionDebug';
+import { isCollisionDebugVisible } from './debug/debugState';
 
 let playerName = localStorage.getItem(STORAGE_KEY) || '';
 
@@ -58,6 +59,10 @@ modelReady.then(() => {
     setTimeout(() => {
         fsm['local']?.transitionTo('idle');
     }, 500);
+    // ВРЕМЕННО: добавим несколько "препятствий" для теста
+    addSphereCollider(new THREE.Vector3(2, 0, 2), 1.0);
+    addSphereCollider(new THREE.Vector3(-1, 0, 3), 1.5);
+    addSphereCollider(new THREE.Vector3(3, 0, -1), 6.0);
 });
 
 document.addEventListener('keydown', (e) => {
@@ -87,7 +92,6 @@ document.addEventListener('keydown', (e) => {
         }
     }
 });
-
 
 setTimeout(() => renderer.domElement.focus({ preventScroll: true }), 100);
 
@@ -144,28 +148,41 @@ function loop() {
         if (isMoving) {
             const speedMultiplier = sprintKey ? SPRINT_MULTIPLIER : 1.0;
             const delta = PLAYER_SPEED * 0.016 * speedMultiplier;
-            localModel.position.x += moveVec.x * delta;
-            localModel.position.z += moveVec.z * delta;
+
+            // Вычисляем сырое желаемое смещение
+            const rawDelta = new THREE.Vector3(moveVec.x * delta, 0, moveVec.z * delta);
+
+            // Применяем слайдинг с учётом коллизий
+            const currentPos = localModel.position.clone();
+            const newPos = applyMovementWithCollisions(currentPos, rawDelta);
+
+            // Применяем результат
+            localModel.position.x = newPos.x;
+            localModel.position.z = newPos.z;
+
             if (localModel) {
                 const terrainY = getTerrainHeightAt(localModel.position.x, localModel.position.z);
-                localModel.position.y = terrainY + 0.1; // полметра над землёй
+                localModel.position.y = terrainY + 0.1;
             }
 
             const nowSend = Date.now();
             if (nowSend - lastSend > 50) {
                 try {
-                    room.send("move", { x: localModel.position.x, z: localModel.position.z, r: localModel.rotation.y });
+                    room.send("move", {
+                        x: localModel.position.x,
+                        z: localModel.position.z,
+                        r: localModel.rotation.y
+                    });
                     lastSend = nowSend;
                 } catch (e) {}
             }
-                if (!deathAnimating['local']) {
-                 fsm['local']?.transitionTo(sprintKey ? 'run' : 'walk'); // пока обе walk, позже заменим на 'run'
+
+            if (!deathAnimating['local']) {
+                fsm['local']?.transitionTo(sprintKey ? 'run' : 'walk');
             }
         } else {
             if (!deathAnimating['local']) {
-                // Гарантируем, что idle действительно проигрывается
                 fsm['local']?.transitionTo('idle');
-                
             }
         }
     }
@@ -207,8 +224,17 @@ function loop() {
                 });
             }
         }
-        updateMinimap(localModel.position.x, localModel.position.z, localModel.rotation.y, othersForMap, mobsForMap);
-        updateWorldMap(localModel.position.x, localModel.position.z, localModel.rotation.y, othersForMap, mobsForMap);
+
+        // Сбор данных NPC для карт
+        const npcsForMap: { x: number; z: number; visible: boolean }[] = [];
+        if (room.state.npcs) {
+            room.state.npcs.forEach((npc: { x: number; z: number }) => {
+                npcsForMap.push({ x: npc.x, z: npc.z, visible: true });
+            });
+        }
+
+        updateMinimap(localModel.position.x, localModel.position.z, localModel.rotation.y, othersForMap, mobsForMap, npcsForMap);
+        updateWorldMap(localModel.position.x, localModel.position.z, localModel.rotation.y, othersForMap, mobsForMap, npcsForMap);
     }
 
     const IDLE_TIMEOUT = 200;
@@ -230,96 +256,11 @@ function loop() {
     updateMobAnimations(deltaTime);
     interpolateMobPositions(deltaTime);
     animateLootMeshes();
+    updateCollisionDebug(isCollisionDebugVisible() ? allColliders : []);
 
     composer.render();
     //renderer.render(scene, camera);
     renderLabels(scene, camera);
 }
-
-window.addEventListener('keydown', (e) => {
-    if (e.key.toLowerCase() === 'h' && localModel && room) {
-        const pos = localModel.position;
-        const x = pos.x, z = pos.z;
-
-        const fastH = getTerrainHeightAtFast(x, z);
-        const preciseH = getTerrainHeightAt(x, z);
-        const modelY = localModel.position.y;
-
-        console.group(`[DEBUG HEIGHT] at (${x.toFixed(1)}, ${z.toFixed(1)})`);
-        console.log('Player Y:', modelY.toFixed(2));
-        console.log('Fast (interpolated):', fastH.toFixed(2));
-        console.log('Precise (raycast):', preciseH.toFixed(2));
-        console.groupEnd();
-
-        // Визуальный маркер (красная сфера на земле)
-        const markerGeo = new THREE.SphereGeometry(0.5, 8, 8);
-        const markerMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-        const marker = new THREE.Mesh(markerGeo, markerMat);
-        marker.position.set(x, preciseH, z);
-        scene.add(marker);
-        console.log('[DEBUG] Red sphere placed at terrain height. It will disappear after 5 seconds.');
-        setTimeout(() => scene.remove(marker), 5000);
-    }
-});
-
-// ВРЕМЕННЫЙ ТЕСТОВЫЙ КОД: спавн камня по клавише K
-window.addEventListener('keydown', (e) => {
-    if (e.key.toLowerCase() === 'k' && localModel && room) {
-        const x = localModel.position.x;
-        const z = localModel.position.z;
-
-        // Загружаем модель Rock_1.glb (или любую другую)
-        const loader = new GLTFLoader();
-        loader.load('/models/Tree_1.glb', (gltf) => {
-            const template = gltf.scene.children[0] as THREE.Mesh;
-            if (!template) return;
-
-            // Измеряем высоту модели (для информации)
-            const box = new THREE.Box3().setFromObject(template);
-            const modelHeight = box.max.y - box.min.y;
-
-            // Создаём экземпляр (не в InstancedMesh)
-            const rock = template.clone() as THREE.Mesh;
-            rock.material = template.material;
-            rock.geometry = template.geometry;
-            rock.castShadow = true;
-            rock.receiveShadow = true;
-
-            // Получаем высоту поверхности
-            const rawY = getTerrainHeightAtFast(x, z);
-            // rawY может быть 0, если ландшафт не загружен, поэтому ставим на маленькую высоту
-            const surfaceY = rawY > 0 ? rawY : 0.5;
-
-            // Ставим камень без коррекции (как сейчас работает VegetationRenderer)
-            rock.position.set(x, surfaceY, z);
-            scene.add(rock);
-
-            // Логируем
-            console.group(`[SPAWN ROCK] at (${x.toFixed(1)}, ${z.toFixed(1)})`);
-            console.log('rawY from getTerrainHeightAtFast:', rawY.toFixed(2));
-            console.log('modelHeight:', modelHeight.toFixed(2));
-            console.log('rock.position.y:', rock.position.y.toFixed(2));
-            console.log('box.min.y (relative):', box.min.y.toFixed(2), '(if <0, model center above ground)');
-            console.log('Red sphere at surfaceY:', surfaceY.toFixed(2));
-            console.groupEnd();
-
-            // Красная сфера на поверхности для сравнения
-            const sphereGeo = new THREE.SphereGeometry(0.3, 8, 8);
-            const sphereMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-            const sphere = new THREE.Mesh(sphereGeo, sphereMat);
-            sphere.position.set(x, surfaceY, z);
-            scene.add(sphere);
-
-            // Удалим камень и сферу через 10 секунд, чтобы не засорять сцену
-            setTimeout(() => {
-                scene.remove(rock);
-                scene.remove(sphere);
-                console.log('Test rock and sphere removed.');
-            }, 10000);
-        }, undefined, (err) => {
-            console.error('Failed to load rock model:', err);
-        });
-    }
-});
-
+console.log('TEST')
 loop();

@@ -1,13 +1,16 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { scene } from '../scene';
-import { getTerrainHeightAtFast, getTerrainHeightAt } from '../render/TerrainRenderer';
+import { getTerrainHeightAtFast, getTerrainHeightAt } from './TerrainRenderer';
+import { addSphereCollider, clearColliders, addCylinderCollider } from '../collision';
+import { getColliderConfig } from '../collisionConfig';
 
 const instanceMeshes: Map<string, THREE.InstancedMesh> = new Map();
 const nextIndices: Map<string, number> = new Map();
 const addedIds: Set<string> = new Set();
 const loadingPromises: Map<string, Promise<THREE.InstancedMesh>> = new Map();
 const modelHeights: Map<string, number> = new Map();
+const modelWidths: Map<string, number> = new Map();
 
 let vegetationLoaded = false;
 
@@ -31,8 +34,12 @@ async function loadModel(modelName: string): Promise<THREE.InstancedMesh> {
             const geo = template.geometry.clone() as THREE.BufferGeometry;
             const mat = template.material;
             const box = new THREE.Box3().setFromObject(template);
-            const height = box.max.y - box.min.y;
+            const size = new THREE.Vector3();
+            box.getSize(size);
+            const height = size.y;
+            const width = Math.max(size.x, size.z);
             modelHeights.set(modelName, height);
+            modelWidths.set(modelName, width);
 
             const mesh = new THREE.InstancedMesh(geo, mat, 5000);
             mesh.userData.modelName = modelName;
@@ -83,6 +90,27 @@ export async function addVegetationInstance(obj: any): Promise<void> {
     mesh.setMatrixAt(idx, matrix);
     mesh.instanceMatrix.needsUpdate = true;
 
+    // --- Создание коллизии с учётом scale объекта ---
+    const modelHeight = modelHeights.get(modelName) || 2.0;
+    const modelWidth = modelWidths.get(modelName) || 1.0;
+    const config = getColliderConfig(modelName);
+    const instanceScale = obj.scaleX || 1;   // или (obj.scaleX ?? 1)
+
+    if (config && config.type === 'cylinder') {
+        // Базовые размеры из конфига умножаем на scale
+        const radius = (config.cylinderRadius ?? (modelWidth * 0.25)) * instanceScale;
+        const height = (config.cylinderHeight ?? modelHeight * 0.3) * instanceScale;
+        const baseY = y;
+        addCylinderCollider(new THREE.Vector3(obj.x, baseY, obj.z), radius, height);
+    } else {
+        // Сфера (автоматически или с базовыми размерами из конфига)
+        const baseRadius = config?.radius ?? (modelWidth / 2);
+        const baseOffsetY = config?.yOffset ?? modelHeight * 0.05;
+        const radius = baseRadius * instanceScale -0.4;
+        const offsetY = baseOffsetY * instanceScale;
+        addSphereCollider(new THREE.Vector3(obj.x, y + offsetY, obj.z), radius);
+    }
+
     nextIndices.set(modelName, idx + 1);
 }
 
@@ -132,6 +160,7 @@ export function clearAllVegetation() {
     addedIds.clear();
     loadingPromises.clear();
     vegetationLoaded = false;
+    clearColliders();
 }
 
 export function getAllInstancedMeshes(): THREE.InstancedMesh[] {

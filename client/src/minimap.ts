@@ -1,8 +1,8 @@
-import { heightmapData, terrainMaxHeight, terrainWidth, terrainDepth } from './render/TerrainRenderer';
+import { heightmapData, terrainWidth, terrainDepth } from './render/TerrainRenderer';
 
 const MAP_SIZE_PX = 256;          // размер canvas в пикселях
 //let WORLD_SIZE = 2048;            // будет обновлено из terrainWidth
-let fullMapCanvas: HTMLCanvasElement | null = null;
+export let fullMapCanvas: HTMLCanvasElement | null = null;
 let lastHeightmapKey = '';
 let canvas: HTMLCanvasElement;
 let ctx: CanvasRenderingContext2D;
@@ -55,7 +55,8 @@ export function createMinimap() {
 export function updateMinimap(
     localX: number, localZ: number, localRotationY: number,
     otherPlayersData: { x: number; z: number; rotationY: number; visible: boolean }[],
-    mobsData: { x: number; z: number; visible: boolean }[]
+    mobsData: { x: number; z: number; visible: boolean }[],
+    npcsData: { x: number; z: number; visible: boolean }[]
 ) {
     if (!ctx) return;
 
@@ -215,6 +216,17 @@ export function updateMinimap(
         const [px, py] = worldToPixel(m.x, m.z);
         ctx.beginPath();
         ctx.arc(px, py, 3, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    
+    // NPC (жёлтые)
+    const npcColor = '#FFFF00';
+    for (const n of npcsData) {
+        if (!n.visible) continue;
+        const [px, py] = worldToPixel(n.x, n.z);
+        ctx.fillStyle = npcColor;
+        ctx.beginPath();
+        ctx.arc(px, py, 5, 0, Math.PI * 2);
         ctx.fill();
     }
 

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { scene } from '../scene';
-import { getTerrainHeightAt, terrainReady } from '../render/TerrainRenderer';
+import { getTerrainHeightAt, terrainReady } from './TerrainRenderer';
+import { addBoxCollider, addCylinderCollider } from '../collision';
 
 const worldMeshes: { [id: string]: THREE.Mesh } = {};
 
@@ -34,6 +35,27 @@ export function updateWorldObjects(worldObjects: any) {
                 (window as any).z = obj.z;
 
                 scene.add(mesh);
+
+                // --- Создание коллизии для объекта деревни ---
+                if (obj.modelName === 'cube') {
+                    const halfExtents = new THREE.Vector3(
+                        (obj.scaleX || 1) / 2,
+                        (obj.scaleY || 1) / 2,
+                        (obj.scaleZ || 1) / 2
+                    );
+                    // Центр куба находится там же, где и position (уже с учётом terrain + offset)
+                    addBoxCollider(mesh.position.clone(), halfExtents);
+                } else if (obj.modelName === 'cylinder') {
+                    // Базовая модель цилиндра имеет радиус 1, поэтому после масштабирования радиус = scaleX
+                    const radius = obj.scaleX || 1;
+                    const height = obj.scaleY || 1;
+                    const baseY = mesh.position.y - height / 2;
+                    addCylinderCollider(
+                        new THREE.Vector3(mesh.position.x, baseY, mesh.position.z),
+                        radius,
+                        height
+                    );
+                }
                 worldMeshes[id] = mesh;
             }
         });
