@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { scene } from '../scene';
 import { getTerrainHeightAt, terrainReady } from './TerrainRenderer';
-import { addBoxCollider, addCylinderCollider, addOBBCollider, addSphereCollider } from '../collision';
+import { addCylinderCollider, addOBBCollider, addSphereCollider } from '../collision';
 import { isEditorActive } from '../editor/EditorState';
 import { getColliderConfig } from '../collisionConfig';
 

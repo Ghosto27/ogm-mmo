@@ -4,10 +4,7 @@ import { clone } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { AnimationStateMachine } from './animationStateMachine';
 import { scene } from './scene';
 import { createHpBar, updateHpBarSprite } from './utils';
-import { createLocalToonMaterial, createEnemyToonMaterial, cloneMaterial } from './materials';
 import { createNameTag, attachNameTag, removeNameTag } from './nameTags';
-import { setTargetPosition } from './animationUtils';
-import { updateTerrain, getTerrainHeightAt, terrainReady } from './render/TerrainRenderer';
 
 // ---------- ШАБЛОН ----------
 let modelTemplate: THREE.Group | null = null;

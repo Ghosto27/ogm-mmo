@@ -1,8 +1,6 @@
 import { Room, Client } from "colyseus";
 import { Schema, MapSchema, type } from "@colyseus/schema";
 import { loadPlayer, savePlayer } from "./storage";
-import * as fs from 'fs';
-import * as path from 'path';
 import { Mob } from "./Mob";
 import { MobSpawner } from "./MobSpawner";
 import { Inventory } from "./models/Inventory";
@@ -12,7 +10,6 @@ import { LootBag } from "./schemas/LootBag";
 import { PlayerStats } from "./models/PlayerStats";
 import { EquipmentSystem } from "./systems/EquipmentSystem";
 import { PlayerPersistence } from "./systems/PlayerPersistence";
-import { ItemSlot } from "./models/ItemSlot";
 import { ChatManager } from "./chat/ChatManager";
 import { NPC } from "./schemas/NPC";
 import { dialogs } from "./data/dialogs";
@@ -22,7 +19,7 @@ import { WorldObject } from "./schemas/WorldObject";
 import { LocationLoader } from "./systems/LocationLoader";
 import { WorldTerrain } from "./schemas/WorldTerrain";
 import { VegetationSpawner } from "./systems/VegetationSpawner";
-import { initServerColliders, isPositionBlocked, applyMobMovementWithCollisions, isPlayerPositionBlocked } from './collision/ServerCollision';
+import { initServerColliders, applyMobMovementWithCollisions, isPlayerPositionBlocked } from './collision/ServerCollision';
 
 export class Player extends Schema {
     @type("number") x: number = 0;

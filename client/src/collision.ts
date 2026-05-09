@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { getTerrainHeightAtFast, getTerrainHeightAt } from './render/TerrainRenderer';
+import { getTerrainHeightAt } from './render/TerrainRenderer';
 
 // ---------- Типы коллизий ----------
 interface SphereCollider {
@@ -248,17 +248,6 @@ function applySingleStep(currentPos: THREE.Vector3, delta: THREE.Vector3): THREE
     }
 
     return resultPos;
-}
-
-// sphereVsAABBcenter остается как есть, в том же файле
-function sphereVsAABBcenter(sphereCenter: THREE.Vector3, box: BoxCollider): { dist: number; closestPoint: THREE.Vector3 } {
-    const closest = new THREE.Vector3();
-    const half = box.halfExtents;
-    closest.x = Math.max(box.center.x - half.x, Math.min(sphereCenter.x, box.center.x + half.x));
-    closest.y = Math.max(box.center.y - half.y, Math.min(sphereCenter.y, box.center.y + half.y));
-    closest.z = Math.max(box.center.z - half.z, Math.min(sphereCenter.z, box.center.z + half.z));
-    const dist = sphereCenter.distanceTo(closest);
-    return { dist, closestPoint: closest };
 }
 
 /** Вычисляет высоту опоры (пола) под текущей позицией игрока (XZ) */

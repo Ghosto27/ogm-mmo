@@ -1,7 +1,5 @@
 import * as THREE from 'three';
 import { localModel, otherPlayers, mixers, hpBars, localHpBar, actions, fsm } from './player';
-import { mobModels } from './mobPlayer';
-import { updateTerrain, getTerrainHeightAt, terrainReady } from './render/TerrainRenderer';
 
 const targetPositions: { [id: string]: THREE.Vector3 } = {};
 const INTERPOLATION_SPEED = 10.0;

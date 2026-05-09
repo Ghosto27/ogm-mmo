@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
-import { scene, camera, renderer } from './scene';
+import { scene, camera } from './scene';
 import { localModel, otherPlayers, fsm } from './player';
 import { mobModels } from './mobPlayer';
 import { room, interactionState } from './network';
