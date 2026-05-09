@@ -23,9 +23,7 @@ let selectedModelName = 'Tree_1';
 let vegetationZones: any[] = [];
 let zoneDrawing = false;
 let zoneStartPoint: THREE.Vector3 | null = null;
-let zonePreviewLines: THREE.Line[] = []; // временные линии прямоугольника
 let zoneLines: THREE.LineLoop[] = [];
-// Кэш загруженных моделей (имя → группа)
 const modelTemplates = new Map<string, THREE.Group>();
 
 // ---------- свободная камера (оставлено без изменений) ----------
@@ -105,31 +103,17 @@ function moveCamera(deltaTime: number) {
     if (inputState.left) camera.position.addScaledVector(right, -speed);
 }
 
-// ---------- Создание объектов ----------
-function createCube(x: number, z: number): THREE.Mesh {
-    const geo = new THREE.BoxGeometry(1, 1, 1);
+function createPrimitive(type: 'cube' | 'cylinder', x: number, z: number): THREE.Mesh {
+    const geo = type === 'cube' ? new THREE.BoxGeometry(1, 1, 1) : new THREE.CylinderGeometry(1, 1, 1, 16);
     const mat = new THREE.MeshStandardMaterial({ color: 0x888888 });
-    const cube = new THREE.Mesh(geo, mat);
-    cube.position.set(x, 0, z);
-    cube.userData.baseMinY = -0.5;
-    cube.userData.editorMode = true;
-    cube.userData.editorType = 'cube';
-    const tempBox = new THREE.Box3().setFromObject(cube);
-    cube.userData.baseHeight = tempBox.max.y - tempBox.min.y;
-    return cube;
-}
-
-function createCylinder(x: number, z: number): THREE.Mesh {
-    const geo = new THREE.CylinderGeometry(1, 1, 1, 16);
-    const mat = new THREE.MeshStandardMaterial({ color: 0x888888 });
-    const cylinder = new THREE.Mesh(geo, mat);
-    cylinder.position.set(x, 0, z);
-    cylinder.userData.baseMinY = -0.5;
-    cylinder.userData.editorMode = true;
-    cylinder.userData.editorType = 'cylinder';
-    const box = new THREE.Box3().setFromObject(cylinder);
-    cylinder.userData.baseHeight = box.max.y - box.min.y;
-    return cylinder;
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x, 0, z);
+    mesh.userData.baseMinY = -0.5;
+    mesh.userData.editorMode = true;
+    mesh.userData.editorType = type;
+    const tempBox = new THREE.Box3().setFromObject(mesh);
+    mesh.userData.baseHeight = tempBox.max.y - tempBox.min.y;
+    return mesh;
 }
 
 async function loadModelTemplate(modelName: string): Promise<THREE.Group> {
@@ -229,10 +213,8 @@ async function onEditorClick(event: MouseEvent) {
 async function placeObject(worldX: number, worldZ: number): Promise<void> {
     const y = getTerrainHeightAtFast(worldX, worldZ);
     let obj: THREE.Object3D | null = null;
-    if (placementType === 'cube') {
-        obj = createCube(worldX, worldZ);
-    } else if (placementType === 'cylinder') {
-        obj = createCylinder(worldX, worldZ);
+    if (placementType === 'cube' || placementType === 'cylinder') {
+        obj = createPrimitive(placementType, worldX, worldZ);
     } else if (placementType === 'model') {
         obj = await createModelInstance(worldX, worldZ);
     }
@@ -278,9 +260,6 @@ function onPlacementToggle(type: string) {
 
 // ---------- Экспортные функции ----------
 export function initEditor() {
-    // Подписываемся на получение зон с сервера (должно быть до первого запроса)
-
-
     createEditorUI({
         onSaveStatic: onSaveAction,
         onDeleteStatic: onDeleteAction,
@@ -463,14 +442,9 @@ function startDrawingZone() {
     zoneDrawing = true;
     zoneStartPoint = null;
     // Убираем старый превью
-    clearZonePreview();
     console.log('[EDITOR] Начало рисования зоны. Кликните по террейну для установки центра.');
 }
 
-function clearZonePreview() {
-    zonePreviewLines.forEach(line => scene.remove(line));
-    zonePreviewLines = [];
-}
 
 function handleZoneClick(event: MouseEvent) {
     if (!terrainMesh) return;
@@ -496,8 +470,8 @@ function handleZoneClick(event: MouseEvent) {
         const newZone = {
             id: `custom_zone_${Date.now()}`,
             centerX, centerZ, width, depth,
-            objectType: 'tree',      // по умолчанию, потом можно изменить в панели
-            modelNames: ['Tree_1'],  // по умолчанию
+            objectType: 'tree',
+            modelNames: ['Tree_1'],
             count: 10,
             minScale: 1,
             maxScale: 3

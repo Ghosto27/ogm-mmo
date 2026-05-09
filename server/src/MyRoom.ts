@@ -862,7 +862,6 @@ export class MyRoom extends Room<MyRoomState> {
         this.state.players.delete(client.sessionId);
     }
     
-
     public addExperience(player: Player, amount: number) {
         player.exp += amount;
         console.log(`[EXP] ${player.name} получил ${amount} опыта (${player.exp}/${player.expToLevel})`);
