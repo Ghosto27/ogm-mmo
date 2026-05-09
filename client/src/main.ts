@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { PLAYER_SPEED, STORAGE_KEY, SPRINT_MULTIPLIER } from './config';
 import { scene, camera, renderer } from './scene';
 import { getMovementInput, getCameraRelativeMovement, sprintKey } from './input';
-import { localModel, otherPlayers, modelReady, fsm, deathAnimating, actions } from './player';
+import { localModel, otherPlayers, modelReady, fsm, deathAnimating } from './player';
 import { room, startConnection, lastMoveTimes } from './network';
 import { composer, outlinePass } from './postprocessing';
 import { updateAnimations } from './animationUtils';

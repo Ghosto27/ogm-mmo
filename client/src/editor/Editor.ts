@@ -161,13 +161,6 @@ async function createModelInstance(x: number, z: number): Promise<THREE.Group | 
     }
 }
 
-// Глобальное положение мыши для raycasting
-let lastMouseScreen = new THREE.Vector2();
-window.addEventListener('mousemove', (e) => {
-    lastMouseScreen.x = (e.clientX / window.innerWidth) * 2 - 1;
-    lastMouseScreen.y = -(e.clientY / window.innerHeight) * 2 + 1;
-});
-
 // ---------- Выделение и редактирование ----------
 function attachTransformControls(obj: THREE.Object3D) {
     if (selectedObject) transformControls.detach();
