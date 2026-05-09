@@ -17,8 +17,10 @@ https://gltf-viewer.donmccurdy.com/
 
 
 
-прочитай актуальный код в https://github.com/Ghosto27/ogm-mmo/tree/main/client/src читай в raw формате
-ещё раз проанализируй. проверь как все должно работать с учетом ландшафта
+прочитай актуальный код в https://github.com/Ghosto27/ogm-mmo/tree/main/client/src и https://github.com/Ghosto27/ogm-mmo/tree/main/server/src читай в raw формате
+ещё раз проанализируй.
+
+проверь как все должно работать с учетом ландшафта
 
 составь поэтапный план исправления если есть ошибки.
 

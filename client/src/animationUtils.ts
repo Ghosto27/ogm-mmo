@@ -30,11 +30,11 @@ export function updateAnimations(deltaTime: number) {
         model.position.x = lerp(model.position.x, target.x, t);
         model.position.y = lerp(model.position.y, target.y, t);
         model.position.z = lerp(model.position.z, target.z, t);
-        // Для удалённых игроков корректируем высоту по ландшафту
+        /* // Для удалённых игроков корректируем высоту по ландшафту
         if (id !== 'local') {
             const y = getTerrainHeightAt(model.position.x, model.position.z);
             model.position.y = y + 0.1;
-        }
+        } */
     }
 
     // Перемещаем HP-бары за моделями
