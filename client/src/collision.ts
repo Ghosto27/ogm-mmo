@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { getTerrainHeightAtFast, getTerrainHeightAt } from './render/TerrainRenderer';
 
 // ---------- Типы коллизий ----------
 interface SphereCollider {
@@ -33,7 +34,8 @@ type Collider = SphereCollider | CylinderCollider | BoxCollider | OBBCollider;
 const colliders: Collider[] = [];
 // Динамические коллайдеры (другие игроки, мобы) – обновляются каждый кадр
 let dynamicColliders: Collider[] = [];
-const PLAYER_RADIUS = 0.4;
+export const PLAYER_RADIUS = 0.4;
+const MAX_STEP_HEIGHT = 0.4;   // высота, на которую игрок может "запрыгнуть"
 
 // Для отладки (временный массив сфер, больше не используется, оставлен для совместимости)
 export const colliderSpheres: THREE.Sphere[] = [];
@@ -88,7 +90,7 @@ const playerSphere = new THREE.Sphere(new THREE.Vector3(), PLAYER_RADIUS);
 export function applyMovementWithCollisions(
     currentPos: THREE.Vector3,
     rawDelta: THREE.Vector3,
-    maxStep: number = 0.4
+    maxStep: number = 0.2
 ): THREE.Vector3 {
     const totalDist = rawDelta.length();
     if (totalDist === 0) return currentPos.clone();
@@ -175,11 +177,10 @@ function applySingleStep(currentPos: THREE.Vector3, delta: THREE.Vector3): THREE
                 const dy = resultPos.y - closestY;
                 const distSq = dx*dx + dy*dy + dz*dz;
                 if (distSq < PLAYER_RADIUS * PLAYER_RADIUS) {
-                    // ... существующая логика box (оставьте как была) ...
+                    // ... существующая логика box (оставьте как была) ... НЕ НУЖНА
                 }
             } else if (col.type === 'obb') {
                 const obb = col as OBBCollider;
-                // Обработка OBB (как вы писали ранее, но теперь с правильным типом)
                 const invRotation = new THREE.Matrix4().copy(obb.rotation).invert();
                 const localPlayerPos = resultPos.clone().sub(obb.center).applyMatrix4(invRotation);
 
@@ -190,26 +191,31 @@ function applySingleStep(currentPos: THREE.Vector3, delta: THREE.Vector3): THREE
                     Math.max(-half.z, Math.min(localPlayerPos.z, half.z))
                 );
                 const distSq = localPlayerPos.distanceToSquared(closest);
+
                 if (distSq < PLAYER_RADIUS * PLAYER_RADIUS) {
-                    const penetration = PLAYER_RADIUS - Math.sqrt(distSq);
-                    let normalLocal: THREE.Vector3;
-                    if (distSq < 0.0001) {
-                        const absDistX = half.x - Math.abs(localPlayerPos.x);
-                        const absDistY = half.y - Math.abs(localPlayerPos.y);
-                        const absDistZ = half.z - Math.abs(localPlayerPos.z);
-                        if (absDistX <= absDistY && absDistX <= absDistZ) {
-                            normalLocal = new THREE.Vector3(Math.sign(localPlayerPos.x), 0, 0);
-                        } else if (absDistY <= absDistX && absDistY <= absDistZ) {
-                            normalLocal = new THREE.Vector3(0, Math.sign(localPlayerPos.y), 0);
-                        } else {
-                            normalLocal = new THREE.Vector3(0, 0, Math.sign(localPlayerPos.z));
-                        }
-                    } else {
-                        normalLocal = localPlayerPos.clone().sub(closest).normalize();
-                    }
-                    const worldNormal = normalLocal.clone()
+                    const localNormal = localPlayerPos.clone().sub(closest).normalize();
+                    const worldNormal = localNormal.clone()
                         .applyMatrix4(new THREE.Matrix4().extractRotation(obb.rotation))
                         .normalize();
+
+                    // Определяем, пол (верхняя грань) или стена/наклон
+                    const isTopSurface = worldNormal.y > 0.7;
+
+                    if (!isTopSurface) {
+                        // Стена или наклонная грань – проверяем, можно ли "зашагнуть"
+                        const topLocalY = half.y;
+                        const topWorldY = new THREE.Vector3(closest.x, topLocalY, closest.z)
+                            .applyMatrix4(obb.rotation)
+                            .add(obb.center).y;
+                        if (topWorldY <= resultPos.y + MAX_STEP_HEIGHT) {
+                            // Зашагиваем: поднимаем игрока на верхнюю грань
+                            resultPos.y = topWorldY + PLAYER_RADIUS;
+                            continue; // не выталкиваем
+                        }
+                    }
+
+                    // Обычное выталкивание (включая пол, если isTopSurface)
+                    const penetration = PLAYER_RADIUS - Math.sqrt(distSq);
                     const pushTo = resultPos.clone().addScaledVector(worldNormal, penetration);
                     if (distSq < minDistSq) {
                         minDistSq = distSq;
@@ -230,6 +236,10 @@ function applySingleStep(currentPos: THREE.Vector3, delta: THREE.Vector3): THREE
         resultPos.add(tangentDelta);
     }
 
+    // Находим опору под ногами и ставим игрока так, чтобы его низ касался поверхности
+    const groundY = computeGroundHeight(resultPos);
+    resultPos.y = groundY + PLAYER_RADIUS;
+
     // Ограничение длины шага исходной дельтой, чтобы не ускорило
     const actualDelta = new THREE.Vector3().subVectors(resultPos, currentPos);
     if (actualDelta.length() > delta.length()) {
@@ -249,6 +259,47 @@ function sphereVsAABBcenter(sphereCenter: THREE.Vector3, box: BoxCollider): { di
     closest.z = Math.max(box.center.z - half.z, Math.min(sphereCenter.z, box.center.z + half.z));
     const dist = sphereCenter.distanceTo(closest);
     return { dist, closestPoint: closest };
+}
+
+/** Вычисляет высоту опоры (пола) под текущей позицией игрока (XZ) */
+function computeGroundHeight(pos: THREE.Vector3): number {
+    let bestY = -Infinity;
+    const halfHeight = PLAYER_RADIUS; // нижняя точка коллайдера
+
+    for (const col of colliders) {
+        if (col.type === 'obb') {
+            const obb = col as OBBCollider;
+            // Переводим точку под ногами в локальную систему OBB
+            const localPoint = pos.clone().sub(obb.center).applyMatrix4(
+                new THREE.Matrix4().copy(obb.rotation).invert()
+            );
+            const half = obb.halfExtents;
+            const hTolerance = 0.25; // дополнительный допуск, чтобы "нащупать" ступеньку перед игроком
+            if (Math.abs(localPoint.x) <= half.x + PLAYER_RADIUS + hTolerance &&
+                Math.abs(localPoint.z) <= half.z + PLAYER_RADIUS + hTolerance) {
+                // Верхняя грань OBB в локальных координатах
+                const topLocalY = half.y;
+                // Преобразуем точку на верхней грани обратно в мировые
+                const topWorldPoint = new THREE.Vector3(localPoint.x, topLocalY, localPoint.z)
+                    .applyMatrix4(obb.rotation)
+                    .add(obb.center);
+                const groundY = topWorldPoint.y;
+                // Опора не должна быть выше, чем разрешённый шаг
+                if (groundY <= pos.y + MAX_STEP_HEIGHT && groundY > bestY) {
+                    bestY = groundY;
+                }
+            }
+        }
+        // другие типы коллизий (сферы, цилиндры) можно добавить позже
+    }
+
+    // Если OBB-опора не найдена или она ниже террейна, использовать террейн
+    const terrainY = getTerrainHeightAt(pos.x, pos.z); // +0.2 (половина радиуса, чтобы не тонуть)
+    if (bestY < terrainY) {
+        bestY = terrainY;
+    }
+
+    return bestY;
 }
 
 /** Возвращает все активные коллайдеры (статика + динамика) – для отладки */

@@ -6,11 +6,10 @@ import { updateTerrain, getTerrainHeightAt, terrainReady } from './render/Terrai
 const targetPositions: { [id: string]: THREE.Vector3 } = {};
 const INTERPOLATION_SPEED = 10.0;
 
-export function setTargetPosition(id: string, x: number, z: number) {
-    if (!targetPositions[id]) targetPositions[id] = new THREE.Vector3(x, 0, z);
-    else targetPositions[id].set(x, 0, z);
+export function setTargetPosition(id: string, x: number, z: number, y?: number) {
+    if (!targetPositions[id]) targetPositions[id] = new THREE.Vector3(x, y ?? 0, z);
+    else targetPositions[id].set(x, y ?? targetPositions[id].y, z);
 }
-
 function lerp(a: number, b: number, t: number) {
     return a + (b - a) * t;
 }
@@ -29,6 +28,7 @@ export function updateAnimations(deltaTime: number) {
         const target = targetPositions[id];
         const t = Math.min(INTERPOLATION_SPEED * deltaTime, 1.0);
         model.position.x = lerp(model.position.x, target.x, t);
+        model.position.y = lerp(model.position.y, target.y, t);
         model.position.z = lerp(model.position.z, target.z, t);
         // Для удалённых игроков корректируем высоту по ландшафту
         if (id !== 'local') {

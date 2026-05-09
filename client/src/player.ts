@@ -182,25 +182,24 @@ export function hideLocalHpBar() {
 export function updateOtherPlayer(
     sessionId: string,
     x: number, z: number, hp: number, maxHp: number, alive: boolean,
-    name?: string
+    name?: string,
+    y?: number
 ) {
     if (alive) {
         if (!otherPlayers[sessionId]) {
             if (x === 0 && z === 0) return; // ждём реальные координаты
             const nameForModel = name;
             setTimeout(() => {
-                terrainReady.then(() => {
-                    if (!otherPlayers[sessionId]) {
-                        otherPlayers[sessionId] = createOtherPlayerModel(sessionId);
-                        if (nameForModel) {
-                            const tag = createNameTag(nameForModel);
-                            attachNameTag(otherPlayers[sessionId], tag);
-                        }
-                        const terrainY = getTerrainHeightAt(x, z);
-                        otherPlayers[sessionId].position.set(x, terrainY + 0.5, z);
-                        otherPlayers[sessionId].visible = true;
+                if (!otherPlayers[sessionId]) {
+                    otherPlayers[sessionId] = createOtherPlayerModel(sessionId);
+                    if (nameForModel) {
+                        const tag = createNameTag(nameForModel);
+                        attachNameTag(otherPlayers[sessionId], tag);
                     }
-                });
+                    // Используем переданный Y (или 0, если нет)
+                    otherPlayers[sessionId].position.set(x, y ?? 0, z);
+                    otherPlayers[sessionId].visible = true;
+                }
             }, 500);
             return;
         } else {
@@ -208,6 +207,9 @@ export function updateOtherPlayer(
             
             if (x === 0 && z === 0) return;
             //console.log(`[DEV] ${sessionId}, x=${x}, z=${z}`);
+            if (otherPlayers[sessionId]) {
+                otherPlayers[sessionId].position.y = y ?? otherPlayers[sessionId].position.y;
+            }
             // Иначе обновляем видимость
             otherPlayers[sessionId].visible = true;
         }

@@ -196,8 +196,9 @@ function join(playerName: string) {
                     const model = otherPlayers[remote.sessionId];
                     if (model) {
                         model.visible = true;
-                        model.position.set(remote.x, 0, remote.z);
-                        setTargetPosition(remote.sessionId, remote.x, remote.z);
+                        const initY = state.players.get(remote.sessionId)?.y ?? 0;
+                        model.position.set(remote.x, initY, remote.z);
+                        setTargetPosition(remote.sessionId, remote.x, remote.z, initY);
                     }
                 }
 
@@ -229,10 +230,22 @@ function join(playerName: string) {
                     });
                 }
 
-                updateOtherPlayer(remote.sessionId, remote.x, remote.z, remote.hp, remote.maxHp, remote.alive, remote.name);
+                // Получаем Y из серверного состояния для этого игрока
+                const remotePlayerState = state.players.get(remote.sessionId);
+                const remoteY = remotePlayerState ? (remotePlayerState.y ?? 0) : 0;
+
+                updateOtherPlayer(remote.sessionId, remote.x, remote.z, remote.hp, remote.maxHp, remote.alive, remote.name, remoteY);
+
+                // Для подстраховки сразу обновляем Y модели (если она уже существует)
+                if (otherPlayers[remote.sessionId]) {
+                    otherPlayers[remote.sessionId].position.y = remoteY;
+                }
                 // Обновляем цель интерполяции, только если координаты не нулевые (чтобы не улететь в центр)
                 if (!(otherPlayers[remote.sessionId] && remote.x === 0 && remote.z === 0)) {
-                    setTargetPosition(remote.sessionId, remote.x, remote.z);
+                    setTargetPosition(remote.sessionId, remote.x, remote.z, remoteY);
+                    if (otherPlayers[remote.sessionId]) {
+                        otherPlayers[remote.sessionId].position.y = remoteY;
+                    }
                 }
                 //console.log(`[NET] updateOtherPlayer called for ${remote.sessionId}, x=${remote.x}, z=${remote.z}`);
                 if (otherPlayers[remote.sessionId]) {

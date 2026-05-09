@@ -26,7 +26,7 @@ import { createQuestJournal, toggleQuestJournal } from './quest/QuestJournalUI';
 import { createNotificationUI } from './ui/notificationUI';
 import { getTerrainHeightAt, getTerrainHeightAtFast } from './render/TerrainRenderer';
 import { updateFPS } from './utils/fpsCounter';
-import { applyMovementWithCollisions, addSphereCollider, allColliders, updateDynamicColliders, getAllColliders } from './collision';
+import { applyMovementWithCollisions, addSphereCollider, allColliders, updateDynamicColliders, getAllColliders, PLAYER_RADIUS } from './collision';
 import { updateCollisionDebug } from './debug/collisionDebug';
 import { isCollisionDebugVisible } from './debug/debugState';
 import { initEditor, updateEditor } from './editor/Editor';
@@ -97,6 +97,7 @@ setTimeout(() => renderer.domElement.focus({ preventScroll: true }), 100);
 
 let lastSend = 0;
 let lastTime = performance.now();
+const playerPhysicalPos = new THREE.Vector3();
 
 function loop() {
     updateFPS();
@@ -107,6 +108,11 @@ function loop() {
     lastTime = now;
 
     if (!room || !localModel) return;
+
+    // Инициализация физической позиции при первом кадре
+    if (playerPhysicalPos.lengthSq() === 0) {
+        playerPhysicalPos.copy(localModel.position);
+    }
 
     // =================== РЕЖИМ РЕДАКТОРА ===================
     if (isEditorActive()) {
@@ -196,16 +202,22 @@ function loop() {
             updateDynamicColliders(dynamicEntities);
 
             const rawDelta = new THREE.Vector3(moveVec.x * delta, 0, moveVec.z * delta);
-            const currentPos = localModel.position.clone();
+            const currentPos = playerPhysicalPos.clone();
             const newPos = applyMovementWithCollisions(currentPos, rawDelta);
+            playerPhysicalPos.copy(newPos);
+            localModel.position.copy(newPos).y -= PLAYER_RADIUS - 0.15;   // визуальное опускание
 
-            localModel.position.x = newPos.x;
+            /* localModel.position.x = newPos.x;
             localModel.position.z = newPos.z;
+            localModel.position.y = newPos.y; */
 
-            if (localModel) {
+            /* if (localModel) {
                 const terrainY = getTerrainHeightAt(localModel.position.x, localModel.position.z);
-                localModel.position.y = terrainY + 0.1;
-            }
+                const minY = terrainY + 0.1;
+                if (localModel.position.y < minY) {
+                    localModel.position.y = minY;
+                }
+            } */
 
             const nowSend = Date.now();
             if (nowSend - lastSend > 50) {
@@ -213,6 +225,7 @@ function loop() {
                     room.send("move", {
                         x: localModel.position.x,
                         z: localModel.position.z,
+                        y: localModel.position.y,
                         r: localModel.rotation.y
                     });
                     lastSend = nowSend;

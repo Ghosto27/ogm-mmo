@@ -268,6 +268,7 @@ export class MyRoom extends Room<MyRoomState> {
 
             const newX = message.x;
             const newZ = message.z;
+            const newY = message.y ?? player.y;
             if (typeof newX !== "number" || typeof newZ !== "number") return;
 
             // --- 1. Проверка максимальной дистанции (защита от телепорта) ---
@@ -291,6 +292,7 @@ export class MyRoom extends Room<MyRoomState> {
             // --- 3. Всё ок — применяем движение ---
             player.x = newX;
             player.z = newZ;
+            player.y = newY;
             if (typeof message.r === "number") {
                 player.rotationY = message.r;
             }
