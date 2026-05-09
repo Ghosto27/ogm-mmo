@@ -15,6 +15,7 @@ import { getAllInstancedMeshes } from './render/VegetationRenderer';
 import { getTerrainHeightAtFast, getTerrainHeightAt } from './render/TerrainRenderer';
 import { toggleCollisionDebug } from './debug/debugState';
 import { isEditorActive } from './editor/EditorState';
+import { worldMeshes } from './render/WorldRenderer';
 
 console.log('[INTERACTION] Module loaded');
 
@@ -114,37 +115,60 @@ window.addEventListener('mouseup', (event) => {
             }
         }
 
-        // Проверяем клик по растительности
+                // Собираем все статические объекты в один массив
+        const staticTargets: THREE.Object3D[] = [];
+
+        // InstancedMesh растительности
         const vegMeshes = getAllInstancedMeshes();
-        for (const instMesh of vegMeshes) {
-            const vegIntersects = raycaster.intersectObject(instMesh);
-            if (vegIntersects.length > 0) {
-                const intersect = vegIntersects[0];
-                const instanceIndex = intersect.instanceId;
-                if (instanceIndex !== undefined) {
-                    const matrix = new THREE.Matrix4();
-                    instMesh.getMatrixAt(instanceIndex, matrix);
-                    const pos = new THREE.Vector3();
-                    matrix.decompose(pos, new THREE.Quaternion(), new THREE.Vector3());
-                    
-                    const modelName = instMesh.userData.modelName || 'unknown';
-                    console.group(`[VEG-CLICK] Instance #${instanceIndex} of ${modelName}`);
-                    console.log('World position:', pos.x.toFixed(1), pos.y.toFixed(2), pos.z.toFixed(1));
-                    const groundY = getTerrainHeightAtFast(pos.x, pos.z);
-                    console.log('Terrain height:', groundY.toFixed(2));
-                    console.log('Delta (modelY - terrain):', (pos.y - groundY).toFixed(2));
-                    
-                    // Красная сфера для визуального сравнения
-                    const sphere = new THREE.Mesh(
-                        new THREE.SphereGeometry(0.3, 8, 8),
-                        new THREE.MeshBasicMaterial({ color: 0xff0000 })
-                    );
-                    sphere.position.set(pos.x, groundY, pos.z);
-                    scene.add(sphere);
-                    setTimeout(() => scene.remove(sphere), 5000);
-                    
-                    console.groupEnd();
+        vegMeshes.forEach(m => staticTargets.push(m));
+
+        // Объекты из worldMeshes (editor_ и vegezone_)
+        for (const id in worldMeshes) {
+            if (id.startsWith('editor_') || id.startsWith('vegezone_')) {
+                staticTargets.push(worldMeshes[id]);
+            }
+        }
+
+        // Общий raycast по всем статическим объектам
+        if (staticTargets.length > 0) {
+            // Уже используем глобальный raycaster и mouse, установленные ранее? 
+            // Нет, мы ещё не обновили raycaster для этого клика. Надо сделать это.
+            // Обновим raycaster для левого клика
+            const lMouse = new THREE.Vector2();
+            lMouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            lMouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(lMouse, camera);
+            
+            const staticIntersections = raycaster.intersectObjects(staticTargets, true);
+            if (staticIntersections.length > 0) {
+                const nearest = staticIntersections[0];
+                const point = nearest.point;
+                const obj = nearest.object;
+
+                let modelName = 'unknown';
+                if (obj.userData && obj.userData.modelName) {
+                    modelName = obj.userData.modelName;
+                } else if (obj instanceof THREE.InstancedMesh) {
+                    modelName = obj.userData.modelName || 'instance';
                 }
+
+                console.group(`[STATIC-CLICK]`);
+                console.log('Model:', modelName);
+                console.log('Position:', point.x.toFixed(1), point.y.toFixed(2), point.z.toFixed(1));
+                const groundY = getTerrainHeightAtFast(point.x, point.z);
+                console.log('Terrain height:', groundY.toFixed(2));
+                console.log('Delta (modelY - terrain):', (point.y - groundY).toFixed(2));
+
+                // Красная сфера для визуального маркера
+                const sphere = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.3, 8, 8),
+                    new THREE.MeshBasicMaterial({ color: 0xff0000 })
+                );
+                sphere.position.set(point.x, groundY, point.z);
+                scene.add(sphere);
+                setTimeout(() => scene.remove(sphere), 5000);
+
+                console.groupEnd();
                 return; // обработали клик, выходим
             }
         }

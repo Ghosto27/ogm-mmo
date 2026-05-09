@@ -4,8 +4,9 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { scene } from '../scene';
 import { getTerrainHeightAt, terrainReady } from './TerrainRenderer';
-import { addBoxCollider, addCylinderCollider, addOBBCollider } from '../collision';
+import { addBoxCollider, addCylinderCollider, addOBBCollider, addSphereCollider } from '../collision';
 import { isEditorActive } from '../editor/EditorState';
+import { getColliderConfig } from '../collisionConfig';
 
 // Теперь храним любые объекты (Mesh или Group)
 export const worldMeshes: { [id: string]: THREE.Object3D } = {};
@@ -180,7 +181,44 @@ export async function updateWorldObjects(worldObjects: any) {
                 height
             );
         }
+                // Для моделей (не примитивов) создаём коллизию
+        if (obj.modelName !== 'cube' && obj.modelName !== 'cylinder' && obj.modelName !== 'plane') {
+            createCollisionForModel(obj3D, obj);
+        }
 
         worldMeshes[id] = obj3D;
+    }
+}
+
+function createCollisionForModel(mesh: THREE.Object3D, obj: any) {
+    const modelName = obj.modelName;
+    if (!modelName) return;
+
+    // Получаем конфиг (может быть null)
+    const config = getColliderConfig(modelName);
+    const scale = obj.scaleX || 1;   // предполагаем равномерный масштаб
+    const meshY = mesh.position.y;
+
+    if (config && config.type === 'cylinder') {
+        // Цилиндр из конфига (базовые размеры * scale)
+        const radius = (config.cylinderRadius ?? 0.5) * scale;
+        const height = (config.cylinderHeight ?? 1) * scale;
+        const baseY = meshY - height / 2;  // центр цилиндра в нижней точке? Зависит от модели. Для деревьев pivot внизу, поэтому высота от земли вверх.
+        // Считаем, что цилиндр начинается от земли (mesh.position.y) и идёт вверх на height.
+        const center = new THREE.Vector3(mesh.position.x, meshY, mesh.position.z);
+        addCylinderCollider(center, radius, height);
+    } else {
+        // Автоматическая сфера на основе bounding box
+        const box = new THREE.Box3().setFromObject(mesh);
+        const size = new THREE.Vector3();
+        box.getSize(size);
+        const maxDim = Math.max(size.x, size.z);
+        const radius = (maxDim / 2) * 0.9;  // немного уменьшаем
+        // Центр сферы – центр бокса или нижняя часть? Для камней/деревьев лучше центр.
+        const center = new THREE.Vector3();
+        box.getCenter(center);
+        // Если модель стоит на земле, сфера может быть слишком высокой; можно сместить ниже.
+        // Но для простоты берём центр бокса.
+        addSphereCollider(center, radius);
     }
 }
