@@ -114,11 +114,12 @@ function loop() {
         updateEditor(deltaTime)
 
         // Рендер сцены (без обновления анимаций игрока и мобов)
-        updateCollisionDebug(
-            isCollisionDebugVisible() ? getAllColliders() : [],
-            localModel.position,
-            30
-        );
+        if (isCollisionDebugVisible()) {
+            updateCollisionDebug(getAllColliders(), localModel.position, 20);
+        } else {
+            // Если отладка была включена и её выключили, очищаем
+            updateCollisionDebug([], localModel.position, 20);
+        }
         composer.render();
         renderLabels(scene, camera);
         return; // прерываем выполнение игровой логики

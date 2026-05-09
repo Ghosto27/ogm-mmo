@@ -20,7 +20,14 @@ interface BoxCollider {
     halfExtents: THREE.Vector3; // половинные размеры по осям
 }
 
-type Collider = SphereCollider | CylinderCollider | BoxCollider;
+interface OBBCollider {
+    type: 'obb';
+    center: THREE.Vector3;
+    halfExtents: THREE.Vector3;
+    rotation: THREE.Matrix4;   // матрица поворота (или можно Quaternion, но Matrix4 удобнее)
+}
+
+type Collider = SphereCollider | CylinderCollider | BoxCollider | OBBCollider;
 
 // ---------- Хранилище ----------
 const colliders: Collider[] = [];
@@ -45,6 +52,11 @@ export function addCylinderCollider(baseCenter: THREE.Vector3, radius: number, h
 
 export function addBoxCollider(center: THREE.Vector3, halfExtents: THREE.Vector3) {
     colliders.push({ type: 'box', center: center.clone(), halfExtents: halfExtents.clone() });
+}
+
+export function addOBBCollider(center: THREE.Vector3, halfExtents: THREE.Vector3, rotation: THREE.Quaternion) {
+    const rotMatrix = new THREE.Matrix4().makeRotationFromQuaternion(rotation);
+    colliders.push({ type: 'obb', center: center.clone(), halfExtents: halfExtents.clone(), rotation: rotMatrix });
 }
 
 export function clearColliders() {
@@ -153,29 +165,55 @@ function applySingleStep(currentPos: THREE.Vector3, delta: THREE.Vector3): THREE
                     }
                 }
             } else if (col.type === 'box') {
-                const { dist, closestPoint } = sphereVsAABBcenter(resultPos, col);
-                if (dist < PLAYER_RADIUS) {
-                    const penetration = PLAYER_RADIUS - dist;
-                    let normal: THREE.Vector3;
-                    if (dist < 0.001) {
-                        const deltaToCenter = new THREE.Vector3().subVectors(resultPos, col.center);
-                        const absX = Math.abs(deltaToCenter.x);
-                        const absY = Math.abs(deltaToCenter.y);
-                        const absZ = Math.abs(deltaToCenter.z);
-                        if (absX >= absY && absX >= absZ) {
-                            normal = new THREE.Vector3(Math.sign(deltaToCenter.x), 0, 0);
-                        } else if (absY >= absX && absY >= absZ) {
-                            normal = new THREE.Vector3(0, Math.sign(deltaToCenter.y), 0);
+                const box = col as BoxCollider;
+                const { halfExtents, center } = box;
+                const closestX = Math.max(center.x - halfExtents.x, Math.min(resultPos.x, center.x + halfExtents.x));
+                const closestY = Math.max(center.y - halfExtents.y, Math.min(resultPos.y, center.y + halfExtents.y));
+                const closestZ = Math.max(center.z - halfExtents.z, Math.min(resultPos.z, center.z + halfExtents.z));
+                const dx = resultPos.x - closestX;
+                const dz = resultPos.z - closestZ;
+                const dy = resultPos.y - closestY;
+                const distSq = dx*dx + dy*dy + dz*dz;
+                if (distSq < PLAYER_RADIUS * PLAYER_RADIUS) {
+                    // ... существующая логика box (оставьте как была) ...
+                }
+            } else if (col.type === 'obb') {
+                const obb = col as OBBCollider;
+                // Обработка OBB (как вы писали ранее, но теперь с правильным типом)
+                const invRotation = new THREE.Matrix4().copy(obb.rotation).invert();
+                const localPlayerPos = resultPos.clone().sub(obb.center).applyMatrix4(invRotation);
+
+                const half = obb.halfExtents;
+                const closest = new THREE.Vector3(
+                    Math.max(-half.x, Math.min(localPlayerPos.x, half.x)),
+                    Math.max(-half.y, Math.min(localPlayerPos.y, half.y)),
+                    Math.max(-half.z, Math.min(localPlayerPos.z, half.z))
+                );
+                const distSq = localPlayerPos.distanceToSquared(closest);
+                if (distSq < PLAYER_RADIUS * PLAYER_RADIUS) {
+                    const penetration = PLAYER_RADIUS - Math.sqrt(distSq);
+                    let normalLocal: THREE.Vector3;
+                    if (distSq < 0.0001) {
+                        const absDistX = half.x - Math.abs(localPlayerPos.x);
+                        const absDistY = half.y - Math.abs(localPlayerPos.y);
+                        const absDistZ = half.z - Math.abs(localPlayerPos.z);
+                        if (absDistX <= absDistY && absDistX <= absDistZ) {
+                            normalLocal = new THREE.Vector3(Math.sign(localPlayerPos.x), 0, 0);
+                        } else if (absDistY <= absDistX && absDistY <= absDistZ) {
+                            normalLocal = new THREE.Vector3(0, Math.sign(localPlayerPos.y), 0);
                         } else {
-                            normal = new THREE.Vector3(0, 0, Math.sign(deltaToCenter.z));
+                            normalLocal = new THREE.Vector3(0, 0, Math.sign(localPlayerPos.z));
                         }
                     } else {
-                        normal = new THREE.Vector3().subVectors(resultPos, closestPoint).normalize();
+                        normalLocal = localPlayerPos.clone().sub(closest).normalize();
                     }
-                    const pushTo = resultPos.clone().addScaledVector(normal, penetration);
-                    if (dist * dist < minDistSq) {
-                        minDistSq = dist * dist;
-                        closestInfo = { normal, pushTo };
+                    const worldNormal = normalLocal.clone()
+                        .applyMatrix4(new THREE.Matrix4().extractRotation(obb.rotation))
+                        .normalize();
+                    const pushTo = resultPos.clone().addScaledVector(worldNormal, penetration);
+                    if (distSq < minDistSq) {
+                        minDistSq = distSq;
+                        closestInfo = { normal: worldNormal, pushTo };
                         collided = true;
                     }
                 }

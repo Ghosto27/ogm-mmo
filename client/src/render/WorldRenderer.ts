@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { scene } from '../scene';
 import { getTerrainHeightAt, terrainReady } from './TerrainRenderer';
-import { addBoxCollider, addCylinderCollider } from '../collision';
+import { addBoxCollider, addCylinderCollider, addOBBCollider } from '../collision';
 import { isEditorActive } from '../editor/EditorState';
 
 // Теперь храним любые объекты (Mesh или Group)
@@ -117,7 +117,7 @@ export async function updateWorldObjects(worldObjects: any) {
             //console.log(`[WORLD-UPDATE] id=${id}, newPos=(${existing.position.x.toFixed(1)},${existing.position.y.toFixed(1)},${existing.position.z.toFixed(1)})`);
 
             // Коллизии (только для примитивов, чтобы не забивать)
-            if (obj.modelName === 'cube') {
+            /* if (obj.modelName === 'cube') {
                 const halfExtents = new THREE.Vector3(
                     (obj.scaleX || 1) / 2,
                     (obj.scaleY || 1) / 2,
@@ -133,7 +133,7 @@ export async function updateWorldObjects(worldObjects: any) {
                     radius,
                     height
                 );
-            }
+            } */
 
             continue;
         }
@@ -167,7 +167,9 @@ export async function updateWorldObjects(worldObjects: any) {
                 (obj.scaleY || 1) / 2,
                 (obj.scaleZ || 1) / 2
             );
-            addBoxCollider(obj3D.position.clone(), halfExtents);
+            // Всегда создаём OBB с учётом поворота объекта
+            const quaternion = new THREE.Quaternion().setFromEuler(obj3D.rotation);
+            addOBBCollider(obj3D.position.clone(), halfExtents, quaternion);
         } else if (obj.modelName === 'cylinder') {
             const radius = obj.scaleX || 1;
             const height = obj.scaleY || 1;
