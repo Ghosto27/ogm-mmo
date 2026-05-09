@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { scene } from '../scene';
-import { getTerrainHeightAtFast, getTerrainHeightAt } from './TerrainRenderer';
-import { addSphereCollider, clearColliders, addCylinderCollider } from '../collision';
+import { getTerrainHeightAtFast } from './TerrainRenderer';
+import { addSphereCollider, addCylinderCollider } from '../collision';
 import { getColliderConfig } from '../collisionConfig';
 
 const instanceMeshes: Map<string, THREE.InstancedMesh> = new Map();
@@ -148,19 +148,6 @@ export async function finalizeVegetation() {
 
 export function isVegetationLoaded(): boolean {
     return vegetationLoaded;
-}
-
-export function clearAllVegetation() {
-    instanceMeshes.forEach((mesh) => {
-        scene.remove(mesh);
-        mesh.dispose();
-    });
-    instanceMeshes.clear();
-    nextIndices.clear();
-    addedIds.clear();
-    loadingPromises.clear();
-    vegetationLoaded = false;
-    clearColliders();
 }
 
 export function getAllInstancedMeshes(): THREE.InstancedMesh[] {

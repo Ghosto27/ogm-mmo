@@ -38,14 +38,12 @@ export const PLAYER_RADIUS = 0.4;
 const MAX_STEP_HEIGHT = 0.4;   // высота, на которую игрок может "запрыгнуть"
 
 // Для отладки (временный массив сфер, больше не используется, оставлен для совместимости)
-export const colliderSpheres: THREE.Sphere[] = [];
 export const allColliders = colliders;
 
 // ---------- Функции добавления ----------
 
 export function addSphereCollider(center: THREE.Vector3, radius: number) {
     colliders.push({ type: 'sphere', center: center.clone(), radius });
-    colliderSpheres.push(new THREE.Sphere(center.clone(), radius));
 }
 
 export function addCylinderCollider(baseCenter: THREE.Vector3, radius: number, height: number) {
@@ -57,10 +55,6 @@ export function addOBBCollider(center: THREE.Vector3, halfExtents: THREE.Vector3
     colliders.push({ type: 'obb', center: center.clone(), halfExtents: halfExtents.clone(), rotation: rotMatrix });
 }
 
-export function clearColliders() {
-    colliders.length = 0;
-    colliderSpheres.length = 0;
-}
 
 /**
  * Обновить список динамических коллайдеров (другие игроки, мобы).
