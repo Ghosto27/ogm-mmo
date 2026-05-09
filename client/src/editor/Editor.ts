@@ -48,21 +48,6 @@ function onMouseUpForEditor(e: MouseEvent) {
         mouseDown = false;
     }
     if (e.button === 0) {
-        // Не сбрасываем mouseDown, т.к. ПКМ может ещё быть зажата? 
-        // Но для клика важно mouseDragged:
-        // сбросим mouseDragged после небольшой задержки? 
-        // Просто сбросим сразу: 
-        // mouseDragged = false; 
-        // Однако если мы отпустили кнопку после перетаскивания, 
-        // то mouseDragged уже true, и это правильно. 
-        // Но для следующего клика нужно начать с false.
-        // Поэтому при нажатии (mousedown) мы уже ставим mouseDragged = false.
-        // После mouseup не нужно сбрасывать.
-        // Проблема в том, что после перетаскивания mouseDragged остаётся true, 
-        // и следующий клик не сработает, т.к. mousedown сбросит его в false!
-        // Да, в mousedown мы явно ставим mouseDragged = false; 
-        // Значит, всё должно быть нормально. 
-        // Но давайте добавим явный сброс для уверенности:
         mouseDragged = false;
     }
 }
@@ -272,13 +257,9 @@ function onPropertiesChanged() {
     if (!selectedObject) return;
     const pos = getPositionFromInputs();
     const scl = getScaleFromInputs();
+    console.log(`[EDITOR-PANEL] uuid=${selectedObject.uuid}, oldPos=(${selectedObject.position.x.toFixed(1)},${selectedObject.position.y.toFixed(1)},${selectedObject.position.z.toFixed(1)}), newPos=(${pos.x.toFixed(1)},${pos.y.toFixed(1)},${pos.z.toFixed(1)})`);
     selectedObject.position.set(pos.x, pos.y, pos.z);
     selectedObject.scale.set(scl.x, scl.y, scl.z);
-
-    // Синхронизируем оригинал
-    syncCloneToOriginal(selectedObject);
-
-    // Обновляем гизмо
     transformControls.update(0);
 }
 
@@ -290,8 +271,6 @@ function onPlacementToggle(type: string) {
         placementMode = false;
     }
 }
-
-function updatePlacementButtonState() { /* ... вызов из UI, можно не дублировать */ }
 
 // ---------- Экспортные функции ----------
 export function initEditor() {
@@ -309,7 +288,7 @@ export function initEditor() {
     transformControls = new TransformControls(camera, renderer.domElement);
     transformControls.addEventListener('change', () => {
         if (selectedObject) {
-            syncCloneToOriginal(selectedObject);
+            console.log(`[EDITOR-GIZMO] uuid=${selectedObject.uuid}, newPos=(${selectedObject.position.x.toFixed(1)},${selectedObject.position.y.toFixed(1)},${selectedObject.position.z.toFixed(1)})`);
             updatePropertiesPanel(selectedObject);
         }
     });
@@ -343,40 +322,56 @@ async function enterEditorMode() {
     setEditorActive(true);
     showEditorUI(true);
 
-    // Скрываем оригиналы и создаём клоны
-    for (const id in worldMeshes) {
-        if (!id.startsWith('editor_')) continue;
-        const original = worldMeshes[id];
-        original.visible = false;
-
-        const clone = original.clone(true);
-        clone.position.copy(original.position);
-        clone.rotation.copy(original.rotation);
-        clone.scale.copy(original.scale);
-        clone.userData = { ...original.userData };
-        clone.userData.editorId = id;
-        clone.userData.originalMesh = original;
-        // baseMinY ...
-        if (clone.userData.baseMinY === undefined) {
-            if (clone.userData.editorType === 'cube' || clone.userData.editorType === 'cylinder') {
-                clone.userData.baseMinY = -0.5;
-            } else {
-                const box = new THREE.Box3().setFromObject(clone);
-                clone.userData.baseMinY = box.min.y;
+    // --- Очистка мусора: удаляем объекты, которые не являются актуальными оригиналами из worldMeshes ---
+    const toRemove: THREE.Object3D[] = [];
+    scene.traverse((child) => {
+        if (child.userData && (child.userData.editorMode || child.userData.editorId)) {
+            // Является ли этот объект одним из редакторских оригиналов из worldMeshes?
+            const isOriginal = Object.values(worldMeshes).some(mesh => mesh === child);
+            if (!isOriginal) {
+                // Это мусорный клон или забытый объект
+                toRemove.push(child);
             }
         }
-        scene.add(clone);
-        editorObjects.push(clone);
+    });
+    toRemove.forEach(obj => {
+        console.log(`[EDITOR] Удалён мусорный объект: uuid=${obj.uuid}, pos=(${obj.position.x.toFixed(1)},${obj.position.y.toFixed(1)},${obj.position.z.toFixed(1)})`);
+        scene.remove(obj);
+    });
+    // ---
+
+    editorObjects = [];
+    for (const id in worldMeshes) {
+        if (!id.startsWith('editor_')) continue;
+        const mesh = worldMeshes[id];
+        mesh.userData.editorId = id;
+        editorObjects.push(mesh);
+        console.log(`[EDITOR-LOAD] id=${id}, mesh.uuid=${mesh.uuid}, pos=(${mesh.position.x.toFixed(1)},${mesh.position.y.toFixed(1)},${mesh.position.z.toFixed(1)})`);
+    }
+    // Восстанавливаем editorType для моделей (если не был установлен ранее)
+    for (const obj of editorObjects) {
+        if (!obj.userData.editorType && obj.userData.modelName) {
+            obj.userData.editorType = 'model';
+        }
+    }
+    // Устанавливаем baseMinY для snap к земле
+    for (const obj of editorObjects) {
+        if (obj.userData.baseMinY === undefined) {
+            if (obj.userData.editorType === 'cube' || obj.userData.editorType === 'cylinder') {
+                obj.userData.baseMinY = -0.5;
+            } else {
+                obj.userData.baseMinY = 0;  // модели (pivot внизу)
+            }
+        }
     }
 
-    // Автоматически выделяем первый объект (если есть)
     if (editorObjects.length > 0) {
         attachTransformControls(editorObjects[0]);
         updatePropertiesPanel(editorObjects[0]);
     }
 
     startFreeCamera();
-    console.log(`[EDITOR] Загружено ${editorObjects.length} объектов в редактор`);
+    console.log(`[EDITOR] Загружено ${editorObjects.length} объектов`);
 }
 
 function exitEditorMode() {
@@ -386,20 +381,7 @@ function exitEditorMode() {
     deselectObject();
     placementMode = false;
 
-    // Удаляем все клоны редактора и показываем оригиналы (они синхронизированы)
-    for (const obj of editorObjects) {
-        const original = obj.userData.originalMesh as THREE.Object3D | undefined;
-        if (original) {
-            original.visible = true;
-        }
-        scene.remove(obj);
-    }
     editorObjects = [];
-    selectedObject = null;
-
-    // Принудительно обновлять сцену не нужно — WorldRenderer сам подхватит изменения
-    // при следующей синхронизации состояния, но оригиналы уже в актуальном состоянии.
-
     console.log('[EDITOR] Выход из редактора');
 }
 
@@ -410,29 +392,32 @@ export function updateEditor(deltaTime: number) {
 }
 
 function onSaveAction() {
-    const objects = editorObjects.map(obj => {
-        const id = obj.userData.editorId || ('editor_' + crypto.randomUUID());
+    for (const obj of editorObjects) {
         if (!obj.userData.editorId) {
-            obj.userData.editorId = id;
+            obj.userData.editorId = 'editor_' + crypto.randomUUID();
         }
-        return {
-            id: id,
-            modelName: obj.userData.editorType === 'model' ? obj.userData.modelName : obj.userData.editorType,
-            x: obj.position.x,
-            y: obj.position.y,
-            z: obj.position.z,
-            scaleX: obj.scale.x,
-            scaleY: obj.scale.y,
-            scaleZ: obj.scale.z,
-            rotationY: obj.rotation.y,
-            rotationX: obj.rotation.x,
-            color: '#' + ((obj as any).material?.color?.getHexString?.() || 'ffffff'),
-        };
-    });
+    }
+
+    const objects = editorObjects.map(obj => ({
+        id: obj.userData.editorId,
+        modelName: obj.userData.editorType === 'model' ? obj.userData.modelName : obj.userData.editorType,
+        x: obj.position.x,
+        y: obj.position.y,
+        z: obj.position.z,
+        scaleX: obj.scale.x,
+        scaleY: obj.scale.y,
+        scaleZ: obj.scale.z,
+        rotationY: obj.rotation.y,
+        rotationX: obj.rotation.x,
+        color: '#' + ((obj as any).material?.color?.getHexString?.() || 'ffffff'),
+    }));
+
+    // Лог перед отправкой
+    objects.forEach(o => console.log(`[EDITOR-SAVE] id=${o.id}, x=${o.x.toFixed(1)}, z=${o.z.toFixed(1)}`));
 
     if (room) {
         room.send('editorSave', { objects });
-        console.log('[EDITOR] Сохранено объектов:', objects.length);
+        console.log('[EDITOR] Сохранение отправлено');
     }
 }
 
@@ -447,13 +432,4 @@ function onSnapToGroundAction() {
         snapToGround(selectedObject);
         updatePropertiesPanel(selectedObject);
     }
-}
-
-// Синхронизирует позицию, масштаб и поворот между клоном и оригиналом (двусторонне)
-function syncCloneToOriginal(clone: THREE.Object3D) {
-    const original = clone.userData.originalMesh as THREE.Object3D | undefined;
-    if (!original) return;
-    original.position.copy(clone.position);
-    original.rotation.copy(clone.rotation);
-    original.scale.copy(clone.scale);
 }

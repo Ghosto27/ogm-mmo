@@ -2,6 +2,7 @@ import * as THREE from 'three';
 
 // Создаём сцену
 export const scene = new THREE.Scene();
+(window as any).scene = scene;
 scene.background = new THREE.Color(0x87CEEB); // небесно-голубой
 
 // Камера

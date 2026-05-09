@@ -27,6 +27,7 @@ import { setQuestDefs, getQuestName } from './quest/questData';
 import { updateWorldObjects } from './render/WorldRenderer';
 import { updateTerrain, getTerrainHeightAt, terrainReady, getTerrainHeightAtFast } from './render/TerrainRenderer';
 import { addVegetationInstance, finalizeVegetation, isVegetationLoaded } from './render/VegetationRenderer';
+import { isEditorActive } from './editor/EditorState';
 
 export const client = new Client(SERVER_URL);
 export let room: any = null;
@@ -343,7 +344,9 @@ function join(playerName: string) {
         }
 
             // ------ Статические объекты ------
-            updateWorldObjects(state.worldObjects);
+            if (!isEditorActive()) {
+                updateWorldObjects(state.worldObjects);
+            }
 
             // ------ Ландшафт ------
             if (state.terrain) updateTerrain(state.terrain);

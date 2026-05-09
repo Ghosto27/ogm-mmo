@@ -625,12 +625,14 @@ export class MyRoom extends Room<MyRoomState> {
         });
 
         this.onMessage("editorSave", (client, message: { objects: any[] }) => {
+            console.log(`[SERVER-EDITOR] Получено объектов: ${message.objects.length}`);
+            message.objects.forEach(o => console.log(`  id=${o.id}, x=${o.x}, z=${o.z}`));
             const fs = require('fs');
             const path = require('path');
             const filePath = path.join(__dirname, '../data/editor_objects.json');
             fs.writeFileSync(filePath, JSON.stringify(message.objects, null, 2));
 
-            // Обновляем стейт: удаляем все editor_-объекты, добавляем новые
+            // Удаляем все editor_-объекты из стейта
             for (const id of this.state.worldObjects.keys()) {
                 if (id.startsWith('editor_')) this.state.worldObjects.delete(id);
             }

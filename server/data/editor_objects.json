@@ -1,15 +1,41 @@
 [
   {
-    "id": "editor_fb492561-7c0a-4e72-ac41-8592558511c9",
+    "id": "editor_2b561372-f60b-4f2f-8942-85f0d3909b7c",
     "modelName": "cube",
-    "x": -21.82,
-    "y": 0.5,
-    "z": -49.7,
+    "x": -21.40999984741211,
+    "y": 0.6000000238418579,
+    "z": -51.29999923706055,
     "scaleX": 1,
     "scaleY": 1,
-    "scaleZ": 1.8,
+    "scaleZ": 1.2999999523162842,
     "rotationY": 0,
     "rotationX": 0,
     "color": "#888888"
+  },
+  {
+    "id": "editor_538f7557-f625-4f88-9182-675a4a5b8b37",
+    "modelName": "cube",
+    "x": -26.639999389648438,
+    "y": 2.700000047683716,
+    "z": -52.400001525878906,
+    "scaleX": 1,
+    "scaleY": 1,
+    "scaleZ": 1,
+    "rotationY": 0,
+    "rotationX": 0,
+    "color": "#888888"
+  },
+  {
+    "id": "editor_06ef0228-2969-4f02-80c7-8668c257e0f5",
+    "modelName": "Tree_1",
+    "x": -30.7,
+    "y": -7.1,
+    "z": -46.85,
+    "scaleX": 1,
+    "scaleY": 2.1,
+    "scaleZ": 2.5,
+    "rotationY": 0,
+    "rotationX": 0,
+    "color": "#ffffff"
   }
 ]

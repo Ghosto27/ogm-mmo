@@ -5,6 +5,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { scene } from '../scene';
 import { getTerrainHeightAt, terrainReady } from './TerrainRenderer';
 import { addBoxCollider, addCylinderCollider } from '../collision';
+import { isEditorActive } from '../editor/EditorState';
 
 // Теперь храним любые объекты (Mesh или Group)
 export const worldMeshes: { [id: string]: THREE.Object3D } = {};
@@ -61,6 +62,7 @@ export async function createMesh(obj: any): Promise<THREE.Object3D | null> {
         const template = await loadModel(modelName);
         const clone = template.clone(true);
         clone.userData.editorMode = true;
+        clone.userData.editorType = 'model';
         clone.userData.modelName = modelName;
         return clone;
     } catch (err) {
@@ -89,22 +91,63 @@ export async function updateWorldObjects(worldObjects: any) {
     // Получаем массив записей и обрабатываем последовательно
     const entries = Array.from(worldObjects.entries()) as [string, any][];
     for (const [id, obj] of entries) {
-        // Пропускаем растительность
         if (id.startsWith('pine_') || id.startsWith('rocky_')) continue;
-        if (worldMeshes[id]) continue;
 
+        // --- ОБНОВЛЕНИЕ СУЩЕСТВУЮЩЕГО МЕША ---
+        if (worldMeshes[id]) {
+            // Если редактор активен, не обновляем editor_ объекты (ими управляет редактор)
+            if (id.startsWith('editor_') && isEditorActive()) {
+                continue;
+            }
+            const existing = worldMeshes[id];
+            //console.log(`[WORLD-UPDATE] id=${id}, oldPos=(${existing.position.x.toFixed(1)},${existing.position.y.toFixed(1)},${existing.position.z.toFixed(1)})`);
+
+            if (obj.y !== undefined) {
+                existing.position.set(obj.x, obj.y, obj.z);
+            } else {
+                const y = getTerrainHeightAt(obj.x, obj.z);
+                const offset = obj.modelName === 'plane' ? 0.05 : (obj.scaleY || 1) / 2;
+                existing.position.set(obj.x, y + offset, obj.z);
+            }
+            existing.scale.set(obj.scaleX, obj.scaleY, obj.scaleZ);
+            existing.rotation.y = obj.rotationY || 0;
+            existing.rotation.x = obj.rotationX || 0;
+
+            //console.log(`[WORLD-UPDATE] id=${id}, newPos=(${existing.position.x.toFixed(1)},${existing.position.y.toFixed(1)},${existing.position.z.toFixed(1)})`);
+
+            // Коллизии (только для примитивов, чтобы не забивать)
+            if (obj.modelName === 'cube') {
+                const halfExtents = new THREE.Vector3(
+                    (obj.scaleX || 1) / 2,
+                    (obj.scaleY || 1) / 2,
+                    (obj.scaleZ || 1) / 2
+                );
+                addBoxCollider(existing.position.clone(), halfExtents);
+            } else if (obj.modelName === 'cylinder') {
+                const radius = obj.scaleX || 1;
+                const height = obj.scaleY || 1;
+                const baseY = existing.position.y - height / 2;
+                addCylinderCollider(
+                    new THREE.Vector3(existing.position.x, baseY, existing.position.z),
+                    radius,
+                    height
+                );
+            }
+
+            continue;
+        }
+
+        // Создание нового меша (старый код без изменений)
         const obj3D = await createMesh(obj);
         if (!obj3D) continue;
+        if (id.startsWith('editor_') && isEditorActive()) {
+            // Не создаём новые editor_-объекты, пока редактор активен
+            continue;
+        }
 
-        // Позиция с учётом ландшафта
         if (obj.y !== undefined) {
-            // Объект редактора – используем сохранённую высоту
-            // Статическая деревня – высчитываем по террейну
-            const y = getTerrainHeightAt(obj.x, obj.z);
-            const offset = obj.modelName === 'plane' ? 0.05 : (obj.scaleY || 1) / 2;
             obj3D.position.set(obj.x, obj.y, obj.z);
         } else {
-            // Статическая деревня – высчитываем по террейну
             const y = getTerrainHeightAt(obj.x, obj.z);
             const offset = obj.modelName === 'plane' ? 0.05 : (obj.scaleY || 1) / 2;
             obj3D.position.set(obj.x, y + offset, obj.z);
