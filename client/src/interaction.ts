@@ -31,6 +31,39 @@ function getIntersections(event: MouseEvent, targets: THREE.Object3D[]): THREE.I
     return raycaster.intersectObjects(targets, true);
 }
 
+function tryAttack(
+    event: MouseEvent,
+    targets: THREE.Object3D[],
+    getTargetId: (obj: THREE.Object3D) => string | null,
+    attackCommand: string,
+    range: number
+) {
+    const intersects = getIntersections(event, targets);
+    if (intersects.length === 0) return false;
+
+    const hitObj = intersects[0].object;
+    const targetId = getTargetId(hitObj);
+    if (!targetId || !room || !localModel) return false;
+
+    const targetModel = targets.find(t => {
+        let found = false;
+        t.traverse(child => { if (child === hitObj) found = true; });
+        return found;
+    });
+    if (!targetModel) return false;
+
+    const dist = localModel.position.distanceTo(targetModel.position);
+    if (dist > range) {
+        console.log(`[ATTACK] Цель далеко (${dist.toFixed(2)})`);
+        return false;
+    }
+
+    room.send(attackCommand, { target: targetId, mobId: targetId });
+    fsm['local']?.requestAttack();
+    console.log(`[ATTACK] Атака ${attackCommand} на ${targetId} (дист. ${dist.toFixed(2)})`);
+    return true;
+}
+
 // ---------- Обработка нажатия кнопок мыши ----------
 window.addEventListener('mousedown', (event) => {
     if (isEditorActive()) return;
@@ -45,53 +78,21 @@ window.addEventListener('mouseup', (event) => {
         // Правая кнопка: атака (короткий клик)
         const duration = Date.now() - rightButtonDownTime;
         if (duration < CLICK_THRESHOLD_MS) {
-            // Сначала проверяем попадание в игроков
+           // Атака по игрокам
             const playerTargets = Object.values(otherPlayers).filter(m => m.visible);
-            const playerInters = getIntersections(event, playerTargets);
-            if (playerInters.length > 0) {
-                const mesh = playerInters[0].object as THREE.Mesh;
-                const targetId = mesh.userData.sessionId;
-                if (targetId && room && localModel) {
-                    const targetModel = otherPlayers[targetId];
-                    if (!targetModel) return;
-                    const dist = targetModel.position.distanceTo(localModel.position);
-                    if (dist <= 4) {
-                        room.send("attack", { target: targetId });
-                        fsm['local']?.requestAttack();
-                        console.log(`[ATTACK] Игрок ${targetId} (дист. ${dist.toFixed(2)})`);
-                    } else {
-                        console.log(`[ATTACK] Игрок далеко (${dist.toFixed(2)})`);
-                    }
-                }
-                return;
-            }
+            if (tryAttack(event, playerTargets, (obj) => obj.userData?.sessionId || null, 'attack', 4)) return;
 
-            // Затем проверяем мобов
+            // Атака по мобам
             const mobTargets: THREE.Object3D[] = Object.values(mobModels).filter(m => m.visible);
-            const mobInters = getIntersections(event, mobTargets);
-            if (mobInters.length > 0) {
-                const mesh = mobInters[0].object as THREE.Mesh;
-                const mobId = Object.keys(mobModels).find(id => {
+            const getMobId = (obj: THREE.Object3D) => {
+                for (const id in mobModels) {
                     let found = false;
-                    mobModels[id].traverse(child => { if (child === mesh) found = true; });
-                    return found;
-                });
-                if (mobId && room && localModel) {
-                    const mobModel = mobModels[mobId];
-                    if (mobModel) {
-                        const dist = mobModel.position.distanceTo(localModel.position);
-                        const ATTACK_RANGE = 4;   // можно изменить на нужную дистанцию
-                        if (dist <= ATTACK_RANGE) {
-                            room.send("attackMob", { mobId });
-                            fsm['local']?.requestAttack();
-                            console.log(`[ATTACK] Атака на моба ${mobId} (дист. ${dist.toFixed(2)})`);
-                        } else {
-                            console.log(`[ATTACK] Моб далеко (${dist.toFixed(2)})`);
-                        }
-                    }
+                    mobModels[id].traverse(child => { if (child === obj) found = true; });
+                    if (found) return id;
                 }
-                return;
-            }
+                return null;
+            };
+            if (tryAttack(event, mobTargets, getMobId, 'attackMob', 4)) return;
         }
     }
 
