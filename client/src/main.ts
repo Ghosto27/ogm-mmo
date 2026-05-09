@@ -97,6 +97,12 @@ setTimeout(() => renderer.domElement.focus({ preventScroll: true }), 100);
 let lastSend = 0;
 let lastTime = performance.now();
 const playerPhysicalPos = new THREE.Vector3();
+// Переиспользуемые векторы
+const _moveVec = new THREE.Vector3();
+const _rawDelta = new THREE.Vector3();
+const _currentPos = new THREE.Vector3();
+const _forward = new THREE.Vector3();
+const _right = new THREE.Vector3();
 
 function loop() {
     updateFPS();
@@ -105,6 +111,7 @@ function loop() {
     const now = performance.now();
     const deltaTime = (now - lastTime) / 1000;
     lastTime = now;
+    let lastDebugVisible = false;
 
     if (!room || !localModel) return;
 
@@ -119,12 +126,14 @@ function loop() {
         updateEditor(deltaTime)
 
         // Рендер сцены (без обновления анимаций игрока и мобов)
-        if (isCollisionDebugVisible()) {
+        const debugVisible = isCollisionDebugVisible();
+        if (debugVisible) {
             updateCollisionDebug(getAllColliders(), localModel.position, 20);
-        } else {
-            // Если отладка была включена и её выключили, очищаем
+        } else if (lastDebugVisible && !debugVisible) {
+            // однократная очистка при выключении
             updateCollisionDebug([], localModel.position, 20);
         }
+        lastDebugVisible = debugVisible;
         composer.render();
         renderLabels(scene, camera);
         return; // прерываем выполнение игровой логики
@@ -135,12 +144,10 @@ function loop() {
     const alive = myPlayer && myPlayer.hp > 0;
 
     if (alive) {
-        let moveVec: THREE.Vector3;
-
         if (isRightDragging) {
-            moveVec = getCameraRelativeMovement(camera);
-            if (moveVec.lengthSq() > 0) {
-                const targetAngle = Math.atan2(moveVec.x, moveVec.z);
+            _moveVec.copy(getCameraRelativeMovement(camera));
+            if (_moveVec.lengthSq() > 0) {
+                const targetAngle = Math.atan2(_moveVec.x, _moveVec.z);
                 const rotationSpeed = 10.0;
                 const currentAngle = localModel.rotation.y;
                 let angleDiff = targetAngle - currentAngle;
@@ -150,26 +157,25 @@ function loop() {
             }
         } else {
             if (isChatActive()) {
-                moveVec = new THREE.Vector3(0, 0, 0);
+                _moveVec.set(0, 0, 0);
             } else {
                 const raw = getMovementInput();
-                moveVec = new THREE.Vector3(0, 0, 0);
                 if (raw.x !== 0 || raw.z !== 0) {
-                    const forward = new THREE.Vector3(0, 0, 1)
-                        .applyQuaternion(localModel!.quaternion);
-                    forward.y = 0; forward.normalize();
-                    const right = new THREE.Vector3(1, 0, 0)
-                        .applyQuaternion(localModel!.quaternion);
-                    right.y = 0; right.normalize();
-
-                    moveVec.add(forward.multiplyScalar(-raw.z));
-                    moveVec.add(right.multiplyScalar(raw.x));
-                    moveVec.normalize();
+                    _forward.set(0, 0, 1).applyQuaternion(localModel!.quaternion);
+                    _forward.y = 0; _forward.normalize();
+                    _right.set(1, 0, 0).applyQuaternion(localModel!.quaternion);
+                    _right.y = 0; _right.normalize();
+                    _moveVec.set(0, 0, 0)
+                        .addScaledVector(_forward, -raw.z)
+                        .addScaledVector(_right, raw.x)
+                        .normalize();
+                } else {
+                    _moveVec.set(0, 0, 0);
                 }
             }
         }
 
-        const isMoving = moveVec.lengthSq() > 0;
+        const isMoving = _moveVec.lengthSq() > 0;
 
         if (isMoving) {
             const speedMultiplier = sprintKey ? SPRINT_MULTIPLIER : 1.0;
@@ -200,9 +206,9 @@ function loop() {
 
             updateDynamicColliders(dynamicEntities);
 
-            const rawDelta = new THREE.Vector3(moveVec.x * delta, 0, moveVec.z * delta);
-            const currentPos = playerPhysicalPos.clone();
-            const newPos = applyMovementWithCollisions(currentPos, rawDelta);
+            _rawDelta.set(_moveVec.x * delta, 0, _moveVec.z * delta);
+            _currentPos.copy(playerPhysicalPos);
+            const newPos = applyMovementWithCollisions(_currentPos, _rawDelta);
             playerPhysicalPos.copy(newPos);
             localModel.position.copy(newPos).y -= PLAYER_RADIUS - 0.15;   // визуальное опускание
 
