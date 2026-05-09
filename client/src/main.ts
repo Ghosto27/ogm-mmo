@@ -206,18 +206,6 @@ function loop() {
             playerPhysicalPos.copy(newPos);
             localModel.position.copy(newPos).y -= PLAYER_RADIUS - 0.15;   // визуальное опускание
 
-            /* localModel.position.x = newPos.x;
-            localModel.position.z = newPos.z;
-            localModel.position.y = newPos.y; */
-
-            /* if (localModel) {
-                const terrainY = getTerrainHeightAt(localModel.position.x, localModel.position.z);
-                const minY = terrainY + 0.1;
-                if (localModel.position.y < minY) {
-                    localModel.position.y = minY;
-                }
-            } */
-
             const nowSend = Date.now();
             if (nowSend - lastSend > 50) {
                 try {

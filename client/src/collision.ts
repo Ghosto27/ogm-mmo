@@ -10,15 +10,15 @@ interface SphereCollider {
 
 interface CylinderCollider {
     type: 'cylinder';
-    center: THREE.Vector3;   // центр нижнего основания
+    center: THREE.Vector3;
     radius: number;
     height: number;
 }
 
 interface BoxCollider {
     type: 'box';
-    center: THREE.Vector3;      // центр коробки
-    halfExtents: THREE.Vector3; // половинные размеры по осям
+    center: THREE.Vector3;
+    halfExtents: THREE.Vector3;
 }
 
 interface OBBCollider {
@@ -70,11 +70,6 @@ export function updateDynamicColliders(
     } as SphereCollider));
 }
 
-// ---------- Проверки и вспомогательные функции ----------
-
-const playerSphere = new THREE.Sphere(new THREE.Vector3(), PLAYER_RADIUS);
-
-
 // ---------- Основной метод движения со слайдингом ----------
 
 export function applyMovementWithCollisions(
@@ -89,7 +84,6 @@ export function applyMovementWithCollisions(
     const stepDelta = rawDelta.clone().divideScalar(steps);
 
     let resultPos = currentPos.clone();
-    let remainingDelta = rawDelta.clone(); // для слайдинга внутри шага (будет перезаписываться)
 
     for (let s = 0; s < steps; s++) {
         // Выполняем один суб-шаг с существующей логикой коллизий, но ограниченный stepDelta
@@ -112,9 +106,7 @@ function applySingleStep(currentPos: THREE.Vector3, delta: THREE.Vector3): THREE
         let collided = false;
         let closestInfo: { normal: THREE.Vector3; pushTo: THREE.Vector3 } | null = null;
         let minDistSq = Infinity;
-
         const all = [...colliders, ...dynamicColliders];
-        const playerSphere = new THREE.Sphere(new THREE.Vector3(), PLAYER_RADIUS);
 
         for (const col of all) {
             if (col.type === 'sphere') {
@@ -230,7 +222,6 @@ function applySingleStep(currentPos: THREE.Vector3, delta: THREE.Vector3): THREE
 /** Вычисляет высоту опоры (пола) под текущей позицией игрока (XZ) */
 function computeGroundHeight(pos: THREE.Vector3): number {
     let bestY = -Infinity;
-    const halfHeight = PLAYER_RADIUS; // нижняя точка коллайдера
 
     for (const col of colliders) {
         if (col.type === 'obb') {
