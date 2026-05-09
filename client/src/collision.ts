@@ -52,10 +52,6 @@ export function addCylinderCollider(baseCenter: THREE.Vector3, radius: number, h
     colliders.push({ type: 'cylinder', center: baseCenter.clone(), radius, height });
 }
 
-export function addBoxCollider(center: THREE.Vector3, halfExtents: THREE.Vector3) {
-    colliders.push({ type: 'box', center: center.clone(), halfExtents: halfExtents.clone() });
-}
-
 export function addOBBCollider(center: THREE.Vector3, halfExtents: THREE.Vector3, rotation: THREE.Quaternion) {
     const rotMatrix = new THREE.Matrix4().makeRotationFromQuaternion(rotation);
     colliders.push({ type: 'obb', center: center.clone(), halfExtents: halfExtents.clone(), rotation: rotMatrix });
@@ -165,19 +161,6 @@ function applySingleStep(currentPos: THREE.Vector3, delta: THREE.Vector3): THREE
                         collided = true;
                         minDistSq = 0;
                     }
-                }
-            } else if (col.type === 'box') {
-                const box = col as BoxCollider;
-                const { halfExtents, center } = box;
-                const closestX = Math.max(center.x - halfExtents.x, Math.min(resultPos.x, center.x + halfExtents.x));
-                const closestY = Math.max(center.y - halfExtents.y, Math.min(resultPos.y, center.y + halfExtents.y));
-                const closestZ = Math.max(center.z - halfExtents.z, Math.min(resultPos.z, center.z + halfExtents.z));
-                const dx = resultPos.x - closestX;
-                const dz = resultPos.z - closestZ;
-                const dy = resultPos.y - closestY;
-                const distSq = dx*dx + dy*dy + dz*dz;
-                if (distSq < PLAYER_RADIUS * PLAYER_RADIUS) {
-                    // ... существующая логика box (оставьте как была) ... НЕ НУЖНА
                 }
             } else if (col.type === 'obb') {
                 const obb = col as OBBCollider;
