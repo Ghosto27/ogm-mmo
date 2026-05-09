@@ -1,25 +1,15 @@
 // WorldRenderer.ts — добавлена поддержка GLTF-моделей
 
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { scene } from '../scene';
 import { getTerrainHeightAt, terrainReady } from './TerrainRenderer';
 import { addCylinderCollider, addOBBCollider, addSphereCollider } from '../collision';
 import { isEditorActive } from '../editor/EditorState';
 import { getColliderConfig } from '../collisionConfig';
+import { createModelClone } from '../utils/modelLoader';
 
 // Теперь храним любые объекты (Mesh или Group)
 export const worldMeshes: { [id: string]: THREE.Object3D } = {};
-const modelCache = new Map<string, Promise<THREE.Group>>();
-
-/** Загружает GLTF-модель (с кэшированием) */
-async function loadModel(modelName: string): Promise<THREE.Group> {
-    if (modelCache.has(modelName)) return modelCache.get(modelName)!;
-    const loader = new GLTFLoader();
-    const promise = loader.loadAsync(`/models/${modelName}.glb`).then(gltf => gltf.scene);
-    modelCache.set(modelName, promise);
-    return promise;
-}
 
 /**
  * Создаёт меш или группу в зависимости от modelName.
@@ -60,10 +50,8 @@ export async function createMesh(obj: any): Promise<THREE.Object3D | null> {
 
     // GLTF модель
     try {
-        const template = await loadModel(modelName);
-        const clone = template.clone(true);
+        const clone = await createModelClone(modelName);
         clone.userData.editorMode = true;
-        clone.userData.editorType = 'model';
         clone.userData.modelName = modelName;
         return clone;
     } catch (err) {

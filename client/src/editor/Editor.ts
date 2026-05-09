@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { room } from '../network';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { scene, camera, renderer } from '../scene';
 import { setEditorActive, isEditorActive } from './EditorState';
@@ -13,6 +12,7 @@ import {
 import { inputState, sprintKey } from '../input';
 import { terrainMesh, getTerrainHeightAtFast } from '../render/TerrainRenderer';
 import { worldMeshes } from '../render/WorldRenderer';
+import { createModelClone } from '../utils/modelLoader';
 
 let transformControls: TransformControls;
 let editorObjects: THREE.Object3D[] = [];
@@ -24,7 +24,6 @@ let vegetationZones: any[] = [];
 let zoneDrawing = false;
 let zoneStartPoint: THREE.Vector3 | null = null;
 let zoneLines: THREE.LineLoop[] = [];
-const modelTemplates = new Map<string, THREE.Group>();
 
 // ---------- свободная камера (оставлено без изменений) ----------
 let freeCameraEnabled = false;
@@ -116,25 +115,13 @@ function createPrimitive(type: 'cube' | 'cylinder', x: number, z: number): THREE
     return mesh;
 }
 
-async function loadModelTemplate(modelName: string): Promise<THREE.Group> {
-    if (modelTemplates.has(modelName)) {
-        return modelTemplates.get(modelName)!;
-    }
-    const loader = new GLTFLoader();
-    const gltf = await loader.loadAsync(`/models/${modelName}.glb`);
-    const template = gltf.scene;
-    modelTemplates.set(modelName, template);
-    return template;
-}
-
 async function createModelInstance(x: number, z: number): Promise<THREE.Group | null> {
     try {
-        const template = await loadModelTemplate(selectedModelName);
-        const clone = template.clone(true);
+        const clone = await createModelClone(selectedModelName);
         clone.position.set(x, 0, z);
         const box = new THREE.Box3().setFromObject(clone);
         clone.userData.baseHeight = box.max.y - box.min.y;
-        clone.userData.baseMinY = box.min.y;
+        clone.userData.baseMinY = 0;      // модели имеют pivot внизу
         clone.userData.editorMode = true;
         clone.userData.editorType = 'model';
         clone.userData.modelName = selectedModelName;
