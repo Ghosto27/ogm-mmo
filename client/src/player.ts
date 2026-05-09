@@ -21,7 +21,6 @@ export const modelReady = new Promise<void>((resolve, reject) => {
             modelTemplate.matrixAutoUpdate = false;
             if (modelTemplate.parent) modelTemplate.parent.remove(modelTemplate);
             defaultAnimations = gltf.animations;
-            //modelTemplate.scale.set(1, 1, 1);
             console.log('[MODEL] Шаблон Player загружен. Анимаций:', defaultAnimations.length);
             resolve();
         },
@@ -44,27 +43,16 @@ function createModelInstance(sessionId?: string): THREE.Group {
     const model = clone(modelTemplate) as unknown as THREE.Group;
     model.visible = true;
     model.matrixAutoUpdate = true;
-
-
-    
-    //model.rotation.set(0, Math.PI, 0);
     model.scale.set(1, 1, 1);
 
     model.traverse((child: THREE.Object3D) => {
         if (child instanceof THREE.Mesh) {
             const orig = child.material as THREE.MeshStandardMaterial;
-            //const newMat = cloneMaterial(orig, sessionId);
-            //child.material = newMat;
-            //console.log(`[MAT] ${child.name}: vertexColors orig=${orig.vertexColors}, new=${(child.material as any).vertexColors}`);
             child.castShadow = true;
             child.receiveShadow = true;
             if (sessionId) child.userData.sessionId = sessionId;
         }
     });
-    /* model.updateMatrixWorld();
-    const box = new THREE.Box3().setFromObject(model);
-    const finalHeight = box.max.y - box.min.y;
-    console.log(`[PLAYER] Final visible height: ${finalHeight.toFixed(3)} units`); */
 
     const mixer = new THREE.AnimationMixer(model);
     const id = sessionId || 'local';
@@ -77,13 +65,12 @@ function createModelInstance(sessionId?: string): THREE.Group {
         'mf_run_fwd': 'run',
         'mm_death01': 'death',
         'mm_punch01': 'sword_attack',
-        // позже добавим hit react и т.д.
     };
 
     defaultAnimations.forEach((clip) => {
         const action = mixer.clipAction(clip, model);
         const rawName = clip.name.toLowerCase();
-        const mappedName = nameMapping[rawName] || rawName; // если нет в маппинге – оставляем оригинальное имя
+        const mappedName = nameMapping[rawName] || rawName;
         actions[id][mappedName] = action;
     });
 
@@ -200,8 +187,6 @@ export function updateOtherPlayer(
             }, 500);
             return;
         } else {
-            // Если модель была невидимой, а теперь координаты стали ненулевыми – показываем
-            
             if (x === 0 && z === 0) return;
             //console.log(`[DEV] ${sessionId}, x=${x}, z=${z}`);
             if (otherPlayers[sessionId]) {
@@ -241,20 +226,4 @@ export function removeOtherPlayerVisuals(sessionId: string) {
     if (actions[sessionId]) delete actions[sessionId];
     if (deathAnimating[sessionId]) delete deathAnimating[sessionId];
     if (fsm[sessionId]) delete fsm[sessionId];
-}
-export function resetModelFsms() {
-    // Удаляем все существующие FSM (для локального и чужих игроков)
-    for (const id in fsm) {
-        // Останавливаем все действия, чтобы сбросить состояние
-        const playerFsm = fsm[id];
-        if (playerFsm) {
-            const curActions = actions[id];
-            if (curActions) {
-                Object.values(curActions).forEach(a => a?.stop());
-            }
-            delete fsm[id];
-        }
-    }
-    // Очищаем хранилище actions (если нужно, но actions живут вместе с FSM)
-    // Если у вас actions[id] привязаны к FSM, их можно не трогать.
 }
