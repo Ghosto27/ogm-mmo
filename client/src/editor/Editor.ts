@@ -7,12 +7,12 @@ import { setEditorActive, isEditorActive } from './EditorState';
 import {
     createEditorUI, showEditorUI,
     updatePropertiesPanel, getScaleFromInputs, getPositionFromInputs,
-    setVegetationZones, getVegetationZones, showVegetationZoneProps,
-    getVegetationZoneFromInputs, getRotationFromInputs
+    setVegetationZones, showVegetationZoneProps,
+    getRotationFromInputs
 } from './EditorUI';
 import { inputState, sprintKey } from '../input';
-import { terrainMesh, getTerrainHeightAtFast, getTerrainHeightAt } from '../render/TerrainRenderer';
-import { worldMeshes, createMesh, updateWorldObjects } from '../render/WorldRenderer';
+import { terrainMesh, getTerrainHeightAtFast } from '../render/TerrainRenderer';
+import { worldMeshes } from '../render/WorldRenderer';
 
 let transformControls: TransformControls;
 let editorObjects: THREE.Object3D[] = [];
@@ -21,9 +21,6 @@ let placementMode = false;
 let placementType: 'cube' | 'cylinder' | 'model' = 'cube';
 let selectedModelName = 'Tree_1';
 let vegetationZones: any[] = [];
-let drawingZone = false;
-let zoneStart: THREE.Vector3 | null = null;
-let zonePreview: THREE.Line | null = null;
 let zoneDrawing = false;
 let zoneStartPoint: THREE.Vector3 | null = null;
 let zonePreviewLines: THREE.Line[] = []; // временные линии прямоугольника
@@ -270,7 +267,7 @@ function onPropertiesChanged() {
     const pos = getPositionFromInputs();
     const scl = getScaleFromInputs();
     const rot = getRotationFromInputs();
-    console.log(`[EDITOR-PANEL] uuid=${selectedObject.uuid}, oldPos=(${selectedObject.position.x.toFixed(1)},${selectedObject.position.y.toFixed(1)},${selectedObject.position.z.toFixed(1)}), newPos=(${pos.x.toFixed(1)},${pos.y.toFixed(1)},${pos.z.toFixed(1)})`);
+    //console.log(`[EDITOR-PANEL] uuid=${selectedObject.uuid}, oldPos=(${selectedObject.position.x.toFixed(1)},${selectedObject.position.y.toFixed(1)},${selectedObject.position.z.toFixed(1)}), newPos=(${pos.x.toFixed(1)},${pos.y.toFixed(1)},${pos.z.toFixed(1)})`);
     selectedObject.position.set(pos.x, pos.y, pos.z);
     selectedObject.scale.set(scl.x, scl.y, scl.z);
     selectedObject.rotation.set(rot.x, rot.y, rot.z);
@@ -318,7 +315,7 @@ export function initEditor() {
     transformControls = new TransformControls(camera, renderer.domElement);
     transformControls.addEventListener('change', () => {
         if (selectedObject) {
-            console.log(`[EDITOR-GIZMO] uuid=${selectedObject.uuid}, newPos=(${selectedObject.position.x.toFixed(1)},${selectedObject.position.y.toFixed(1)},${selectedObject.position.z.toFixed(1)})`);
+            //console.log(`[EDITOR-GIZMO] uuid=${selectedObject.uuid}, newPos=(${selectedObject.position.x.toFixed(1)},${selectedObject.position.y.toFixed(1)},${selectedObject.position.z.toFixed(1)})`);
             updatePropertiesPanel(selectedObject);
         }
     });
@@ -365,7 +362,7 @@ async function enterEditorMode() {
         }
     });
     toRemove.forEach(obj => {
-        console.log(`[EDITOR] Удалён мусорный объект: uuid=${obj.uuid}, pos=(${obj.position.x.toFixed(1)},${obj.position.y.toFixed(1)},${obj.position.z.toFixed(1)})`);
+        //console.log(`[EDITOR] Удалён мусорный объект: uuid=${obj.uuid}, pos=(${obj.position.x.toFixed(1)},${obj.position.y.toFixed(1)},${obj.position.z.toFixed(1)})`);
         scene.remove(obj);
     });
     // ---
@@ -376,7 +373,7 @@ async function enterEditorMode() {
         const mesh = worldMeshes[id];
         mesh.userData.editorId = id;
         editorObjects.push(mesh);
-        console.log(`[EDITOR-LOAD] id=${id}, mesh.uuid=${mesh.uuid}, pos=(${mesh.position.x.toFixed(1)},${mesh.position.y.toFixed(1)},${mesh.position.z.toFixed(1)})`);
+        //console.log(`[EDITOR-LOAD] id=${id}, mesh.uuid=${mesh.uuid}, pos=(${mesh.position.x.toFixed(1)},${mesh.position.y.toFixed(1)},${mesh.position.z.toFixed(1)})`);
     }
     // Восстанавливаем editorType для моделей (если не был установлен ранее)
     for (const obj of editorObjects) {

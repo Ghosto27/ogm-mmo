@@ -324,5 +324,4 @@ function loop() {
     renderLabels(scene, camera);
 }
 
-console.log('TEST')
 loop();

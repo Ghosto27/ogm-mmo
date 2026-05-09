@@ -1,7 +1,4 @@
 import * as THREE from 'three';
-import { room } from './network';
-import { camera } from './scene';
-import { otherPlayers } from './player';
 import { isChatActive } from './chat/chatInput';
 import { normalizeKey } from './keyboard';
 
