@@ -28,6 +28,7 @@ import { updateWorldObjects } from './render/WorldRenderer';
 import { updateTerrain, getTerrainHeightAt, terrainReady, getTerrainHeightAtFast } from './render/TerrainRenderer';
 import { addVegetationInstance, finalizeVegetation, isVegetationLoaded } from './render/VegetationRenderer';
 import { isEditorActive } from './editor/EditorState';
+import { applyVegetationZones } from './editor/Editor';
 
 export const client = new Client(SERVER_URL);
 export let room: any = null;
@@ -431,6 +432,15 @@ function join(playerName: string) {
                 localModel.position.z = message.z;
                 const terrainY = getTerrainHeightAtFast(message.x, message.z);
                 localModel.position.y = terrainY + 0.1;
+            }
+        });
+
+        // Подписка на получение зон растительности от сервера
+        room.onMessage('vegetationZonesData', (data: { zones: any[] }) => {
+            const zones = data.zones || [];
+            // Отправляем зоны в редактор (динамический импорт, чтобы избежать циклической зависимости)
+            if (applyVegetationZones) {
+                applyVegetationZones(zones);
             }
         });
 

@@ -9,6 +9,7 @@ export class WorldObject extends Schema {
     @type("number") y: number = 0;
     @type("number") rotationY: number = 0;
     @type("number") rotationX: number = 0;
+    @type("number") rotationZ: number = 0;
     @type("number") scaleX: number = 1;
     @type("number") scaleY: number = 1;
     @type("number") scaleZ: number = 1;

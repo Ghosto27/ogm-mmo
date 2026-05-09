@@ -112,6 +112,7 @@ export async function updateWorldObjects(worldObjects: any) {
             existing.scale.set(obj.scaleX, obj.scaleY, obj.scaleZ);
             existing.rotation.y = obj.rotationY || 0;
             existing.rotation.x = obj.rotationX || 0;
+            existing.rotation.z = obj.rotationZ || 0;
 
             //console.log(`[WORLD-UPDATE] id=${id}, newPos=(${existing.position.x.toFixed(1)},${existing.position.y.toFixed(1)},${existing.position.z.toFixed(1)})`);
 
@@ -155,6 +156,7 @@ export async function updateWorldObjects(worldObjects: any) {
         obj3D.scale.set(obj.scaleX, obj.scaleY, obj.scaleZ);
         obj3D.rotation.y = obj.rotationY || 0;
         obj3D.rotation.x = obj.rotationX || 0;
+        obj3D.rotation.z = obj.rotationZ || 0;
 
         scene.add(obj3D);
 

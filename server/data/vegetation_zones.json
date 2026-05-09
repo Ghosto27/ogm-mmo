@@ -1,0 +1,44 @@
+[
+  {
+    "id": "custom_zone_1778318770872",
+    "centerX": 17.59570512183432,
+    "centerZ": -87.76061432002291,
+    "width": 26.82816917906827,
+    "depth": 89.24699064888995,
+    "objectType": "tree",
+    "modelNames": [
+      "Tree_1"
+    ],
+    "count": 18,
+    "minScale": 1,
+    "maxScale": 3.2
+  },
+  {
+    "id": "custom_zone_1778318944448",
+    "centerX": 16.76167988328774,
+    "centerZ": -166.03909953009185,
+    "width": 170.70839293934495,
+    "depth": 62.03377760101225,
+    "objectType": "rock",
+    "modelNames": [
+      "Tree_1"
+    ],
+    "count": 10,
+    "minScale": 1,
+    "maxScale": 3
+  },
+  {
+    "id": "custom_zone_1778318957680",
+    "centerX": 20.953952251797585,
+    "centerZ": -22.445316472305677,
+    "width": 93.63322228845342,
+    "depth": 27.62861091896663,
+    "objectType": "tree",
+    "modelNames": [
+      "Tree_2"
+    ],
+    "count": 10,
+    "minScale": 1,
+    "maxScale": 3
+  }
+]

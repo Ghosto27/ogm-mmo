@@ -6,9 +6,11 @@ import { scene, camera, renderer } from '../scene';
 import { setEditorActive, isEditorActive } from './EditorState';
 import {
     createEditorUI, showEditorUI,
-    updatePropertiesPanel, getScaleFromInputs, getPositionFromInputs
+    updatePropertiesPanel, getScaleFromInputs, getPositionFromInputs,
+    setVegetationZones, getVegetationZones, showVegetationZoneProps,
+    getVegetationZoneFromInputs, getRotationFromInputs
 } from './EditorUI';
-import { inputState } from '../input';
+import { inputState, sprintKey } from '../input';
 import { terrainMesh, getTerrainHeightAtFast, getTerrainHeightAt } from '../render/TerrainRenderer';
 import { worldMeshes, createMesh, updateWorldObjects } from '../render/WorldRenderer';
 
@@ -18,6 +20,14 @@ let selectedObject: THREE.Object3D | null = null;
 let placementMode = false;
 let placementType: 'cube' | 'cylinder' | 'model' = 'cube';
 let selectedModelName = 'Tree_1';
+let vegetationZones: any[] = [];
+let drawingZone = false;
+let zoneStart: THREE.Vector3 | null = null;
+let zonePreview: THREE.Line | null = null;
+let zoneDrawing = false;
+let zoneStartPoint: THREE.Vector3 | null = null;
+let zonePreviewLines: THREE.Line[] = []; // временные линии прямоугольника
+let zoneLines: THREE.LineLoop[] = [];
 // Кэш загруженных моделей (имя → группа)
 const modelTemplates = new Map<string, THREE.Group>();
 
@@ -88,9 +98,10 @@ function stopFreeCamera() {
 }
 
 function moveCamera(deltaTime: number) {
+    if (!freeCameraEnabled) return;
     const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
     const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
-    const speed = cameraSpeed * deltaTime;
+    const speed = cameraSpeed * deltaTime * (sprintKey ? 3.0 : 1.0);
     if (inputState.forward) camera.position.addScaledVector(forward, speed);
     if (inputState.backward) camera.position.addScaledVector(forward, -speed);
     if (inputState.right) camera.position.addScaledVector(right, speed);
@@ -188,6 +199,7 @@ async function onEditorClick(event: MouseEvent) {
     if (!freeCameraEnabled) return;
     if (event.button !== 0) return;
     if (mouseDragged) return;
+    if (zoneDrawing) { handleZoneClick(event); return; }
 
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
@@ -257,9 +269,11 @@ function onPropertiesChanged() {
     if (!selectedObject) return;
     const pos = getPositionFromInputs();
     const scl = getScaleFromInputs();
+    const rot = getRotationFromInputs();
     console.log(`[EDITOR-PANEL] uuid=${selectedObject.uuid}, oldPos=(${selectedObject.position.x.toFixed(1)},${selectedObject.position.y.toFixed(1)},${selectedObject.position.z.toFixed(1)}), newPos=(${pos.x.toFixed(1)},${pos.y.toFixed(1)},${pos.z.toFixed(1)})`);
     selectedObject.position.set(pos.x, pos.y, pos.z);
     selectedObject.scale.set(scl.x, scl.y, scl.z);
+    selectedObject.rotation.set(rot.x, rot.y, rot.z);
     transformControls.update(0);
 }
 
@@ -274,15 +288,31 @@ function onPlacementToggle(type: string) {
 
 // ---------- Экспортные функции ----------
 export function initEditor() {
-    createEditorUI(
-        () => {},     // не используется
-        onSaveAction,
-        onDeleteAction,
-        onPropertiesChanged,
-        onPlacementToggle,
-        (modelName) => { selectedModelName = modelName; },
-        onSnapToGroundAction   // <-- добавить новый колбэк
-    );
+    // Подписываемся на получение зон с сервера (должно быть до первого запроса)
+
+
+    createEditorUI({
+        onSaveStatic: onSaveAction,
+        onDeleteStatic: onDeleteAction,
+        onPropertiesChanged: onPropertiesChanged,
+        onPlacementToggle: onPlacementToggle,
+        onSnapToGround: onSnapToGroundAction,
+        onModelChanged: (modelName) => { selectedModelName = modelName; },
+        onNewVegetationZone: startDrawingZone,
+        onSaveVegetationZones: saveVegetationZones,
+        onDeleteVegetationZone: deleteSelectedZone,
+        onVegetationZoneSelected: (index) => {
+            showVegetationZoneProps(index);
+            highlightZone(index);
+        },
+        onTabVegetationSelected: () => { requestVegetationZones(); },
+    });
+
+    function requestVegetationZones() {
+        if (!room) return;
+        room.send('getVegetationZones');
+        console.log('[EDITOR] Запрошены зоны с сервера');
+    }
 
     // TransformControls
     transformControls = new TransformControls(camera, renderer.domElement);
@@ -380,6 +410,8 @@ function exitEditorMode() {
     stopFreeCamera();
     deselectObject();
     placementMode = false;
+    clearZoneVisuals();
+    vegetationZones = [];
 
     editorObjects = [];
     console.log('[EDITOR] Выход из редактора');
@@ -409,6 +441,7 @@ function onSaveAction() {
         scaleZ: obj.scale.z,
         rotationY: obj.rotation.y,
         rotationX: obj.rotation.x,
+        rotationZ: obj.rotation.z,
         color: '#' + ((obj as any).material?.color?.getHexString?.() || 'ffffff'),
     }));
 
@@ -431,5 +464,133 @@ function onSnapToGroundAction() {
     if (selectedObject) {
         snapToGround(selectedObject);
         updatePropertiesPanel(selectedObject);
+    }
+}
+
+// === Логика зон растительности ===
+
+function startDrawingZone() {
+    zoneDrawing = true;
+    zoneStartPoint = null;
+    // Убираем старый превью
+    clearZonePreview();
+    console.log('[EDITOR] Начало рисования зоны. Кликните по террейну для установки центра.');
+}
+
+function clearZonePreview() {
+    zonePreviewLines.forEach(line => scene.remove(line));
+    zonePreviewLines = [];
+}
+
+function handleZoneClick(event: MouseEvent) {
+    if (!terrainMesh) return;
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObject(terrainMesh);
+    if (intersects.length === 0) return;
+    const point = intersects[0].point;
+
+    if (!zoneStartPoint) {
+        zoneStartPoint = point.clone();
+        // Показываем точку или маркер (опционально)
+    } else {
+        // Завершаем прямоугольник: zoneStartPoint -> point
+        const centerX = (zoneStartPoint.x + point.x) / 2;
+        const centerZ = (zoneStartPoint.z + point.z) / 2;
+        const width = Math.abs(point.x - zoneStartPoint.x);
+        const depth = Math.abs(point.z - zoneStartPoint.z);
+
+        const newZone = {
+            id: `custom_zone_${Date.now()}`,
+            centerX, centerZ, width, depth,
+            objectType: 'tree',      // по умолчанию, потом можно изменить в панели
+            modelNames: ['Tree_1'],  // по умолчанию
+            count: 10,
+            minScale: 1,
+            maxScale: 3
+        };
+        vegetationZones.push(newZone);
+        setVegetationZones(vegetationZones);
+        drawZoneRect(newZone);
+        highlightZone(vegetationZones.length - 1);
+        zoneDrawing = false;
+        console.log('[EDITOR] Зона создана:', newZone);
+    }
+}
+
+function saveVegetationZones() {
+    if (room) {
+        room.send('editorSaveVegetationZones', { zones: vegetationZones });
+        console.log('[EDITOR] Зоны сохранены:', vegetationZones);
+    }
+}
+
+function deleteSelectedZone() {
+    const select = document.getElementById('select-vegetation-zone') as HTMLSelectElement;
+    const idx = parseInt(select.value);
+    if (isNaN(idx) || idx < 0 || idx >= vegetationZones.length) return;
+    vegetationZones.splice(idx, 1);
+    setVegetationZones(vegetationZones);
+    // Удаляем соответствующую линию
+    scene.remove(zoneLines[idx]);
+    zoneLines[idx].geometry.dispose();
+    (zoneLines[idx].material as THREE.Material).dispose();
+    zoneLines.splice(idx, 1);
+}
+
+function drawZoneRect(zone: any) {
+    const { centerX, centerZ, width, depth } = zone;
+    const halfW = width / 2;
+    const halfD = depth / 2;
+    const y = getTerrainHeightAtFast(centerX, centerZ) + 0.5; // чуть над землёй
+
+    const points = [
+        new THREE.Vector3(centerX - halfW, y, centerZ - halfD),
+        new THREE.Vector3(centerX + halfW, y, centerZ - halfD),
+        new THREE.Vector3(centerX + halfW, y, centerZ + halfD),
+        new THREE.Vector3(centerX - halfW, y, centerZ + halfD),
+    ];
+
+    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+    const material = new THREE.LineBasicMaterial({ color: 0x00ff00 });
+    const lineLoop = new THREE.LineLoop(geometry, material);
+    scene.add(lineLoop);
+    zoneLines.push(lineLoop);
+}
+
+function clearZoneVisuals() {
+    for (const line of zoneLines) {
+        scene.remove(line);
+        line.geometry.dispose();
+        (line.material as THREE.Material).dispose();
+    }
+    zoneLines = [];
+}
+
+/** Принимает массив зон от сервера и отображает их в редакторе */
+export function applyVegetationZones(zones: any[]) {
+    vegetationZones = zones;
+    setVegetationZones(vegetationZones);   // обновляет выпадающий список
+    clearZoneVisuals();                    // удаляет старые линии
+    for (const zone of vegetationZones) {
+        drawZoneRect(zone);                // рисует новые прямоугольники
+    }
+    if (vegetationZones.length > 0) {
+        highlightZone(0); // выделить первую
+    }
+    console.log('[EDITOR] Зоны обновлены:', vegetationZones.length);
+}
+
+function highlightZone(selectedIndex: number) {
+    for (let i = 0; i < zoneLines.length; i++) {
+        const line = zoneLines[i];
+        if (line && line.material) {
+            (line.material as THREE.LineBasicMaterial).color.set(
+                i === selectedIndex ? 0x0000ff : 0x00ff00
+            );
+        }
     }
 }

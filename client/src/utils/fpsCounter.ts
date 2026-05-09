@@ -5,8 +5,8 @@ let frameCount = 0;
 // Создаём элемент для отображения FPS
 const fpsElement = document.createElement('div');
 fpsElement.style.position = 'absolute';
-fpsElement.style.top = '450px'; // под панелью игрока
-fpsElement.style.left = '20px';
+fpsElement.style.top = '20px'; // под панелью игрока
+fpsElement.style.right = '300px';
 fpsElement.style.color = 'lime';
 fpsElement.style.fontFamily = 'monospace';
 fpsElement.style.fontSize = '14px';

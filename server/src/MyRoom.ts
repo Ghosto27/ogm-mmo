@@ -344,6 +344,38 @@ export class MyRoom extends Room<MyRoomState> {
         try {
             const fs = require('fs');
             const path = require('path');
+            const filePath = path.join(__dirname, '../data/vegetation_zones.json');
+            if (fs.existsSync(filePath)) {
+                const zones = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+                zones.forEach((zone: any) => {
+                    for (let i = 0; i < zone.count; i++) {
+                        const x = zone.centerX + (Math.random() - 0.5) * zone.width;
+                        const z = zone.centerZ + (Math.random() - 0.5) * zone.depth;
+                        const scale = zone.minScale + Math.random() * (zone.maxScale - zone.minScale);
+                        const rotationY = Math.random() * Math.PI * 2;
+                        const modelName = zone.modelNames[Math.floor(Math.random() * zone.modelNames.length)];
+                        const wo = new WorldObject();
+                        wo.id = `vegezone_${zone.id}_${i}`;
+                        wo.modelName = modelName;
+                        wo.x = x;
+                        wo.z = z;
+                        wo.scaleX = scale;
+                        wo.scaleY = scale;
+                        wo.scaleZ = scale;
+                        wo.rotationY = rotationY;
+                        wo.color = '#ffffff';
+                        this.state.worldObjects.set(wo.id, wo);
+                    }
+                });
+                console.log(`[VEGETATION] Загружено ${zones.length} зон из vegetation_zones.json`);
+            }
+        } catch (err) {
+            console.error('[VEGETATION] Ошибка загрузки зон:', err);
+        }
+
+        try {
+            const fs = require('fs');
+            const path = require('path');
             const filePath = path.join(__dirname, '../data/editor_objects.json');
             if (fs.existsSync(filePath)) {
                 const raw = fs.readFileSync(filePath, 'utf-8');
@@ -360,6 +392,7 @@ export class MyRoom extends Room<MyRoomState> {
                     wo.scaleZ = obj.scaleZ || 1;
                     wo.rotationY = obj.rotationY || 0;
                     wo.rotationX = obj.rotationX || 0;
+                    wo.rotationZ = obj.rotationZ || 0;
                     wo.color = (obj.color || '#ffffff').startsWith('#') ? obj.color : '#' + obj.color;
                     this.state.worldObjects.set(wo.id, wo);
                 }
@@ -648,10 +681,66 @@ export class MyRoom extends Room<MyRoomState> {
                 wo.scaleZ = obj.scaleZ || 1;
                 wo.rotationY = obj.rotationY || 0;
                 wo.rotationX = obj.rotationX || 0;
+                wo.rotationZ = obj.rotationZ || 0;
                 wo.color = (obj.color || '#ffffff').startsWith('#') ? obj.color : '#' + obj.color;
                 this.state.worldObjects.set(wo.id, wo);
             }
             console.log(`[EDITOR] Сохранено ${message.objects.length} объектов`);
+        });
+
+        this.onMessage("editorSaveVegetationZones", (client, message: { zones: any[] }) => {
+            const fs = require('fs');
+            const path = require('path');
+            const filePath = path.join(__dirname, '../data/vegetation_zones.json');
+            fs.writeFileSync(filePath, JSON.stringify(message.zones, null, 2));
+            console.log(`[EDITOR] Сохранено ${message.zones.length} зон растительности`);
+
+            // Удаляем все объекты, принадлежащие зонам (префикс 'vegezone_')
+            const toRemove: string[] = [];
+            this.state.worldObjects.forEach((obj, id) => {
+                if (id.startsWith('vegezone_')) toRemove.push(id);
+            });
+            toRemove.forEach(id => this.state.worldObjects.delete(id));
+
+            // Генерируем объекты заново по каждой зоне
+            message.zones.forEach((zone: any) => {
+                const rng = () => Math.random();
+                for (let i = 0; i < zone.count; i++) {
+                    const x = zone.centerX + (rng() - 0.5) * zone.width;
+                    const z = zone.centerZ + (rng() - 0.5) * zone.depth;
+                    const scale = zone.minScale + rng() * (zone.maxScale - zone.minScale);
+                    const rotationY = rng() * Math.PI * 2;
+                    const modelName = zone.modelNames[Math.floor(rng() * zone.modelNames.length)];
+                    
+                    const wo = new WorldObject();
+                    wo.id = `vegezone_${zone.id}_${i}`;
+                    wo.modelName = modelName;
+                    wo.x = x;
+                    wo.z = z;
+                    wo.scaleX = scale;
+                    wo.scaleY = scale;
+                    wo.scaleZ = scale;
+                    wo.rotationY = rotationY;
+                    wo.color = '#ffffff';
+                    this.state.worldObjects.set(wo.id, wo);
+                }
+            });
+        });
+        
+        this.onMessage("getVegetationZones", (client) => {
+            try {
+                const fs = require('fs');
+                const path = require('path');
+                const filePath = path.join(__dirname, '../data/vegetation_zones.json');
+                if (fs.existsSync(filePath)) {
+                    const zones = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+                    client.send('vegetationZonesData', { zones });
+                } else {
+                    client.send('vegetationZonesData', { zones: [] });
+                }
+            } catch (err) {
+                client.send('vegetationZonesData', { zones: [] });
+            }
         });
 
         console.log("Комната 'world' создана");
