@@ -3,8 +3,8 @@
     "id": "custom_zone_1778373246639",
     "centerX": 19.390720139227383,
     "centerZ": -113.34373053932447,
-    "width": 316.3818755592099,
-    "depth": 101.08304488834055,
+    "width": 320,
+    "depth": 105,
     "objectType": "tree",
     "modelNames": [
       "Tree_1"
@@ -17,8 +17,8 @@
     "id": "custom_zone_1778373265538",
     "centerX": 130.3013268521784,
     "centerZ": 48.63582516408969,
-    "width": 114.52449102881911,
-    "depth": 215.01182784627667,
+    "width": 115,
+    "depth": 216,
     "objectType": "tree",
     "modelNames": [
       "Tree_1"
@@ -31,8 +31,8 @@
     "id": "custom_zone_1778373277026",
     "centerX": 51.81254767830865,
     "centerZ": 209.45831262647891,
-    "width": 250.3319729413771,
-    "depth": 101.35756205215955,
+    "width": 291,
+    "depth": 107,
     "objectType": "tree",
     "modelNames": [
       "Tree_1"
@@ -45,8 +45,8 @@
     "id": "custom_zone_1778373288547",
     "centerX": -369.62563204397605,
     "centerZ": 46.38931878999202,
-    "width": 247.13129208631403,
-    "depth": 399.8619938984406,
+    "width": 250,
+    "depth": 400,
     "objectType": "tree",
     "modelNames": [
       "Tree_1"

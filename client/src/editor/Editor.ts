@@ -279,26 +279,9 @@ export function initEditor() {
             highlightMobZone(index);
         },
         onTabMobsSelected: () => requestMobZones(),
+        onZoneGeometryChanged: (index) => { updateZoneRect(index); },
+        onMobZoneGeometryChanged: (index) => { updateMobZoneCircle(index); },
     });
-
-    /* if (room) {
-        room.onMessage('mobZonesData', (data: { zones: any[] }) => {
-            mobZones = data.zones || [];
-            // Очищаем старые линии
-            for (const line of mobZoneVisuals) {
-                scene.remove(line);
-                line.geometry.dispose();
-                (line.material as THREE.Material).dispose();
-            }
-            mobZoneVisuals = [];
-            // Рисуем новые круги
-            for (const z of mobZones) {
-                drawMobZoneCircle(z.centerX, z.centerZ, z.radius);
-            }
-            setMobZones(mobZones);
-            console.log('[EDITOR] Моб-зоны загружены:', mobZones.length);
-        });
-    } */
 
     function requestVegetationZones() {
         if (!room) return;
@@ -514,9 +497,10 @@ function handleZoneClick(event: MouseEvent) {
         };
         vegetationZones.push(newZone);
         setVegetationZones(vegetationZones);
-        drawZoneRect(newZone);
         highlightZone(vegetationZones.length - 1);
         zoneDrawing = false;
+        const newLine = drawZoneRect(newZone);
+        zoneLines.push(newLine);
         console.log('[EDITOR] Зона создана:', newZone);
     }
 }
@@ -541,11 +525,11 @@ function deleteSelectedZone() {
     zoneLines.splice(idx, 1);
 }
 
-function drawZoneRect(zone: any) {
+function drawZoneRect(zone: any): THREE.LineLoop {
     const { centerX, centerZ, width, depth } = zone;
     const halfW = width / 2;
     const halfD = depth / 2;
-    const y = getTerrainHeightAtFast(centerX, centerZ) + 0.5; // чуть над землёй
+    const y = getTerrainHeightAtFast(centerX, centerZ) + 0.5;
 
     const points = [
         new THREE.Vector3(centerX - halfW, y, centerZ - halfD),
@@ -557,8 +541,8 @@ function drawZoneRect(zone: any) {
     const geometry = new THREE.BufferGeometry().setFromPoints(points);
     const material = new THREE.LineBasicMaterial({ color: 0x00ff00 });
     const lineLoop = new THREE.LineLoop(geometry, material);
-    scene.add(lineLoop);
-    zoneLines.push(lineLoop);
+    scene.add(lineLoop);   // сразу добавляем в сцену, но не в массив
+    return lineLoop;
 }
 
 function clearZoneVisuals() {
@@ -576,7 +560,8 @@ export function applyVegetationZones(zones: any[]) {
     setVegetationZones(vegetationZones);   // обновляет выпадающий список
     clearZoneVisuals();                    // удаляет старые линии
     for (const zone of vegetationZones) {
-        drawZoneRect(zone);                // рисует новые прямоугольники
+        const line = drawZoneRect(zone);
+        zoneLines.push(line);
     }
     if (vegetationZones.length > 0) {
         highlightZone(0); // выделить первую
@@ -595,7 +580,7 @@ function highlightZone(selectedIndex: number) {
     }
 }
 
-function drawMobZoneCircle(centerX: number, centerZ: number, radius: number) {
+function drawMobZoneCircle(centerX: number, centerZ: number, radius: number): THREE.LineLoop {
     const segments = 64;
     const points = [];
     for (let i = 0; i <= segments; i++) {
@@ -609,7 +594,29 @@ function drawMobZoneCircle(centerX: number, centerZ: number, radius: number) {
     const mat = new THREE.LineBasicMaterial({ color: 0xff0000 });
     const line = new THREE.LineLoop(geo, mat);
     scene.add(line);
-    mobZoneVisuals.push(line);
+    return line;
+}
+
+function updateMobZoneCircle(index: number) {
+    if (index < 0 || index >= mobZones.length) return;
+    const zone = mobZones[index];
+    if (!zone) return;
+
+    // Удаляем старую линию
+    const oldLine = mobZoneVisuals[index];
+    if (oldLine) {
+        scene.remove(oldLine);
+        oldLine.geometry.dispose();
+        (oldLine.material as THREE.Material).dispose();
+    }
+
+    // Создаём новую линию
+    const newLine = drawMobZoneCircle(zone.centerX, zone.centerZ, zone.radius);
+    // Вставляем на то же место в массиве
+    mobZoneVisuals[index] = newLine;
+
+    // Подсвечиваем, если она была выделена
+    highlightMobZone(index);
 }
 
 function handleMobZoneClick(event: MouseEvent) {
@@ -636,7 +643,8 @@ function handleMobZoneClick(event: MouseEvent) {
         };
         mobZones.push(newZone);
         setMobZones(mobZones);
-        drawMobZoneCircle(newZone.centerX, newZone.centerZ, newZone.radius);
+        const newLine = drawMobZoneCircle(newZone.centerX, newZone.centerZ, newZone.radius);
+        mobZoneVisuals.push(newLine);
         drawingMobZone = false;
         mobZoneCenter = null;
     }
@@ -699,8 +707,31 @@ export function applyMobZones(zones: any[]) {
     mobZones = zones;
     // Рисуем новые круги
     for (const z of zones) {
-        drawMobZoneCircle(z.centerX, z.centerZ, z.radius);
+        const line = drawMobZoneCircle(z.centerX, z.centerZ, z.radius);
+        mobZoneVisuals.push(line);
     }
     setMobZones(zones);
     console.log('[EDITOR] Моб-зоны загружены:', zones.length);
+}
+
+function updateZoneRect(index: number) {
+    if (index < 0 || index >= vegetationZones.length) return;
+    const zone = vegetationZones[index];
+    if (!zone) return;
+
+    // Удаляем старую линию (и из сцены, и из массива)
+    const oldLine = zoneLines[index];
+    if (oldLine) {
+        scene.remove(oldLine);
+        oldLine.geometry.dispose();
+        (oldLine.material as THREE.Material).dispose();
+    }
+
+    // Создаём новую линию
+    const newLine = drawZoneRect(zone);
+    // Вставляем её на то же место в массиве
+    zoneLines[index] = newLine;
+
+    // Восстанавливаем подсветку (если она была)
+    highlightZone(index);
 }

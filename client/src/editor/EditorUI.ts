@@ -67,6 +67,8 @@ let onNewMobZone: () => void;
 let onSaveMobZones: () => void;
 let onDeleteMobZone: () => void;
 let onMobZoneSelected: (index: number) => void;
+let inpZoneWidth: HTMLInputElement;
+let inpZoneDepth: HTMLInputElement;
 
 function switchTab(tab: 'static' | 'vegetation' | 'mobs') {
     currentTab = tab;
@@ -102,6 +104,8 @@ export function createEditorUI(
         onDeleteMobZone: () => void;
         onMobZoneSelected: (index: number) => void;
         onTabMobsSelected?: () => void;
+        onZoneGeometryChanged?: (index: number) => void;
+        onMobZoneGeometryChanged?: (index: number) => void;
     }
 ) {
     editorCallbacks = callbacks;
@@ -196,6 +200,8 @@ export function createEditorUI(
                 <label>Количество</label><input id="inp-zone-count" type="number" min="1" value="10" style="width:100%;">
                 <label>Мин. масштаб</label><input id="inp-zone-minScale" type="number" step="0.1" value="1" style="width:100%;">
                 <label>Макс. масштаб</label><input id="inp-zone-maxScale" type="number" step="0.1" value="3" style="width:100%;">
+                <label>Ширина</label><input id="inp-zone-width" type="number" step="1" value="100" style="width:100%;">
+                <label>Глубина</label><input id="inp-zone-depth" type="number" step="1" value="100" style="width:100%;">
                 <div style="margin-top:4px;">
                     <button id="btn-delete-vegetation-zone">🗑️ Удалить зону</button>
                 </div>
@@ -255,6 +261,8 @@ export function createEditorUI(
     btnNewVegetationZone = document.getElementById('btn-new-vegetation-zone') as HTMLButtonElement;
     btnSaveVegetationZones = document.getElementById('btn-save-vegetation-zones') as HTMLButtonElement;
     btnDeleteVegetationZone = document.getElementById('btn-delete-vegetation-zone') as HTMLButtonElement;
+    inpZoneWidth = document.getElementById('inp-zone-width') as HTMLInputElement;
+    inpZoneDepth = document.getElementById('inp-zone-depth') as HTMLInputElement;
 
     // Элементы моб-зон
     mobsPanel = document.getElementById('mobs-panel')!;
@@ -297,6 +305,9 @@ export function createEditorUI(
     inputRotX.addEventListener('input', () => onPropertiesChanged());
     inputRotY.addEventListener('input', () => onPropertiesChanged());
     inputRotZ.addEventListener('input', () => onPropertiesChanged());
+
+    inpZoneWidth.addEventListener('input', updateCurrentZone);
+    inpZoneDepth.addEventListener('input', updateCurrentZone);
 
     // Подписка на изменение свойств зоны
     inpZoneId.addEventListener('input', updateCurrentZone);
@@ -381,6 +392,8 @@ export function showVegetationZoneProps(index: number) {
     inpZoneCount.value = zone.count;
     inpZoneMinScale.value = zone.minScale;
     inpZoneMaxScale.value = zone.maxScale;
+    inpZoneWidth.value = zone.width;
+    inpZoneDepth.value = zone.depth;
 }
 
 export function getVegetationZoneFromInputs(): any {
@@ -441,14 +454,19 @@ function updateCurrentZone() {
     const zone = vegetationZones[idx];
     if (!zone) return;
     const inputs = getVegetationZoneFromInputs();
-    // Обновляем только редактируемые свойства, сохраняя геометрию
     zone.id = inputs.id;
     zone.objectType = inputs.objectType;
     zone.modelNames = inputs.modelNames;
     zone.count = inputs.count;
     zone.minScale = inputs.minScale;
     zone.maxScale = inputs.maxScale;
-    // геометрические поля centerX, centerZ, width, depth не трогаем
+    zone.width = parseFloat(inpZoneWidth.value) || 100;
+    zone.depth = parseFloat(inpZoneDepth.value) || 100;
+    
+    // Обновим визуальный прямоугольник сразу
+    if (editorCallbacks.onZoneGeometryChanged) {
+        editorCallbacks.onZoneGeometryChanged(idx);
+    }
 }
 
 export function getRotationFromInputs(): { x: number; y: number; z: number } {
@@ -502,6 +520,9 @@ function updateMobZoneFromInputs() {
     zone.id = inpMobZoneId.value.trim();
     zone.count = parseInt(inpMobZoneCount.value) || 0;
     zone.radius = parseFloat(inpMobZoneRadius.value) || 50;
+    if (editorCallbacks.onMobZoneGeometryChanged) {
+        editorCallbacks.onMobZoneGeometryChanged(currentMobZoneIndex);
+    }
     // Обновляем отображение в выпадающем списке (если ID изменился)
     const option = selectMobZone.options[currentMobZoneIndex];
     if (option) option.text = zone.id;
