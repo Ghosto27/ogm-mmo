@@ -12,7 +12,7 @@ import {
 import { inputState, sprintKey } from '../input';
 import { terrainMesh, getTerrainHeightAtFast, getTerrainHeightAt } from '../render/TerrainRenderer';
 import { worldMeshes } from '../render/WorldRenderer';
-import { createModelClone } from '../utils/modelLoader';
+import { createModelClone, getModelBaseSize } from '../utils/modelLoader';
 import { getColliderConfig } from '../collisionConfig';
 
 let transformControls: TransformControls;
@@ -323,7 +323,7 @@ function onGenerateSelectedZone() {
     const objects: any[] = [];
     // Хранилище размещённых объектов: позиция + радиус
     const placedObjects: { x: number; z: number; radius: number }[] = [];
-    const GAP = 0.2; // минимальный зазор между краями объектов
+    const GAP = 0.3; // минимальный зазор между краями объектов
 
     for (let i = 0; i < zone.count; i++) {
         let placed = false;
@@ -334,16 +334,7 @@ function onGenerateSelectedZone() {
             const rotationY = rng() * Math.PI * 2;
             const modelName = zone.modelNames[Math.floor(rng() * zone.modelNames.length)];
 
-            // Получаем базовый радиус из конфига коллизий
-            const config = getColliderConfig(modelName);
-            let baseRadius = 3.0; // дефолт
-            if (config) {
-                if (config.type === 'cylinder' && config.cylinderRadius) {
-                    baseRadius = config.cylinderRadius;
-                } else if (config.type === 'sphere' && config.radius) {
-                    baseRadius = config.radius;
-                }
-            }
+            const baseRadius = getModelBaseSize(modelName) / 2;   // половина максимального измерения
             const instanceRadius = baseRadius * scale;
 
             // Проверка минимальной дистанции с учётом размеров
