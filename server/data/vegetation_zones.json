@@ -16,6 +16,14 @@
       "Rock_6",
       "Rock_7",
       "Rock_8",
+      "Rock_9",
+      "Rock_2",
+      "Rock_3",
+      "Rock_4",
+      "Rock_5",
+      "Rock_6",
+      "Rock_7",
+      "Rock_8",
       "Rock_9"
     ],
     "count": 150,
@@ -32,7 +40,7 @@
     "modelNames": [
       "Tree_10"
     ],
-    "count": 300,
+    "count": 49,
     "minScale": 1,
     "maxScale": 6
   },
@@ -68,7 +76,7 @@
       "Rock_6",
       "Rock_7"
     ],
-    "count": 100,
+    "count": 50,
     "minScale": 1,
     "maxScale": 3
   },
@@ -82,8 +90,13 @@
     "modelNames": [
       "Tree_17",
       "Tree_18",
+      "Tree_17",
+      "Tree_18",
       "Tree_19",
       "Rock_1",
+      "Rock_7",
+      "Rock_8",
+      "Rock_9",
       "Rock_7",
       "Rock_8",
       "Rock_9"
@@ -123,7 +136,7 @@
     "modelNames": [
       "Rock_2"
     ],
-    "count": 50,
+    "count": 100,
     "minScale": 1,
     "maxScale": 3
   }

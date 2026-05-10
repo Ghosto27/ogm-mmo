@@ -721,16 +721,6 @@ export class MyRoom extends Room<MyRoomState> {
             }
         });
 
-        /* this.onMessage("editorRegenerateVegetationZone", (client, message: { zoneId: string; objects: any[] }) => {
-            try {
-                if (!this.vegetationSpawner) return;
-                this.vegetationSpawner.regenerateSingleZoneFromClient(message.zoneId, message.objects);
-                console.log(`[EDITOR] Зона "${message.zoneId}" обновлена (${message.objects.length} объектов)`);
-            } catch (err) {
-                console.error('[EDITOR] Ошибка при генерации зоны:', err);
-            }
-        }); */
-
         this.onMessage("editorRegenerateVegetationChunk", (client, message: {
             zoneId: string;
             chunkIndex: number;

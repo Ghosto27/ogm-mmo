@@ -29,7 +29,6 @@ let drawingMobZone = false;
 let mobZoneCenter: THREE.Vector3 | null = null;
 let mobZonePreview: THREE.Line | null = null;
 let mobZoneVisuals: THREE.LineLoop[] = [];
-let pendingRegenerationZoneId: string | null = null;
 
 // ---------- свободная камера (оставлено без изменений) ----------
 let freeCameraEnabled = false;
@@ -373,8 +372,6 @@ function onGenerateSelectedZone() {
         });
         console.log(`[EDITOR] Отправлен чанк ${i+1}/${totalChunks} для зоны "${zone.id}" (${chunk.length} объектов)`);
     }
-
-    //(window as any).__pendingVegetationZoneId = zone.id;
 }
 
 // ---------- Экспортные функции ----------
@@ -509,8 +506,6 @@ function exitEditorMode() {
     stopFreeCamera();
     deselectObject();
     placementMode = false;
-    (window as any).__pendingVegetationZoneId = null;
-    pendingRegenerationZoneId = null;
     
     // Очистка визуализаций зон растительности
     clearZoneVisuals();
