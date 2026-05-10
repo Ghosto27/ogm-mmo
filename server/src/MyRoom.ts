@@ -722,13 +722,9 @@ export class MyRoom extends Room<MyRoomState> {
 
         this.onMessage("editorRegenerateVegetationZone", (client, message: { zoneId: string; objects: any[] }) => {
             try {
-                if (!this.vegetationSpawner) {
-                    console.error('[EDITOR] vegetationSpawner не инициализирован');
-                    return;
-                }
-                // Передаём готовые объекты в спавнер
+                if (!this.vegetationSpawner) return;
                 this.vegetationSpawner.regenerateSingleZoneFromClient(message.zoneId, message.objects);
-                console.log(`[EDITOR] Зона "${message.zoneId}" обновлена клиентскими объектами`);
+                console.log(`[EDITOR] Зона "${message.zoneId}" обновлена (${message.objects.length} объектов)`);
             } catch (err) {
                 console.error('[EDITOR] Ошибка при генерации зоны:', err);
             }

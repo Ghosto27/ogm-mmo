@@ -359,10 +359,10 @@ function onGenerateSelectedZone() {
         }
     }
 
-    if (room) {
-        room.send('editorRegenerateVegetationZone', { zoneId: zone.id, objects });
+    if (room && objects.length > 0) {
+        room.send('editorRegenerateVegetationZone', { zoneId: zone.id, objects: objects });
         (window as any).__pendingVegetationZoneId = zone.id;
-        console.log(`[EDITOR] Отправлено ${objects.length} объектов для зоны "${zone.id}" с точной высотой`);
+        console.log(`[EDITOR] Отправлено ${objects.length} объектов одним запросом`);
     }
 }
 
