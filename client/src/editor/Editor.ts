@@ -13,6 +13,7 @@ import { inputState, sprintKey } from '../input';
 import { terrainMesh, getTerrainHeightAtFast, getTerrainHeightAt } from '../render/TerrainRenderer';
 import { worldMeshes } from '../render/WorldRenderer';
 import { createModelClone } from '../utils/modelLoader';
+import { getColliderConfig } from '../collisionConfig';
 
 let transformControls: TransformControls;
 let editorObjects: THREE.Object3D[] = [];
@@ -317,11 +318,12 @@ function onGenerateSelectedZone() {
     const zone = vegetationZones[idx];
     if (!zone) return;
 
-    // Генерируем объекты на клиенте с рейкастом
-    const objects: any[] = [];
     const maxAttempts = 50;
-    const MIN_DIST = 2.0;
     const rng = () => Math.random();
+    const objects: any[] = [];
+    // Хранилище размещённых объектов: позиция + радиус
+    const placedObjects: { x: number; z: number; radius: number }[] = [];
+    const GAP = 0.2; // минимальный зазор между краями объектов
 
     for (let i = 0; i < zone.count; i++) {
         let placed = false;
@@ -332,24 +334,38 @@ function onGenerateSelectedZone() {
             const rotationY = rng() * Math.PI * 2;
             const modelName = zone.modelNames[Math.floor(rng() * zone.modelNames.length)];
 
-            // Проверка минимальной дистанции (на клиенте)
+            // Получаем базовый радиус из конфига коллизий
+            const config = getColliderConfig(modelName);
+            let baseRadius = 3.0; // дефолт
+            if (config) {
+                if (config.type === 'cylinder' && config.cylinderRadius) {
+                    baseRadius = config.cylinderRadius;
+                } else if (config.type === 'sphere' && config.radius) {
+                    baseRadius = config.radius;
+                }
+            }
+            const instanceRadius = baseRadius * scale;
+
+            // Проверка минимальной дистанции с учётом размеров
             let tooClose = false;
-            for (const obj of objects) {
-                const dx = x - obj.x;
-                const dz = z - obj.z;
-                if (Math.sqrt(dx*dx + dz*dz) < MIN_DIST) {
+            for (const placed of placedObjects) {
+                const dx = x - placed.x;
+                const dz = z - placed.z;
+                const minDist = instanceRadius + placed.radius + GAP;
+                if (dx * dx + dz * dz < minDist * minDist) {
                     tooClose = true;
                     break;
                 }
             }
             if (tooClose) continue;
 
-            // Точный рейкаст для получения высоты
-            const y = getTerrainHeightAt(x, z) + 0.5; // небольшой визуальный отступ, если нужно
+            // Точный рейкаст для получения высоты (клиентский рейкаст)
+            const y = getTerrainHeightAt(x, z) - 0.1; // лёгкое утапливание
 
             objects.push({
                 x, z, y, scale, rotationY, modelName,
             });
+            placedObjects.push({ x, z, radius: instanceRadius });
             placed = true;
             break;
         }
@@ -358,10 +374,9 @@ function onGenerateSelectedZone() {
         }
     }
 
-    // Отправляем массив чанками по 50 объектов
+    // Отправляем чанками (по 50) на сервер
     const CHUNK_SIZE = 50;
     const totalChunks = Math.ceil(objects.length / CHUNK_SIZE);
-
     for (let i = 0; i < totalChunks; i++) {
         const chunk = objects.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
         room.send('editorRegenerateVegetationChunk', {
@@ -370,8 +385,8 @@ function onGenerateSelectedZone() {
             totalChunks: totalChunks,
             objects: chunk,
         });
-        console.log(`[EDITOR] Отправлен чанк ${i+1}/${totalChunks} для зоны "${zone.id}" (${chunk.length} объектов)`);
     }
+    console.log(`[EDITOR] Отправлено ${objects.length} объектов для зоны "${zone.id}"`);
 }
 
 // ---------- Экспортные функции ----------
