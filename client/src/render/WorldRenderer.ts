@@ -91,7 +91,7 @@ export async function updateWorldObjects(worldObjects: any) {
             const existing = worldMeshes[id];
             //console.log(`[WORLD-UPDATE] id=${id}, oldPos=(${existing.position.x.toFixed(1)},${existing.position.y.toFixed(1)},${existing.position.z.toFixed(1)})`);
 
-            if (obj.y !== undefined) {
+            if (obj.y != null) {
                 existing.position.set(obj.x, obj.y, obj.z);
             } else {
                 const y = getTerrainHeightAt(obj.x, obj.z);
@@ -114,7 +114,7 @@ export async function updateWorldObjects(worldObjects: any) {
             continue;
         }
 
-        if (obj.y !== undefined) {
+        if (obj.y != null) {
             obj3D.position.set(obj.x, obj.y, obj.z);
         } else {
             const y = getTerrainHeightAt(obj.x, obj.z);

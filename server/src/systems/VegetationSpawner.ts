@@ -193,7 +193,7 @@ export class VegetationSpawner {
                 wo.modelName = obj.modelName;
                 wo.x = obj.x;
                 wo.z = obj.z;
-                wo.y = obj.y;
+                wo.y = obj.y || 0;
                 wo.scaleX = obj.scale;
                 wo.scaleY = obj.scale;
                 wo.scaleZ = obj.scale;
@@ -329,6 +329,7 @@ export class VegetationSpawner {
                 wo.modelName = obj.modelName;
                 wo.x = obj.x;
                 wo.z = obj.z;
+                wo.y = obj.y;
                 wo.scaleX = obj.scale;
                 wo.scaleY = obj.scale;
                 wo.scaleZ = obj.scale;
