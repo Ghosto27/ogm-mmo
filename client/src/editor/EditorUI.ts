@@ -69,6 +69,7 @@ let onDeleteMobZone: () => void;
 let onMobZoneSelected: (index: number) => void;
 let inpZoneWidth: HTMLInputElement;
 let inpZoneDepth: HTMLInputElement;
+let btnGenerateVegetationZone: HTMLButtonElement;
 
 function switchTab(tab: 'static' | 'vegetation' | 'mobs') {
     currentTab = tab;
@@ -106,6 +107,7 @@ export function createEditorUI(
         onTabMobsSelected?: () => void;
         onZoneGeometryChanged?: (index: number) => void;
         onMobZoneGeometryChanged?: (index: number) => void;
+        onGenerateVegetationZone?: () => void;
     }
 ) {
     editorCallbacks = callbacks;
@@ -187,6 +189,7 @@ export function createEditorUI(
             <div style="margin-bottom:4px;">
                 <button id="btn-new-vegetation-zone">➕ Новая зона</button>
                 <button id="btn-save-vegetation-zones" style="margin-left:4px;">💾 Сохранить зоны</button>
+                <button id="btn-generate-vegetation-zone" style="margin-left:4px;">🔄 Генерировать</button>
             </div>
             <select id="select-vegetation-zone" style="width:100%; margin:4px 0;"></select>
             <div id="vegetation-zone-props" style="display:none; margin-top:4px;">
@@ -263,6 +266,8 @@ export function createEditorUI(
     btnDeleteVegetationZone = document.getElementById('btn-delete-vegetation-zone') as HTMLButtonElement;
     inpZoneWidth = document.getElementById('inp-zone-width') as HTMLInputElement;
     inpZoneDepth = document.getElementById('inp-zone-depth') as HTMLInputElement;
+    btnGenerateVegetationZone = document.getElementById('btn-generate-vegetation-zone') as HTMLButtonElement;
+    btnGenerateVegetationZone.onclick = () => editorCallbacks.onGenerateVegetationZone?.();
 
     // Элементы моб-зон
     mobsPanel = document.getElementById('mobs-panel')!;

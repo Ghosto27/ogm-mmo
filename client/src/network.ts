@@ -23,11 +23,12 @@ import { updateNPCMeshes, setNPCProximity } from './render/NPCRenderer';
 import { updateQuestList } from './quest/QuestJournalUI';
 import { showNotification } from './ui/notificationUI'; 
 import { setQuestDefs, getQuestName } from './quest/questData';
-import { updateWorldObjects } from './render/WorldRenderer';
+import { updateWorldObjects, worldMeshes } from './render/WorldRenderer';
 import { updateTerrain, getTerrainHeightAt, terrainReady, getTerrainHeightAtFast } from './render/TerrainRenderer';
 import { addVegetationInstance, finalizeVegetation, isVegetationLoaded } from './render/VegetationRenderer';
 import { isEditorActive } from './editor/EditorState';
 import { applyVegetationZones, applyMobZones } from './editor/Editor';
+import { scene } from './scene';
 
 export const client = new Client(SERVER_URL);
 export let room: any = null;
@@ -358,6 +359,17 @@ function join(playerName: string) {
 
             // ------ Статические объекты ------
             if (!isEditorActive()) {
+                // Удаляем меши зоны, которая ожидает регенерации
+                if ((window as any).__pendingVegetationZoneId) {
+                    const prefix = `vegezone_${(window as any).__pendingVegetationZoneId}_`;
+                    for (const id in worldMeshes) {
+                        if (id.startsWith(prefix)) {
+                            scene.remove(worldMeshes[id]);
+                            delete worldMeshes[id];
+                        }
+                    }
+                    (window as any).__pendingVegetationZoneId = null;
+                }
                 updateWorldObjects(state.worldObjects);
             }
 
@@ -423,6 +435,30 @@ function join(playerName: string) {
             setQuestDefs(data.quests);
         });
 
+        room.onMessage('vegetationZoneRegenerated', (data: { zoneId: string }) => {
+            const prefix = `vegezone_${data.zoneId}_`;
+            // Удаляем старые меши
+            for (const id in worldMeshes) {
+                if (id.startsWith(prefix)) {
+                    scene.remove(worldMeshes[id]);
+                    delete worldMeshes[id];
+                    console.log(`[VEG] Удалён меш ${id}`);
+                }
+            }
+            // Обновляем мир
+            if (room && room.state) {
+                updateWorldObjects(room.state.worldObjects);
+                // После обновления выведем все объекты этой зоны из стейта
+                console.group(`[VEG-DEBUG] Объекты зоны ${data.zoneId} в стейте после обновления:`);
+                room.state.worldObjects.forEach((wo: any, id: string) => {
+                    if (id.startsWith(prefix)) {
+                        console.log(`id=${id}, x=${wo.x}, z=${wo.z}, model=${wo.modelName}`);
+                    }
+                });
+                console.groupEnd();
+            }
+        });
+
         room.onLeave((code: number) => {
             console.warn(`[ROOM] Соединение закрыто (код ${code}). Переподключаемся...`);
             for (const id of Object.keys(otherPlayers)) {
@@ -464,7 +500,6 @@ function join(playerName: string) {
                 }
             });
         });
-
     }).catch(err => {
         console.error('[JOIN] Ошибка:', err);
         localStorage.removeItem('ogm_playerName');

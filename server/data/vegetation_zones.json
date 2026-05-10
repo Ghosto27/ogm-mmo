@@ -51,7 +51,21 @@
     "modelNames": [
       "Tree_1"
     ],
-    "count": 150,
+    "count": 149,
+    "minScale": 1,
+    "maxScale": 3
+  },
+  {
+    "id": "custom_zone_1778416150470",
+    "centerX": -1.4464793475920814,
+    "centerZ": 41.148787039043,
+    "width": 70.34928537733869,
+    "depth": 8.7353684026384,
+    "objectType": "tree",
+    "modelNames": [
+      "Tree_1"
+    ],
+    "count": 2,
     "minScale": 1,
     "maxScale": 3
   }

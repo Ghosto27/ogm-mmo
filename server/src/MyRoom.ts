@@ -57,6 +57,7 @@ export class MyRoom extends Room<MyRoomState> {
     maxClients = 100;
     spawner!: MobSpawner;
     private timers: NodeJS.Timeout[] = [];
+    vegetationSpawner!: VegetationSpawner;
 
     public addTimer(timer: NodeJS.Timeout) {
         this.timers.push(timer);
@@ -341,6 +342,10 @@ export class MyRoom extends Room<MyRoomState> {
 
         this.spawner = new MobSpawner(this);
         //LocationLoader.load(this, "village");
+        const vegetationSpawner = new VegetationSpawner(this);
+        vegetationSpawner.initialize();
+        // Сохраняем ссылку для использования в обработчике
+        this.vegetationSpawner = vegetationSpawner;
 
         try {
             const fs = require('fs');
@@ -414,9 +419,6 @@ export class MyRoom extends Room<MyRoomState> {
         } catch (err) {
             console.error('[MOB] Ошибка загрузки mob_zones.json:', err);
         }
-
-        //initServerColliders();
-        //VegetationSpawner.loadAndSpawn(this);
 
         const terrain = new WorldTerrain();
         terrain.heightmapPath = "/textures/heightmap.png";
@@ -702,42 +704,12 @@ export class MyRoom extends Room<MyRoomState> {
         });
 
         this.onMessage("editorSaveVegetationZones", (client, message: { zones: any[] }) => {
-            const fs = require('fs');
-            const path = require('path');
-            const filePath = path.join(__dirname, '../data/vegetation_zones.json');
-            fs.writeFileSync(filePath, JSON.stringify(message.zones, null, 2));
-            console.log(`[EDITOR] Сохранено ${message.zones.length} зон растительности`);
-
-            // Удаляем все объекты, принадлежащие зонам (префикс 'vegezone_')
-            const toRemove: string[] = [];
-            this.state.worldObjects.forEach((obj, id) => {
-                if (id.startsWith('vegezone_')) toRemove.push(id);
-            });
-            toRemove.forEach(id => this.state.worldObjects.delete(id));
-
-            // Генерируем объекты заново по каждой зоне
-            message.zones.forEach((zone: any) => {
-                const rng = () => Math.random();
-                for (let i = 0; i < zone.count; i++) {
-                    const x = zone.centerX + (rng() - 0.5) * zone.width;
-                    const z = zone.centerZ + (rng() - 0.5) * zone.depth;
-                    const scale = zone.minScale + rng() * (zone.maxScale - zone.minScale);
-                    const rotationY = rng() * Math.PI * 2;
-                    const modelName = zone.modelNames[Math.floor(rng() * zone.modelNames.length)];
-                    
-                    const wo = new WorldObject();
-                    wo.id = `vegezone_${zone.id}_${i}`;
-                    wo.modelName = modelName;
-                    wo.x = x;
-                    wo.z = z;
-                    wo.scaleX = scale;
-                    wo.scaleY = scale;
-                    wo.scaleZ = scale;
-                    wo.rotationY = rotationY;
-                    wo.color = '#ffffff';
-                    this.state.worldObjects.set(wo.id, wo);
-                }
-            });
+            // Сохраняем конфиг зон (если редактор его прислал)
+            const zonesPath = path.join(__dirname, '../data/vegetation_zones.json');
+            fs.writeFileSync(zonesPath, JSON.stringify(message.zones, null, 2));
+            // Применяем изменения к растительности
+            this.vegetationSpawner.applyUpdatedZones(message.zones);
+            console.log(`[EDITOR] Зоны растительности обновлены`);
         });
         
         this.onMessage("getVegetationZones", (client) => {
@@ -776,6 +748,20 @@ export class MyRoom extends Room<MyRoomState> {
             console.log(`[EDITOR] Сохранено ${message.zones.length} моб-зон`);
 
             this.spawner.respawnAll(message.zones);
+        });
+
+        this.onMessage("editorRegenerateVegetationZone", (client, message: { zone: any }) => {
+            if (!this.vegetationSpawner) {
+                console.error('[EDITOR] vegetationSpawner не инициализирован');
+                return;
+            }
+            try {
+                this.vegetationSpawner.regenerateSingleZone(message.zone);
+                // Отправляем клиенту ID зоны, чтобы он пересоздал меши
+                console.log(`[EDITOR] Зона "${message.zone.id}" перегенерирована`);
+            } catch (err) {
+                console.error('[EDITOR] Ошибка при генерации зоны:', err);
+            }
         });
 
         console.log("Комната 'world' создана");

@@ -29,6 +29,7 @@ let drawingMobZone = false;
 let mobZoneCenter: THREE.Vector3 | null = null;
 let mobZonePreview: THREE.Line | null = null;
 let mobZoneVisuals: THREE.LineLoop[] = [];
+let pendingRegenerationZoneId: string | null = null;
 
 // ---------- свободная камера (оставлено без изменений) ----------
 let freeCameraEnabled = false;
@@ -303,6 +304,28 @@ function onPlacementToggle(type: string) {
     }
 }
 
+function requestVegetationZones() {
+    if (!room) return;
+    room.send('getVegetationZones');
+    console.log('[EDITOR] Запрошены зоны с сервера');
+}
+
+function onGenerateSelectedZone() {
+    const select = document.getElementById('select-vegetation-zone') as HTMLSelectElement;
+    if (!select) return;
+    const idx = parseInt(select.value);
+    if (isNaN(idx) || idx < 0 || idx >= vegetationZones.length) return;
+    const zone = vegetationZones[idx];
+    if (!zone) return;
+    (window as any).__pendingVegetationZoneId = zone.id;
+
+    if (room) {
+        pendingRegenerationZoneId = zone.id;
+        room.send('editorRegenerateVegetationZone', { zone });
+        console.log('[EDITOR] Запрошена генерация зоны:', zone.id);
+    }
+}
+
 // ---------- Экспортные функции ----------
 export function initEditor() {
     createEditorUI({
@@ -330,13 +353,8 @@ export function initEditor() {
         onTabMobsSelected: () => requestMobZones(),
         onZoneGeometryChanged: (index) => { updateZoneRect(index); },
         onMobZoneGeometryChanged: (index) => { updateMobZoneCircle(index); },
+        onGenerateVegetationZone: onGenerateSelectedZone,
     });
-
-    function requestVegetationZones() {
-        if (!room) return;
-        room.send('getVegetationZones');
-        console.log('[EDITOR] Запрошены зоны с сервера');
-    }
 
     // TransformControls
     transformControls = new TransformControls(camera, renderer.domElement);
@@ -440,6 +458,7 @@ function exitEditorMode() {
     stopFreeCamera();
     deselectObject();
     placementMode = false;
+    (window as any).__pendingVegetationZoneId = null;
     
     // Очистка визуализаций зон растительности
     clearZoneVisuals();
@@ -566,7 +585,11 @@ function handleZoneClick(event: MouseEvent) {
 function saveVegetationZones() {
     if (room) {
         room.send('editorSaveVegetationZones', { zones: vegetationZones });
-        console.log('[EDITOR] Зоны сохранены:', vegetationZones);
+        console.log('[EDITOR] Зоны сохранены, запрашиваем обновлённые зоны...');
+        // Даём серверу немного времени на обработку, затем запрашиваем зоны заново
+        setTimeout(() => {
+            requestVegetationZones();
+        }, 500);
     }
 }
 
