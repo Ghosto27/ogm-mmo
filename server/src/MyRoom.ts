@@ -344,40 +344,7 @@ export class MyRoom extends Room<MyRoomState> {
         //LocationLoader.load(this, "village");
         const vegetationSpawner = new VegetationSpawner(this);
         vegetationSpawner.initialize();
-        // Сохраняем ссылку для использования в обработчике
         this.vegetationSpawner = vegetationSpawner;
-
-        try {
-            const fs = require('fs');
-            const path = require('path');
-            const filePath = path.join(__dirname, '../data/vegetation_zones.json');
-            if (fs.existsSync(filePath)) {
-                const zones = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-                zones.forEach((zone: any) => {
-                    for (let i = 0; i < zone.count; i++) {
-                        const x = zone.centerX + (Math.random() - 0.5) * zone.width;
-                        const z = zone.centerZ + (Math.random() - 0.5) * zone.depth;
-                        const scale = zone.minScale + Math.random() * (zone.maxScale - zone.minScale);
-                        const rotationY = Math.random() * Math.PI * 2;
-                        const modelName = zone.modelNames[Math.floor(Math.random() * zone.modelNames.length)];
-                        const wo = new WorldObject();
-                        wo.id = `vegezone_${zone.id}_${i}`;
-                        wo.modelName = modelName;
-                        wo.x = x;
-                        wo.z = z;
-                        wo.scaleX = scale;
-                        wo.scaleY = scale;
-                        wo.scaleZ = scale;
-                        wo.rotationY = rotationY;
-                        wo.color = '#ffffff';
-                        this.state.worldObjects.set(wo.id, wo);
-                    }
-                });
-                console.log(`[VEGETATION] Загружено ${zones.length} зон из vegetation_zones.json`);
-            }
-        } catch (err) {
-            console.error('[VEGETATION] Ошибка загрузки зон:', err);
-        }
 
         try {
             const fs = require('fs');
