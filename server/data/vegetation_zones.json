@@ -1,33 +1,5 @@
 [
   {
-    "id": "custom_zone_1778373246639",
-    "centerX": 19.390720139227383,
-    "centerZ": -113.34373053932447,
-    "width": 320,
-    "depth": 105,
-    "objectType": "tree",
-    "modelNames": [
-      "Tree_1"
-    ],
-    "count": 50,
-    "minScale": 1,
-    "maxScale": 3
-  },
-  {
-    "id": "custom_zone_1778373265538",
-    "centerX": 130.3013268521784,
-    "centerZ": 48.63582516408969,
-    "width": 115,
-    "depth": 216,
-    "objectType": "tree",
-    "modelNames": [
-      "Tree_1"
-    ],
-    "count": 50,
-    "minScale": 1,
-    "maxScale": 3
-  },
-  {
     "id": "custom_zone_1778373277026",
     "centerX": 51.81254767830865,
     "centerZ": 209.45831262647891,
@@ -45,8 +17,8 @@
     "id": "custom_zone_1778373288547",
     "centerX": -369.62563204397605,
     "centerZ": 46.38931878999202,
-    "width": 250,
-    "depth": 400,
+    "width": 407,
+    "depth": 459,
     "objectType": "tree",
     "modelNames": [
       "Tree_1"
@@ -66,6 +38,58 @@
       "Tree_1"
     ],
     "count": 3,
+    "minScale": 1,
+    "maxScale": 3
+  },
+  {
+    "id": "custom_zone_1778419497452",
+    "centerX": 25.13139341287213,
+    "centerZ": -105.7256177146377,
+    "width": 327.574926294992,
+    "depth": 95.59760709741016,
+    "objectType": "tree",
+    "modelNames": [
+      "Tree_1",
+      "Tree_11",
+      "Tree_12",
+      "Tree_13",
+      "Tree_14"
+    ],
+    "count": 60,
+    "minScale": 1,
+    "maxScale": 3
+  },
+  {
+    "id": "custom_zone_1778419549393",
+    "centerX": 240.47647844660807,
+    "centerZ": 65.01313383723001,
+    "width": 159.18039965066856,
+    "depth": 413.5130907661415,
+    "objectType": "tree",
+    "modelNames": [
+      "Tree_17",
+      "Tree_18",
+      "Tree_19"
+    ],
+    "count": 100,
+    "minScale": 1,
+    "maxScale": 3
+  },
+  {
+    "id": "custom_zone_1778419627127",
+    "centerX": 123.44964316634704,
+    "centerZ": 56.041493101740016,
+    "width": 147.58289181240826,
+    "depth": 233,
+    "objectType": "tree",
+    "modelNames": [
+      "Tree_1",
+      "Tree_11",
+      "Tree_12",
+      "Tree_13",
+      "Tree_14"
+    ],
+    "count": 40,
     "minScale": 1,
     "maxScale": 3
   }

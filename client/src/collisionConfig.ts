@@ -41,6 +41,11 @@ const config: Record<string, ColliderConfig> = {
         cylinderRadius: 0.2,
         cylinderHeight: 1.0,
     },
+    "Tree_19": {
+        type: 'cylinder',
+        cylinderRadius: 0.5,
+        cylinderHeight: 1.0,
+    },
     // Камни — по-прежнему автоматические сферы
 };
 
