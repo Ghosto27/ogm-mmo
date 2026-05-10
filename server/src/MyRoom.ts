@@ -702,15 +702,6 @@ export class MyRoom extends Room<MyRoomState> {
             }
             console.log(`[EDITOR] Сохранено ${message.objects.length} объектов`);
         });
-
-        this.onMessage("editorSaveVegetationZones", (client, message: { zones: any[] }) => {
-            // Сохраняем конфиг зон (если редактор его прислал)
-            const zonesPath = path.join(__dirname, '../data/vegetation_zones.json');
-            fs.writeFileSync(zonesPath, JSON.stringify(message.zones, null, 2));
-            // Применяем изменения к растительности
-            this.vegetationSpawner.applyUpdatedZones(message.zones);
-            console.log(`[EDITOR] Зоны растительности обновлены`);
-        });
         
         this.onMessage("getVegetationZones", (client) => {
             try {
@@ -750,7 +741,19 @@ export class MyRoom extends Room<MyRoomState> {
             this.spawner.respawnAll(message.zones);
         });
 
-        // Обработчик кнопки «Генерировать» в редакторе
+        // Обработчик сохранения ВСЕХ зон (кнопка «Сохранить»)
+        this.onMessage("editorSaveVegetationZones", (client, message: { zones: any[] }) => {
+            const fs = require('fs');
+            const path = require('path');
+            const filePath = path.join(__dirname, '../data/vegetation_zones.json');
+            fs.writeFileSync(filePath, JSON.stringify(message.zones, null, 2));
+            console.log(`[EDITOR] Сохранено ${message.zones.length} зон растительности`);
+            if (this.vegetationSpawner) {
+                this.vegetationSpawner.applyUpdatedZones(message.zones);
+            }
+        });
+
+        // Обработчик НЕМЕДЛЕННОЙ генерации ВЫБРАННОЙ зоны (кнопка «Генерировать»)
         this.onMessage("editorRegenerateVegetationZone", (client, message: { zone: any }) => {
             try {
                 if (!this.vegetationSpawner) {

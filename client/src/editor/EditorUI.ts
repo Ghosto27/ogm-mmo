@@ -153,11 +153,48 @@ export function createEditorUI(
             </div>
             <select id="select-model" style="margin:4px 0;padding:4px;width:100%;">
                 <option value="Tree_1">Tree_1</option>
-                <option value="Tree_2">Tree_2</option>
-                <option value="Tree_3">Tree_3</option>
+                <option value="Tree_10">Tree_10</option>
+                <option value="Tree_11">Tree_11</option>
+                <option value="Tree_12">Tree_12</option>
+                <option value="Tree_13">Tree_13</option>
+                <option value="Tree_14">Tree_14</option>
+                <option value="Tree_17">Tree_17</option>
+                <option value="Tree_18">Tree_18</option>
+                <option value="Tree_19">Tree_19</option>
+                <option value="Bush_1">Bush_1</option>
+                <option value="Bush_2">Bush_2</option>
+                <option value="Bush_3">Bush_3</option>
+                <option value="Log_1">Log_1</option>
+                <option value="Log_2">Log_2</option>
+                <option value="Log_3">Log_3</option>
+                <option value="Log_4">Log_4</option>
+                <option value="Log_5">Log_5</option>
                 <option value="Rock_1">Rock_1</option>
                 <option value="Rock_2">Rock_2</option>
                 <option value="Rock_3">Rock_3</option>
+                <option value="Rock_4">Rock_4</option>
+                <option value="Rock_5">Rock_5</option>
+                <option value="Rock_6">Rock_6</option>
+                <option value="Rock_7">Rock_7</option>
+                <option value="Rock_8">Rock_8</option>
+                <option value="Rock_9">Rock_9</option>
+                <option value="Rock_10">Rock_10</option>
+                <option value="Plant_1">Plant_1</option>
+                <option value="Plant_2">Plant_2</option>
+                <option value="Plant_3">Plant_3</option>
+                <option value="Plant_4">Plant_4</option>
+                <option value="Plant_5">Plant_5</option>
+                <option value="Plant_6">Plant_6</option>
+                <option value="Plant_7">Plant_7</option>
+                <option value="Plant_8">Plant_8</option>
+                <option value="Plant_9">Plant_9</option>
+                <option value="Plant_10">Plant_10</option>
+                <option value="Plant_11">Plant_11</option>
+                <option value="Plant_12">Plant_12</option>
+                <option value="Plant_13">Plant_13</option>
+                <option value="Plant_14">Plant_14</option>
+                <option value="Plant_15">Plant_15</option>
+                <option value="Plant_16">Plant_16</option>
             </select>
             <button id="btn-place" style="margin:4px 0;padding:6px 12px;width:100%;">📌 Разместить объект</button>
             <button id="btn-delete" style="margin:4px 0;padding:6px 12px;width:100%;">🗑️ Удалить выбранный</button>

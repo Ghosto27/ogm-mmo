@@ -358,18 +358,23 @@ function join(playerName: string) {
         }
 
             // ------ Статические объекты ------
-            if (!isEditorActive()) {
-                // Удаляем меши зоны, которая ожидает регенерации
-                if ((window as any).__pendingVegetationZoneId) {
-                    const prefix = `vegezone_${(window as any).__pendingVegetationZoneId}_`;
-                    for (const id in worldMeshes) {
-                        if (id.startsWith(prefix)) {
-                            scene.remove(worldMeshes[id]);
-                            delete worldMeshes[id];
-                        }
+            // Обработка немедленной регенерации зоны (работает и в редакторе, и вне его)
+            if ((window as any).__pendingVegetationZoneId) {
+                const pendingZoneId = (window as any).__pendingVegetationZoneId;
+                const prefix = `vegezone_${pendingZoneId}_`;
+                for (const id in worldMeshes) {
+                    if (id.startsWith(prefix)) {
+                        scene.remove(worldMeshes[id]);
+                        delete worldMeshes[id];
                     }
-                    (window as any).__pendingVegetationZoneId = null;
                 }
+                (window as any).__pendingVegetationZoneId = null;
+                // Принудительно обновляем мир, чтобы создать новые объекты
+                updateWorldObjects(state.worldObjects);
+                console.log(`[VEG] Принудительное обновление после генерации зоны ${pendingZoneId}`);
+            }
+            // Обычное обновление мира (только вне редактора)
+            else if (!isEditorActive()) {
                 updateWorldObjects(state.worldObjects);
             }
 

@@ -458,6 +458,7 @@ function exitEditorMode() {
     deselectObject();
     placementMode = false;
     (window as any).__pendingVegetationZoneId = null;
+    pendingRegenerationZoneId = null;
     
     // Очистка визуализаций зон растительности
     clearZoneVisuals();

@@ -56,16 +56,16 @@
     "maxScale": 3
   },
   {
-    "id": "custom_zone_1778417313633",
-    "centerX": -5.391117821730422,
-    "centerZ": 67.08180730194164,
-    "width": 57.287811284688296,
-    "depth": 25.788733571285277,
+    "id": "custom_zone_1778418402325",
+    "centerX": -4.500939555467351,
+    "centerZ": 42.16348376598144,
+    "width": 69.2406565394725,
+    "depth": 10.77771262709507,
     "objectType": "tree",
     "modelNames": [
       "Tree_1"
     ],
-    "count": 1,
+    "count": 3,
     "minScale": 1,
     "maxScale": 3
   }
