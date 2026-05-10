@@ -143,13 +143,14 @@ window.addEventListener('mouseup', (event) => {
             if (staticIntersections.length > 0) {
                 const nearest = staticIntersections[0];
                 const point = nearest.point;
-                const obj = nearest.object;
-
+                let obj: THREE.Object3D | null = nearest.object;
+                // Поднимаемся вверх по иерархии, пока не найдём modelName (для Group-обёрток)
+                while (obj && !obj.userData?.modelName) {
+                    obj = obj.parent;
+                }
                 let modelName = 'unknown';
-                if (obj.userData && obj.userData.modelName) {
-                    modelName = obj.userData.modelName;
-                } else if (obj instanceof THREE.InstancedMesh) {
-                    modelName = obj.userData.modelName || 'instance';
+                if (obj) {
+                    modelName = obj.userData.modelName || 'unknown';
                 }
 
                 console.group(`[STATIC-CLICK]`);

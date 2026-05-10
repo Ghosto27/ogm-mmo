@@ -7,9 +7,18 @@
     "depth": 107,
     "objectType": "tree",
     "modelNames": [
-      "Tree_1"
+      "Tree_1",
+      "Rock_1",
+      "Rock_2",
+      "Rock_3",
+      "Rock_4",
+      "Rock_5",
+      "Rock_6",
+      "Rock_7",
+      "Rock_8",
+      "Rock_9"
     ],
-    "count": 50,
+    "count": 150,
     "minScale": 1,
     "maxScale": 3
   },
@@ -21,11 +30,16 @@
     "depth": 459,
     "objectType": "tree",
     "modelNames": [
-      "Tree_1"
+      "Tree_10",
+      "Tree_10",
+      "Tree_10",
+      "Tree_10",
+      "Tree_10",
+      "Tree_11"
     ],
-    "count": 149,
+    "count": 30,
     "minScale": 1,
-    "maxScale": 3
+    "maxScale": 6
   },
   {
     "id": "custom_zone_1778418402325",
@@ -53,9 +67,13 @@
       "Tree_11",
       "Tree_12",
       "Tree_13",
-      "Tree_14"
+      "Tree_14",
+      "Rock_4",
+      "Rock_5",
+      "Rock_6",
+      "Rock_7"
     ],
-    "count": 60,
+    "count": 100,
     "minScale": 1,
     "maxScale": 3
   },
@@ -69,9 +87,13 @@
     "modelNames": [
       "Tree_17",
       "Tree_18",
-      "Tree_19"
+      "Tree_19",
+      "Rock_1",
+      "Rock_7",
+      "Rock_8",
+      "Rock_9"
     ],
-    "count": 100,
+    "count": 130,
     "minScale": 1,
     "maxScale": 3
   },
@@ -87,7 +109,10 @@
       "Tree_11",
       "Tree_12",
       "Tree_13",
-      "Tree_14"
+      "Tree_14",
+      "Rock_7",
+      "Rock_8",
+      "Rock_9"
     ],
     "count": 40,
     "minScale": 1,

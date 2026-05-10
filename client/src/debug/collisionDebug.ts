@@ -41,7 +41,7 @@ export function updateCollisionDebug(
         }
 
         if (col.type === 'sphere') {
-            const geo = new THREE.SphereGeometry(col.radius, 16, 16);
+            const geo = new THREE.SphereGeometry(col.radius, 6, 6);
             const mesh = new THREE.Mesh(geo, sphereMaterial);
             mesh.position.copy(col.center);
             debugGroup!.add(mesh);

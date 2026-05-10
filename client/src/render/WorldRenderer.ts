@@ -161,31 +161,33 @@ function createCollisionForModel(mesh: THREE.Object3D, obj: any) {
     const modelName = obj.modelName;
     if (!modelName) return;
 
-    // Получаем конфиг (может быть null)
     const config = getColliderConfig(modelName);
     const scale = obj.scaleX || 1;   // предполагаем равномерный масштаб
     const meshY = mesh.position.y;
 
     if (config && config.type === 'cylinder') {
-        // Цилиндр из конфига (базовые размеры * scale)
+        // Цилиндр (деревья)
         const radius = (config.cylinderRadius ?? 0.5) * scale;
         const height = (config.cylinderHeight ?? 1) * scale;
-        const baseY = meshY - height / 2;  // центр цилиндра в нижней точке? Зависит от модели. Для деревьев pivot внизу, поэтому высота от земли вверх.
-        // Считаем, что цилиндр начинается от земли (mesh.position.y) и идёт вверх на height.
         const center = new THREE.Vector3(mesh.position.x, meshY, mesh.position.z);
         addCylinderCollider(center, radius, height);
+    } else if (config && config.type === 'sphere') {
+        // Сфера из конфига (камни)
+        const radius = (config.radius ?? 1) * scale;
+        const offsetY = (config.yOffset ?? 0.5) * scale;
+        const center = new THREE.Vector3(mesh.position.x, meshY + offsetY, mesh.position.z);
+        addSphereCollider(center, radius);
     } else {
-        // Автоматическая сфера на основе bounding box
+        // Автоматическая сфера на основе bounding box (для камней без конфига)
         const box = new THREE.Box3().setFromObject(mesh);
         const size = new THREE.Vector3();
         box.getSize(size);
+        // Берём среднее между шириной и глубиной, делённое пополам, и чуть уменьшаем
         const maxDim = Math.max(size.x, size.z);
-        const radius = (maxDim / 2) * 0.9;  // немного уменьшаем
-        // Центр сферы – центр бокса или нижняя часть? Для камней/деревьев лучше центр.
+        const radius = (maxDim / 2) * 0.6;
+        // Центр сферы – центр бокса (он будет примерно в середине камня)
         const center = new THREE.Vector3();
         box.getCenter(center);
-        // Если модель стоит на земле, сфера может быть слишком высокой; можно сместить ниже.
-        // Но для простоты берём центр бокса.
         addSphereCollider(center, radius);
     }
 }
