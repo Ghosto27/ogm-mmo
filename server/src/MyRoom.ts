@@ -750,15 +750,12 @@ export class MyRoom extends Room<MyRoomState> {
             this.spawner.respawnAll(message.zones);
         });
 
+        // Обработчик кнопки «Генерировать» в редакторе
         this.onMessage("editorRegenerateVegetationZone", (client, message: { zone: any }) => {
-            if (!this.vegetationSpawner) {
-                console.error('[EDITOR] vegetationSpawner не инициализирован');
-                return;
-            }
             try {
+                if (!this.vegetationSpawner) return;
                 this.vegetationSpawner.regenerateSingleZone(message.zone);
-                // Отправляем клиенту ID зоны, чтобы он пересоздал меши
-                console.log(`[EDITOR] Зона "${message.zone.id}" перегенерирована`);
+                console.log(`[EDITOR] Зона "${message.zone.id}" перегенерирована по кнопке Генерировать`);
             } catch (err) {
                 console.error('[EDITOR] Ошибка при генерации зоны:', err);
             }

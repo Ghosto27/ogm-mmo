@@ -317,10 +317,9 @@ function onGenerateSelectedZone() {
     if (isNaN(idx) || idx < 0 || idx >= vegetationZones.length) return;
     const zone = vegetationZones[idx];
     if (!zone) return;
-    (window as any).__pendingVegetationZoneId = zone.id;
-
     if (room) {
         pendingRegenerationZoneId = zone.id;
+        (window as any).__pendingVegetationZoneId = zone.id;
         room.send('editorRegenerateVegetationZone', { zone });
         console.log('[EDITOR] Запрошена генерация зоны:', zone.id);
     }
