@@ -720,15 +720,15 @@ export class MyRoom extends Room<MyRoomState> {
             }
         });
 
-        // Обработчик НЕМЕДЛЕННОЙ генерации ВЫБРАННОЙ зоны (кнопка «Генерировать»)
-        this.onMessage("editorRegenerateVegetationZone", (client, message: { zone: any }) => {
+        this.onMessage("editorRegenerateVegetationZone", (client, message: { zoneId: string; objects: any[] }) => {
             try {
                 if (!this.vegetationSpawner) {
                     console.error('[EDITOR] vegetationSpawner не инициализирован');
                     return;
                 }
-                this.vegetationSpawner.regenerateSingleZone(message.zone);
-                console.log(`[EDITOR] Зона "${message.zone.id}" перегенерирована по кнопке Генерировать`);
+                // Передаём готовые объекты в спавнер
+                this.vegetationSpawner.regenerateSingleZoneFromClient(message.zoneId, message.objects);
+                console.log(`[EDITOR] Зона "${message.zoneId}" обновлена клиентскими объектами`);
             } catch (err) {
                 console.error('[EDITOR] Ошибка при генерации зоны:', err);
             }

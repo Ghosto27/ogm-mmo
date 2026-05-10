@@ -10,7 +10,7 @@ import {
     getRotationFromInputs, showMobZoneProps, setMobZones
 } from './EditorUI';
 import { inputState, sprintKey } from '../input';
-import { terrainMesh, getTerrainHeightAtFast } from '../render/TerrainRenderer';
+import { terrainMesh, getTerrainHeightAtFast, getTerrainHeightAt } from '../render/TerrainRenderer';
 import { worldMeshes } from '../render/WorldRenderer';
 import { createModelClone } from '../utils/modelLoader';
 
@@ -317,11 +317,52 @@ function onGenerateSelectedZone() {
     if (isNaN(idx) || idx < 0 || idx >= vegetationZones.length) return;
     const zone = vegetationZones[idx];
     if (!zone) return;
+
+    // Генерируем объекты на клиенте с рейкастом
+    const objects: any[] = [];
+    const maxAttempts = 50;
+    const MIN_DIST = 2.0;
+    const rng = () => Math.random();
+
+    for (let i = 0; i < zone.count; i++) {
+        let placed = false;
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            const x = zone.centerX + (rng() - 0.5) * zone.width;
+            const z = zone.centerZ + (rng() - 0.5) * zone.depth;
+            const scale = zone.minScale + rng() * (zone.maxScale - zone.minScale);
+            const rotationY = rng() * Math.PI * 2;
+            const modelName = zone.modelNames[Math.floor(rng() * zone.modelNames.length)];
+
+            // Проверка минимальной дистанции (на клиенте)
+            let tooClose = false;
+            for (const obj of objects) {
+                const dx = x - obj.x;
+                const dz = z - obj.z;
+                if (Math.sqrt(dx*dx + dz*dz) < MIN_DIST) {
+                    tooClose = true;
+                    break;
+                }
+            }
+            if (tooClose) continue;
+
+            // Точный рейкаст для получения высоты
+            const y = getTerrainHeightAt(x, z) + 0.5; // небольшой визуальный отступ, если нужно
+
+            objects.push({
+                x, z, y, scale, rotationY, modelName,
+            });
+            placed = true;
+            break;
+        }
+        if (!placed) {
+            console.warn(`[EDITOR] Не удалось разместить объект #${i + 1} в зоне "${zone.id}"`);
+        }
+    }
+
     if (room) {
-        pendingRegenerationZoneId = zone.id;
+        room.send('editorRegenerateVegetationZone', { zoneId: zone.id, objects });
         (window as any).__pendingVegetationZoneId = zone.id;
-        room.send('editorRegenerateVegetationZone', { zone });
-        console.log('[EDITOR] Запрошена генерация зоны:', zone.id);
+        console.log(`[EDITOR] Отправлено ${objects.length} объектов для зоны "${zone.id}" с точной высотой`);
     }
 }
 

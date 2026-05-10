@@ -4,8 +4,9 @@ import express from "express";
 import cors from "cors";
 import { MyRoom } from "./MyRoom";
 import { Encoder } from "@colyseus/schema";
+import { WebSocketTransport } from '@colyseus/ws-transport';
 
-Encoder.BUFFER_SIZE = 128 * 1024; // 32 КБ (можно увеличить до 64 * 1024 при необходимости)
+Encoder.BUFFER_SIZE = 256 * 1024; // 32 КБ (можно увеличить до 64 * 1024 при необходимости)
 
 const app = express();
 const port = 2567;
@@ -19,7 +20,12 @@ app.use(cors({
 const httpServer = createServer(app);
 
 // Важно: в 0.16 конструктор Server() пустой, а сервер прикрепляется через attach
-const gameServer = new Server();
+const gameServer = new Server({
+    server: httpServer,
+    transport: new WebSocketTransport({
+        maxPayload: 500 * 1024 * 1024, // увеличиваем лимит до 500 МБ
+    }),
+});
 gameServer.define("world", MyRoom);
 gameServer.attach({ server: httpServer });
 

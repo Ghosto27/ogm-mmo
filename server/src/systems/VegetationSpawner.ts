@@ -312,49 +312,48 @@ export class VegetationSpawner {
         return objects;
     }
 
-    /** Перегенерирует одну зону (удаляет старые объекты, создаёт новые) */
-    public regenerateSingleZone(zone: any): void {
+    public regenerateSingleZoneFromClient(zoneId: string, objects: any[]): void {
         try {
-            console.log(`[VEGETATION] Начало генерации зоны "${zone.id}" с параметрами:`, JSON.stringify(zone));
             let stored: VegetationObject[] = [];
             if (fs.existsSync(VEGETATION_FILE)) {
-                stored = JSON.parse(fs.readFileSync(VEGETATION_FILE, 'utf-8'));
-                console.log(`[VEGETATION] Текущий файл содержит ${stored.length} объектов`);
-            } else {
-                console.log(`[VEGETATION] Файл ${VEGETATION_FILE} не найден, создаём новый`);
+                const raw = fs.readFileSync(VEGETATION_FILE, 'utf-8');
+                stored = JSON.parse(raw);
             }
-            const otherObjects = stored.filter(obj => obj.zoneId !== zone.id);
 
-            // Удаляем объекты этой зоны
-            const beforeCount = stored.length;
-            stored = stored.filter(obj => obj.zoneId !== zone.id);
-            console.log(`[VEGETATION] Удалено ${beforeCount - stored.length} старых объектов зоны "${zone.id}"`);
+            // Удаляем старые объекты этой зоны из файла
+            stored = stored.filter(obj => obj.zoneId !== zoneId);
 
-            // Генерируем новые
-            const generated = this.generateObjectsForZone(zone, otherObjects);
-            console.log(`[VEGETATION] Создано ${generated.length} новых объектов`);
+            // Добавляем новые объекты (с высотой, полученной от клиента)
+            const generated: VegetationObject[] = objects.map(obj => ({
+                x: obj.x,
+                z: obj.z,
+                y: obj.y,
+                scale: obj.scale,
+                rotationY: obj.rotationY,
+                modelName: obj.modelName,
+                zoneId: zoneId,
+            }));
+
             stored.push(...generated);
 
             // Сохраняем файл
             fs.writeFileSync(VEGETATION_FILE, JSON.stringify(stored, null, 2));
-            console.log(`[VEGETATION] Файл ${VEGETATION_FILE} обновлён`);
 
-            // Обновляем стейт
+            // Удаляем старые объекты этой зоны из стейта
             const toRemove: string[] = [];
             this.room.state.worldObjects.forEach((_: any, id: string) => {
-                if (id.startsWith(`vegezone_${zone.id}_`)) toRemove.push(id);
+                if (id.startsWith(`vegezone_${zoneId}_`)) toRemove.push(id);
             });
-            toRemove.forEach((id: string) => this.room.state.worldObjects.delete(id));
-            console.log(`[VEGETATION] Удалено ${toRemove.length} объектов из мира`);
+            toRemove.forEach(id => this.room.state.worldObjects.delete(id));
 
+            // Добавляем новые объекты в стейт
             for (const obj of generated) {
-                console.log(`[VEG-REGEN] Создаётся объект в мире: zoneId=${zone.id}, x=${obj.x.toFixed(2)}, z=${obj.z.toFixed(2)}, model=${obj.modelName}`);
                 const wo = new WorldObject();
-                wo.id = `vegezone_${zone.id}_${obj.x.toFixed(1)}_${obj.z.toFixed(1)}`;
+                wo.id = `vegezone_${zoneId}_${obj.x.toFixed(1)}_${obj.z.toFixed(1)}`;
                 wo.modelName = obj.modelName;
                 wo.x = obj.x;
-                wo.z = obj.z;
                 wo.y = obj.y;
+                wo.z = obj.z;
                 wo.scaleX = obj.scale;
                 wo.scaleY = obj.scale;
                 wo.scaleZ = obj.scale;
@@ -363,10 +362,10 @@ export class VegetationSpawner {
                 this.room.state.worldObjects.set(wo.id, wo);
             }
 
-            console.log(`[VEGETATION] Зона "${zone.id}" успешно перегенерирована`);
+            console.log(`[VEGETATION] Зона "${zoneId}" обновлена клиентскими объектами (${generated.length} шт.)`);
         } catch (err) {
-            console.error('[VEGETATION] Ошибка в regenerateSingleZone:', err);
-            throw err; // всё равно пробрасываем, чтобы увидеть ошибку на клиенте
+            console.error('[VEGETATION] Ошибка в regenerateSingleZoneFromClient:', err);
+            throw err;
         }
     }
 }
