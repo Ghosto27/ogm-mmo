@@ -30,14 +30,9 @@
     "depth": 459,
     "objectType": "tree",
     "modelNames": [
-      "Tree_10",
-      "Tree_10",
-      "Tree_10",
-      "Tree_10",
-      "Tree_10",
-      "Tree_11"
+      "Tree_10"
     ],
-    "count": 30,
+    "count": 300,
     "minScale": 1,
     "maxScale": 6
   },
@@ -115,6 +110,20 @@
       "Rock_9"
     ],
     "count": 40,
+    "minScale": 1,
+    "maxScale": 3
+  },
+  {
+    "id": "custom_zone_1778424309856",
+    "centerX": -46.0871102217329,
+    "centerZ": 523.841163068578,
+    "width": 209,
+    "depth": 166,
+    "objectType": "tree",
+    "modelNames": [
+      "Rock_2"
+    ],
+    "count": 50,
     "minScale": 1,
     "maxScale": 3
   }
