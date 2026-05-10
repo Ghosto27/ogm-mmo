@@ -16,7 +16,7 @@ import { createModelClone } from '../utils/modelLoader';
 
 let transformControls: TransformControls;
 let editorObjects: THREE.Object3D[] = [];
-let selectedObject: THREE.Object3D | null = null;
+let selectedObjects: THREE.Object3D[] = [];
 let placementMode = false;
 let placementType: 'cube' | 'cylinder' | 'model' = 'cube';
 let selectedModelName = 'Tree_1';
@@ -138,27 +138,56 @@ async function createModelInstance(x: number, z: number): Promise<THREE.Group | 
 }
 
 // ---------- Выделение и редактирование ----------
-function attachTransformControls(obj: THREE.Object3D) {
-    if (selectedObject) transformControls.detach();
+function attachTransformControls(obj: THREE.Object3D, addToSelection: boolean = false) {
+    if (!addToSelection) {
+        // Очищаем предыдущее выделение
+        deselectAllObjects();
+    }
+
+    // Если объект уже выделен – снимаем выделение (при Shift+клик)
+    if (addToSelection && selectedObjects.includes(obj)) {
+        const idx = selectedObjects.indexOf(obj);
+        if (idx !== -1) selectedObjects.splice(idx, 1);
+        if (selectedObjects.length === 0) {
+            transformControls.detach();
+            updatePropertiesPanel(null);
+        } else {
+            // Привязываемся к последнему оставшемуся
+            const last = selectedObjects[selectedObjects.length - 1];
+            transformControls.attach(last);
+            updatePropertiesPanel(last);
+        }
+        return;
+    }
+
+    // Добавляем объект (если его ещё нет)
+    if (!selectedObjects.includes(obj)) {
+        selectedObjects.push(obj);
+    }
+
+    // Всегда привязываем TransformControls к последнему выбранному
     transformControls.attach(obj);
-    selectedObject = obj;
-    updatePropertiesPanel(obj); // обновите сигнатуру в EditorUI (см. далее)
+    updatePropertiesPanel(obj);
+}
+
+function deselectAllObjects() {
+    if (transformControls) transformControls.detach();
+    selectedObjects = [];
+    updatePropertiesPanel(null);
 }
 
 function deselectObject() {
-    if (selectedObject) {
-        transformControls.detach();
-        selectedObject = null;
-        updatePropertiesPanel(null);
-    }
+    deselectAllObjects();
 }
 
-function deleteSelectedObject() {
-    if (!selectedObject) return;
-    scene.remove(selectedObject);
-    const idx = editorObjects.indexOf(selectedObject);
-    if (idx !== -1) editorObjects.splice(idx, 1);
-    deselectObject();
+function deleteSelectedObjects() {
+    if (selectedObjects.length === 0) return;
+    for (const obj of selectedObjects) {
+        scene.remove(obj);
+        const editorIdx = editorObjects.indexOf(obj);
+        if (editorIdx !== -1) editorObjects.splice(editorIdx, 1);
+    }
+    deselectAllObjects();
 }
 
 async function onEditorClick(event: MouseEvent) {
@@ -197,7 +226,8 @@ async function onEditorClick(event: MouseEvent) {
             hit = hit.parent;
         }
         if (hit && hit.userData?.editorMode) {
-            attachTransformControls(hit);
+            const shiftKey = event.shiftKey; // проверяем зажатый Shift
+            attachTransformControls(hit, shiftKey);
             return;
         }
     }
@@ -230,18 +260,37 @@ async function placeObject(worldX: number, worldZ: number): Promise<void> {
 
 // Функции-обработчики для UI
 function onDeleteAction() {
-    deleteSelectedObject();
+    deleteSelectedObjects();
 }
 
 function onPropertiesChanged() {
-    if (!selectedObject) return;
+    if (selectedObjects.length === 0) return;
+
     const pos = getPositionFromInputs();
     const scl = getScaleFromInputs();
     const rot = getRotationFromInputs();
-    //console.log(`[EDITOR-PANEL] uuid=${selectedObject.uuid}, oldPos=(${selectedObject.position.x.toFixed(1)},${selectedObject.position.y.toFixed(1)},${selectedObject.position.z.toFixed(1)}), newPos=(${pos.x.toFixed(1)},${pos.y.toFixed(1)},${pos.z.toFixed(1)})`);
-    selectedObject.position.set(pos.x, pos.y, pos.z);
-    selectedObject.scale.set(scl.x, scl.y, scl.z);
-    selectedObject.rotation.set(rot.x, rot.y, rot.z);
+
+    // Запоминаем старые значения первого объекта (для расчёта смещения)
+    const first = selectedObjects[0];
+    const oldPos = first.position.clone();
+    const oldScale = first.scale.clone();
+    const oldRot = first.rotation.clone();
+
+    // Вычисляем дельты
+    const deltaPos = new THREE.Vector3().subVectors(pos, oldPos);
+    const deltaScale = new THREE.Vector3().subVectors(scl, oldScale);
+    // Для поворота проще установить одинаковый поворот для всех? Или тоже дельту.
+    // Пока сделаем одинаковый поворот, т.к. вращать группу с разными initial сложно.
+    const newRot = rot;
+
+    for (const obj of selectedObjects) {
+        obj.position.add(deltaPos);
+        obj.scale.add(deltaScale);
+        obj.rotation.set(newRot.x, newRot.y, newRot.z);
+    }
+
+    // Обновляем панель для первого объекта
+    updatePropertiesPanel(first);
     transformControls.update(0);
 }
 
@@ -292,9 +341,9 @@ export function initEditor() {
     // TransformControls
     transformControls = new TransformControls(camera, renderer.domElement);
     transformControls.addEventListener('change', () => {
-        if (selectedObject) {
-            //console.log(`[EDITOR-GIZMO] uuid=${selectedObject.uuid}, newPos=(${selectedObject.position.x.toFixed(1)},${selectedObject.position.y.toFixed(1)},${selectedObject.position.z.toFixed(1)})`);
-            updatePropertiesPanel(selectedObject);
+        if (selectedObjects.length > 0) {
+            const last = selectedObjects[selectedObjects.length - 1];
+            updatePropertiesPanel(last);
         }
     });
 
@@ -303,6 +352,12 @@ export function initEditor() {
     window.addEventListener('mouseup', onMouseUpForEditor);
     window.addEventListener('mousemove', onMouseMoveForEditor);
     window.addEventListener('click', onEditorClick);
+
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'Delete' && isEditorActive()) {
+            deleteSelectedObjects();
+        }
+    });
 
     window.addEventListener('keydown', async (e) => {
         if (e.key === 'F10') {
@@ -374,7 +429,7 @@ async function enterEditorMode() {
         attachTransformControls(editorObjects[0]);
         updatePropertiesPanel(editorObjects[0]);
     }
-
+    selectedObjects = [];
     startFreeCamera();
     console.log(`[EDITOR] Загружено ${editorObjects.length} объектов`);
 }
@@ -402,6 +457,7 @@ function exitEditorMode() {
     mobZoneCenter = null;
     
     editorObjects = [];
+    selectedObjects = [];
     console.log('[EDITOR] Выход из редактора');
 }
 
@@ -449,9 +505,11 @@ function snapToGround(obj: THREE.Object3D) {
 }
 
 function onSnapToGroundAction() {
-    if (selectedObject) {
-        snapToGround(selectedObject);
-        updatePropertiesPanel(selectedObject);
+    for (const obj of selectedObjects) {
+        snapToGround(obj);
+    }
+    if (selectedObjects.length > 0) {
+        updatePropertiesPanel(selectedObjects[0]);
     }
 }
 
