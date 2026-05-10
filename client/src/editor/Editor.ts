@@ -374,7 +374,7 @@ function onGenerateSelectedZone() {
         console.log(`[EDITOR] Отправлен чанк ${i+1}/${totalChunks} для зоны "${zone.id}" (${chunk.length} объектов)`);
     }
 
-    (window as any).__pendingVegetationZoneId = zone.id;
+    //(window as any).__pendingVegetationZoneId = zone.id;
 }
 
 // ---------- Экспортные функции ----------

@@ -312,7 +312,7 @@ export class VegetationSpawner {
         return objects;
     }
 
-    public regenerateSingleZoneFromClient(zoneId: string, objects: any[]): void {
+    public async regenerateSingleZoneFromClient(zoneId: string, objects: any[]): Promise<void> {
         try {
             let stored: VegetationObject[] = [];
             if (fs.existsSync(VEGETATION_FILE)) {
@@ -323,7 +323,7 @@ export class VegetationSpawner {
             // Удаляем старые объекты этой зоны из файла
             stored = stored.filter(obj => obj.zoneId !== zoneId);
 
-            // Добавляем новые объекты (с высотой, полученной от клиента)
+            // Добавляем новые объекты в файл
             const generated: VegetationObject[] = objects.map(obj => ({
                 x: obj.x,
                 z: obj.z,
@@ -333,36 +333,44 @@ export class VegetationSpawner {
                 modelName: obj.modelName,
                 zoneId: zoneId,
             }));
-
             stored.push(...generated);
-
-            // Сохраняем файл
             fs.writeFileSync(VEGETATION_FILE, JSON.stringify(stored, null, 2));
 
-            // Удаляем старые объекты этой зоны из стейта
+            // Удаляем старые объекты этой зоны из стейта (одним разом – это мало данных)
             const toRemove: string[] = [];
             this.room.state.worldObjects.forEach((_: any, id: string) => {
                 if (id.startsWith(`vegezone_${zoneId}_`)) toRemove.push(id);
             });
             toRemove.forEach(id => this.room.state.worldObjects.delete(id));
 
-            // Добавляем новые объекты в стейт
-            for (const obj of generated) {
-                const wo = new WorldObject();
-                wo.id = `vegezone_${zoneId}_${obj.x.toFixed(1)}_${obj.z.toFixed(1)}`;
-                wo.modelName = obj.modelName;
-                wo.x = obj.x;
-                wo.y = obj.y;
-                wo.z = obj.z;
-                wo.scaleX = obj.scale;
-                wo.scaleY = obj.scale;
-                wo.scaleZ = obj.scale;
-                wo.rotationY = obj.rotationY;
-                wo.color = '#ffffff';
-                this.room.state.worldObjects.set(wo.id, wo);
+            // Добавляем новые объекты порциями, чтобы избежать Max payload
+            const BATCH_SIZE = 40;  // меньше лимита (75)
+            const DELAY_MS = 30;    // задержка между батчами
+
+            for (let i = 0; i < generated.length; i += BATCH_SIZE) {
+                const batch = generated.slice(i, i + BATCH_SIZE);
+                // Вставка порции
+                for (const obj of batch) {
+                    const wo = new WorldObject();
+                    wo.id = `vegezone_${zoneId}_${obj.x.toFixed(1)}_${obj.z.toFixed(1)}`;
+                    wo.modelName = obj.modelName;
+                    wo.x = obj.x;
+                    wo.y = obj.y;
+                    wo.z = obj.z;
+                    wo.scaleX = obj.scale;
+                    wo.scaleY = obj.scale;
+                    wo.scaleZ = obj.scale;
+                    wo.rotationY = obj.rotationY;
+                    wo.color = '#ffffff';
+                    this.room.state.worldObjects.set(wo.id, wo);
+                }
+
+                if (i + BATCH_SIZE < generated.length) {
+                    await new Promise(resolve => setTimeout(resolve, DELAY_MS));
+                }
             }
 
-            console.log(`[VEGETATION] Зона "${zoneId}" обновлена клиентскими объектами (${generated.length} шт.)`);
+            console.log(`[VEGETATION] Зона "${zoneId}" обновлена (всего ${generated.length} объектов, порциями)`);
         } catch (err) {
             console.error('[VEGETATION] Ошибка в regenerateSingleZoneFromClient:', err);
             throw err;

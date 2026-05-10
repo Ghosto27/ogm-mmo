@@ -360,7 +360,7 @@ function join(playerName: string) {
             // ------ Статические объекты ------
             // Обработка немедленной регенерации зоны (работает и в редакторе, и вне его)
             // 1. Если была нажата кнопка «Генерировать», удаляем старые меши зоны
-            if ((window as any).__pendingVegetationZoneId) {
+            /* if ((window as any).__pendingVegetationZoneId) {
                 const pendingZoneId = (window as any).__pendingVegetationZoneId;
                 const prefix = `vegezone_${pendingZoneId}_`;
                 for (const id in worldMeshes) {
@@ -371,7 +371,7 @@ function join(playerName: string) {
                 }
                 (window as any).__pendingVegetationZoneId = null;
             }
-
+ */
             // 2. Всегда обновляем мир – и editor_, и vegezone_, и всё остальное
             updateWorldObjects(state.worldObjects);
             
