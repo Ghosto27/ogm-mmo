@@ -58,25 +58,50 @@ export class VegetationSpawner {
         const px = u * (imgW - 1);
         const py = v * (imgH - 1);
 
-        const x1 = Math.floor(px);
-        const x2 = Math.min(x1 + 1, imgW - 1);
-        const y1 = Math.floor(py);
-        const y2 = Math.min(y1 + 1, imgH - 1);
+        // Функция для безопасного получения значения пикселя (с clamped краями)
+        const getPixel = (col: number, row: number): number => {
+            const x = Math.min(Math.max(col, 0), imgW - 1);
+            const y = Math.min(Math.max(row, 0), imgH - 1);
+            const index = y * imgW + x;
+            return this.heightmapData![index];
+        };
 
-        const idx = (y: number, x: number) => y * imgW + x;
-        const r11 = this.heightmapData[idx(y1, x1)];
-        const r21 = this.heightmapData[idx(y1, x2)];
-        const r12 = this.heightmapData[idx(y2, x1)];
-        const r22 = this.heightmapData[idx(y2, x2)];
+        // Вычисляем координаты текущего опорного пикселя (левый верхний)
+        const x0 = Math.floor(px);
+        const y0 = Math.floor(py);
+        const dx = px - x0;
+        const dy = py - y0;
 
-        const fx = px - x1;
-        const fy = py - y1;
+        // Кубическая интерполяция по одному измерению (с использованием Catmull-Rom сплайна)
+        const cubicInterp1D = (p: number, v0: number, v1: number, v2: number, v3: number): number => {
+            const p2 = p * p;
+            const p3 = p2 * p;
+            const a = -0.5 * v0 + 1.5 * v1 - 1.5 * v2 + 0.5 * v3;
+            const b = v0 - 2.5 * v1 + 2.0 * v2 - 0.5 * v3;
+            const c = -0.5 * v0 + 0.5 * v2;
+            const d = v1;
+            return a * p3 + b * p2 + c * p + d;
+        };
 
-        const rTop = r11 + (r21 - r11) * fx;
-        const rBottom = r12 + (r22 - r12) * fx;
-        const r = rTop + (rBottom - rTop) * fy;
+        // Получаем 16 соседних пикселей (4x4)
+        const values: number[] = [];
+        for (let dy_ = -1; dy_ <= 2; dy_++) {
+            for (let dx_ = -1; dx_ <= 2; dx_++) {
+                values.push(getPixel(x0 + dx_, y0 + dy_));
+            }
+        }
 
-        return (r / 255) * TERRAIN_MAX_HEIGHT;
+        // Сначала интерполируем по строкам (4 строки)
+        const rowInterp: number[] = [];
+        for (let i = 0; i < 4; i++) {
+            const baseIdx = i * 4;
+            rowInterp.push(cubicInterp1D(dx, values[baseIdx], values[baseIdx+1], values[baseIdx+2], values[baseIdx+3]));
+        }
+
+        // Затем интерполируем по столбцам
+        const result = cubicInterp1D(dy, rowInterp[0], rowInterp[1], rowInterp[2], rowInterp[3]);
+
+        return (result / 255) * TERRAIN_MAX_HEIGHT;
     }
 
     private readonly MIN_OBJECT_DISTANCE = 8.0; // минимальное расстояние между центрами объектов
