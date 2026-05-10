@@ -58,6 +58,7 @@ export class MyRoom extends Room<MyRoomState> {
     spawner!: MobSpawner;
     private timers: NodeJS.Timeout[] = [];
     vegetationSpawner!: VegetationSpawner;
+    private chunkBuffer = new Map<string, { totalChunks: number; chunks: any[][] }>();
 
     public addTimer(timer: NodeJS.Timeout) {
         this.timers.push(timer);
@@ -720,13 +721,44 @@ export class MyRoom extends Room<MyRoomState> {
             }
         });
 
-        this.onMessage("editorRegenerateVegetationZone", (client, message: { zoneId: string; objects: any[] }) => {
+        /* this.onMessage("editorRegenerateVegetationZone", (client, message: { zoneId: string; objects: any[] }) => {
             try {
                 if (!this.vegetationSpawner) return;
                 this.vegetationSpawner.regenerateSingleZoneFromClient(message.zoneId, message.objects);
                 console.log(`[EDITOR] Зона "${message.zoneId}" обновлена (${message.objects.length} объектов)`);
             } catch (err) {
                 console.error('[EDITOR] Ошибка при генерации зоны:', err);
+            }
+        }); */
+
+        this.onMessage("editorRegenerateVegetationChunk", (client, message: {
+            zoneId: string;
+            chunkIndex: number;
+            totalChunks: number;
+            objects: any[];
+        }) => {
+            try {
+                const { zoneId, chunkIndex, totalChunks, objects } = message;
+                if (!this.chunkBuffer.has(zoneId)) {
+                    this.chunkBuffer.set(zoneId, { totalChunks, chunks: new Array(totalChunks) });
+                }
+                const buffer = this.chunkBuffer.get(zoneId)!;
+                buffer.chunks[chunkIndex] = objects;
+                
+                // Проверяем, все ли чанки получены
+                if (buffer.chunks.every(c => c !== undefined)) {
+                    // Собираем полный массив
+                    const allObjects = buffer.chunks.flat();
+                    // Применяем
+                    if (this.vegetationSpawner) {
+                        this.vegetationSpawner.regenerateSingleZoneFromClient(zoneId, allObjects);
+                    }
+                    // Очищаем буфер
+                    this.chunkBuffer.delete(zoneId);
+                    console.log(`[EDITOR] Зона "${zoneId}" обновлена (всего ${allObjects.length} объектов через чанки)`);
+                }
+            } catch (err) {
+                console.error('[EDITOR] Ошибка при обработке чанка:', err);
             }
         });
 

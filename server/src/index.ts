@@ -20,12 +20,7 @@ app.use(cors({
 const httpServer = createServer(app);
 
 // Важно: в 0.16 конструктор Server() пустой, а сервер прикрепляется через attach
-const gameServer = new Server({
-    server: httpServer,
-    transport: new WebSocketTransport({
-        maxPayload: 500 * 1024 * 1024, // увеличиваем лимит до 500 МБ
-    }),
-});
+const gameServer = new Server( );
 gameServer.define("world", MyRoom);
 gameServer.attach({ server: httpServer });
 

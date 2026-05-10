@@ -359,11 +359,22 @@ function onGenerateSelectedZone() {
         }
     }
 
-    if (room && objects.length > 0) {
-        room.send('editorRegenerateVegetationZone', { zoneId: zone.id, objects: objects });
-        (window as any).__pendingVegetationZoneId = zone.id;
-        console.log(`[EDITOR] Отправлено ${objects.length} объектов одним запросом`);
+    // Отправляем массив чанками по 50 объектов
+    const CHUNK_SIZE = 50;
+    const totalChunks = Math.ceil(objects.length / CHUNK_SIZE);
+
+    for (let i = 0; i < totalChunks; i++) {
+        const chunk = objects.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+        room.send('editorRegenerateVegetationChunk', {
+            zoneId: zone.id,
+            chunkIndex: i,
+            totalChunks: totalChunks,
+            objects: chunk,
+        });
+        console.log(`[EDITOR] Отправлен чанк ${i+1}/${totalChunks} для зоны "${zone.id}" (${chunk.length} объектов)`);
     }
+
+    (window as any).__pendingVegetationZoneId = zone.id;
 }
 
 // ---------- Экспортные функции ----------
