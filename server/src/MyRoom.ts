@@ -753,7 +753,10 @@ export class MyRoom extends Room<MyRoomState> {
         // Обработчик кнопки «Генерировать» в редакторе
         this.onMessage("editorRegenerateVegetationZone", (client, message: { zone: any }) => {
             try {
-                if (!this.vegetationSpawner) return;
+                if (!this.vegetationSpawner) {
+                    console.error('[EDITOR] vegetationSpawner не инициализирован');
+                    return;
+                }
                 this.vegetationSpawner.regenerateSingleZone(message.zone);
                 console.log(`[EDITOR] Зона "${message.zone.id}" перегенерирована по кнопке Генерировать`);
             } catch (err) {
