@@ -1,4 +1,6 @@
 import { Room, Client } from "colyseus";
+import * as fs from 'fs';
+import * as path from 'path';
 import { Schema, MapSchema, type } from "@colyseus/schema";
 import { loadPlayer, savePlayer } from "./storage";
 import { Mob } from "./Mob";
@@ -338,7 +340,7 @@ export class MyRoom extends Room<MyRoomState> {
         });
 
         this.spawner = new MobSpawner(this);
-        LocationLoader.load(this, "village");
+        //LocationLoader.load(this, "village");
 
         try {
             const fs = require('fs');
@@ -401,8 +403,20 @@ export class MyRoom extends Room<MyRoomState> {
             console.error('[EDITOR] Ошибка загрузки editor_objects.json:', err);
         }
 
-        initServerColliders();
-        VegetationSpawner.loadAndSpawn(this);
+        // Загружаем зоны мобов (используем уже объявленные fs и path)
+        try {
+            const mobFilePath = path.join(__dirname, '../data/mob_zones.json');
+            if (fs.existsSync(mobFilePath)) {
+                const zones = JSON.parse(fs.readFileSync(mobFilePath, 'utf-8'));
+                this.spawner.spawnMulti(zones);
+                console.log(`[MOB] Загружено ${zones.length} зон мобов из mob_zones.json`);
+            }
+        } catch (err) {
+            console.error('[MOB] Ошибка загрузки mob_zones.json:', err);
+        }
+
+        //initServerColliders();
+        //VegetationSpawner.loadAndSpawn(this);
 
         const terrain = new WorldTerrain();
         terrain.heightmapPath = "/textures/heightmap.png";
@@ -740,6 +754,28 @@ export class MyRoom extends Room<MyRoomState> {
             } catch (err) {
                 client.send('vegetationZonesData', { zones: [] });
             }
+        });
+
+        this.onMessage("getMobZones", (client) => {
+            try {
+                const filePath = path.join(__dirname, '../data/mob_zones.json');
+                if (fs.existsSync(filePath)) {
+                    const zones = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+                    client.send('mobZonesData', { zones });
+                } else {
+                    client.send('mobZonesData', { zones: [] });
+                }
+            } catch (err) {
+                client.send('mobZonesData', { zones: [] });
+            }
+        });
+
+        this.onMessage("editorSaveMobZones", (client, message: { zones: any[] }) => {
+            const mobFilePath = path.join(__dirname, '../data/mob_zones.json');
+            fs.writeFileSync(mobFilePath, JSON.stringify(message.zones, null, 2));
+            console.log(`[EDITOR] Сохранено ${message.zones.length} моб-зон`);
+
+            this.spawner.respawnAll(message.zones);
         });
 
         console.log("Комната 'world' создана");

@@ -27,7 +27,7 @@ import { updateWorldObjects } from './render/WorldRenderer';
 import { updateTerrain, getTerrainHeightAt, terrainReady, getTerrainHeightAtFast } from './render/TerrainRenderer';
 import { addVegetationInstance, finalizeVegetation, isVegetationLoaded } from './render/VegetationRenderer';
 import { isEditorActive } from './editor/EditorState';
-import { applyVegetationZones } from './editor/Editor';
+import { applyVegetationZones, applyMobZones } from './editor/Editor';
 
 export const client = new Client(SERVER_URL);
 export let room: any = null;
@@ -454,6 +454,15 @@ function join(playerName: string) {
             if (applyVegetationZones) {
                 applyVegetationZones(zones);
             }
+        });
+
+        room.onMessage('mobZonesData', (data: { zones: any[] }) => {
+            const zones = data.zones || [];
+            import('./editor/Editor').then((editor) => {
+                if (editor.applyMobZones) {
+                    editor.applyMobZones(zones);
+                }
+            });
         });
 
     }).catch(err => {

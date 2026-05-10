@@ -32,6 +32,15 @@ let inpZoneMaxScale: HTMLInputElement;
 let btnNewVegetationZone: HTMLButtonElement;
 let btnSaveVegetationZones: HTMLButtonElement;
 let btnDeleteVegetationZone: HTMLButtonElement;
+let mobsPanel: HTMLElement;
+let selectMobZone: HTMLSelectElement;
+let mobZoneProps: HTMLElement;
+let inpMobZoneId: HTMLInputElement;
+let inpMobZoneCount: HTMLInputElement;
+let inpMobZoneRadius: HTMLInputElement;
+let btnNewMobZone: HTMLButtonElement;
+let btnSaveMobZones: HTMLButtonElement;
+let btnDeleteMobZone: HTMLButtonElement;
 
 // Переменные для режима размещения (нужны только для UI)
 let placementType = 'cube';
@@ -40,7 +49,7 @@ let placementMode = false;
 let editorCallbacks: any = {};
 
 // Текущая вкладка и данные зон
-let currentTab: 'static' | 'vegetation' = 'static';
+let currentTab: 'static' | 'vegetation' | 'mobs' = 'static';
 let vegetationZones: any[] = [];
 
 // --- Колбэки (будут назначены из Editor.ts) ---
@@ -54,16 +63,24 @@ let onNewVegetationZone: () => void;
 let onSaveVegetationZones: () => void;
 let onDeleteVegetationZone: () => void;
 let onVegetationZoneSelected: (index: number) => void;
+let onNewMobZone: () => void;
+let onSaveMobZones: () => void;
+let onDeleteMobZone: () => void;
+let onMobZoneSelected: (index: number) => void;
 
-function switchTab(tab: 'static' | 'vegetation') {
+function switchTab(tab: 'static' | 'vegetation' | 'mobs') {
     currentTab = tab;
     const tabs = document.querySelectorAll('.tab-btn');
     tabs.forEach(b => b.classList.remove('active'));
     document.getElementById(`tab-${tab}`)!.classList.add('active');
     staticPanel.style.display = tab === 'static' ? 'block' : 'none';
     vegetationPanel.style.display = tab === 'vegetation' ? 'block' : 'none';
+    mobsPanel.style.display = tab === 'mobs' ? 'block' : 'none';
     if (tab === 'vegetation' && editorCallbacks.onTabVegetationSelected) {
         editorCallbacks.onTabVegetationSelected();
+    }
+    if (tab === 'mobs' && editorCallbacks.onTabMobsSelected) {
+        editorCallbacks.onTabMobsSelected();
     }
 }
 
@@ -80,6 +97,11 @@ export function createEditorUI(
         onDeleteVegetationZone: () => void;
         onVegetationZoneSelected: (index: number) => void;
         onTabVegetationSelected?: () => void;
+        onNewMobZone: () => void;
+        onSaveMobZones: () => void;
+        onDeleteMobZone: () => void;
+        onMobZoneSelected: (index: number) => void;
+        onTabMobsSelected?: () => void;
     }
 ) {
     editorCallbacks = callbacks;
@@ -94,6 +116,10 @@ export function createEditorUI(
     onSaveVegetationZones = callbacks.onSaveVegetationZones;
     onDeleteVegetationZone = callbacks.onDeleteVegetationZone;
     onVegetationZoneSelected = callbacks.onVegetationZoneSelected;
+    onNewMobZone = callbacks.onNewMobZone;
+    onSaveMobZones = callbacks.onSaveMobZones;
+    onDeleteMobZone = callbacks.onDeleteMobZone;
+    onMobZoneSelected = callbacks.onMobZoneSelected;
 
     // Создаём панель
     panel = document.createElement('div');
@@ -109,6 +135,7 @@ export function createEditorUI(
         <div style="display:flex; gap:4px; margin-bottom:8px;">
             <button id="tab-static" class="tab-btn active">🏠 Статика</button>
             <button id="tab-vegetation" class="tab-btn">🌿 Зоны</button>
+            <button id="tab-mobs" class="tab-btn">🐺 Мобы</button>
         </div>
 
         <!-- Панель статических объектов -->
@@ -174,6 +201,21 @@ export function createEditorUI(
                 </div>
             </div>
         </div>
+        <div id="mobs-panel" style="display:none;">
+            <div style="margin-bottom:4px;">
+                <button id="btn-new-mob-zone">➕ Новая зона</button>
+                <button id="btn-save-mob-zones" style="margin-left:4px;">💾 Сохранить</button>
+            </div>
+            <select id="select-mob-zone" style="width:100%; margin:4px 0;"></select>
+            <div id="mob-zone-props" style="display:none; margin-top:4px;">
+                <label>ID зоны</label><input id="inp-mob-zone-id" type="text" style="width:100%;">
+                <label>Количество</label><input id="inp-mob-zone-count" type="number" min="1" value="5" style="width:100%;">
+                <label>Радиус</label><input id="inp-mob-zone-radius" type="number" min="1" value="50" style="width:100%;">
+                <div style="margin-top:4px;">
+                    <button id="btn-delete-mob-zone">🗑️ Удалить</button>
+                </div>
+            </div>
+        </div>
     `;
 
     document.body.appendChild(panel);
@@ -214,9 +256,32 @@ export function createEditorUI(
     btnSaveVegetationZones = document.getElementById('btn-save-vegetation-zones') as HTMLButtonElement;
     btnDeleteVegetationZone = document.getElementById('btn-delete-vegetation-zone') as HTMLButtonElement;
 
+    // Элементы моб-зон
+    mobsPanel = document.getElementById('mobs-panel')!;
+    selectMobZone = document.getElementById('select-mob-zone') as HTMLSelectElement;
+    mobZoneProps = document.getElementById('mob-zone-props')!;
+    inpMobZoneId = document.getElementById('inp-mob-zone-id') as HTMLInputElement;
+    inpMobZoneCount = document.getElementById('inp-mob-zone-count') as HTMLInputElement;
+    inpMobZoneRadius = document.getElementById('inp-mob-zone-radius') as HTMLInputElement;
+    btnNewMobZone = document.getElementById('btn-new-mob-zone') as HTMLButtonElement;
+    btnSaveMobZones = document.getElementById('btn-save-mob-zones') as HTMLButtonElement;
+    btnDeleteMobZone = document.getElementById('btn-delete-mob-zone') as HTMLButtonElement;
+
     // Обработчики вкладок
     document.getElementById('tab-static')!.onclick = () => switchTab('static');
     document.getElementById('tab-vegetation')!.onclick = () => switchTab('vegetation');
+    document.getElementById('tab-mobs')!.onclick = () => switchTab('mobs');
+
+    btnNewMobZone.onclick = () => editorCallbacks.onNewMobZone?.();
+    btnSaveMobZones.onclick = () => editorCallbacks.onSaveMobZones?.();
+    btnDeleteMobZone.onclick = () => editorCallbacks.onDeleteMobZone?.();
+    selectMobZone.onchange = () => {
+        const idx = parseInt(selectMobZone.value);
+        if (!isNaN(idx)) {
+            currentMobZoneIndex = idx;
+            editorCallbacks.onMobZoneSelected?.(idx);
+        }
+    };
 
     // Статические обработчики
     document.getElementById('btn-delete')!.onclick = onDeleteStatic;
@@ -240,6 +305,9 @@ export function createEditorUI(
     inpZoneCount.addEventListener('input', updateCurrentZone);
     inpZoneMinScale.addEventListener('input', updateCurrentZone);
     inpZoneMaxScale.addEventListener('input', updateCurrentZone);
+    inpMobZoneId.addEventListener('input', updateMobZoneFromInputs);
+    inpMobZoneCount.addEventListener('input', updateMobZoneFromInputs);
+    inpMobZoneRadius.addEventListener('input', updateMobZoneFromInputs);
 
     // Обработчики зон
     btnNewVegetationZone.onclick = () => onNewVegetationZone();
@@ -390,4 +458,51 @@ export function getRotationFromInputs(): { x: number; y: number; z: number } {
         y: (parseFloat(inputRotY.value) || 0) * degToRad,
         z: (parseFloat(inputRotZ.value) || 0) * degToRad,
     };
+}
+
+export let mobZones: any[] = [];
+let currentMobZoneIndex = -1;
+
+export function setMobZones(zones: any[]) {
+    mobZones = zones;
+    const previousIndex = currentMobZoneIndex;
+    selectMobZone.innerHTML = zones.map((z, i) => `<option value="${i}">${z.id}</option>`).join('');
+    mobZoneProps.style.display = zones.length > 0 ? 'block' : 'none';
+    if (zones.length > 0) {
+        const newIndex = previousIndex >= 0 && previousIndex < zones.length ? previousIndex : 0;
+        selectMobZone.selectedIndex = newIndex;
+        currentMobZoneIndex = newIndex;
+        showMobZoneProps(newIndex);
+    } else {
+        currentMobZoneIndex = -1;
+    }
+}
+
+export function showMobZoneProps(index: number) {
+    currentMobZoneIndex = index;
+    const z = mobZones[index];
+    if (!z) return;
+    inpMobZoneId.value = z.id;
+    inpMobZoneCount.value = z.count;
+    inpMobZoneRadius.value = z.radius;
+}
+
+export function getMobZoneFromInputs() {
+    return {
+        id: inpMobZoneId.value.trim(),
+        count: parseInt(inpMobZoneCount.value) || 0,
+        radius: parseFloat(inpMobZoneRadius.value) || 50,
+    };
+}
+
+function updateMobZoneFromInputs() {
+    if (currentMobZoneIndex < 0 || currentMobZoneIndex >= mobZones.length) return;
+    const zone = mobZones[currentMobZoneIndex];
+    if (!zone) return;
+    zone.id = inpMobZoneId.value.trim();
+    zone.count = parseInt(inpMobZoneCount.value) || 0;
+    zone.radius = parseFloat(inpMobZoneRadius.value) || 50;
+    // Обновляем отображение в выпадающем списке (если ID изменился)
+    const option = selectMobZone.options[currentMobZoneIndex];
+    if (option) option.text = zone.id;
 }

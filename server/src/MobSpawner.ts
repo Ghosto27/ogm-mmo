@@ -16,7 +16,7 @@ export class MobSpawner {
 
     constructor(room: MyRoom) {
         this.room = room;
-        this.spawnInitial();
+        //this.spawnInitial();
     }
 
     private spawnInitial() {
@@ -94,5 +94,26 @@ export class MobSpawner {
             }
         }, 3000);
         this.room.addTimer(removalTimer);
+    }
+
+    /** Спавн мобов по массиву зон */
+    public spawnMulti(zones: any[]) {
+        for (const zone of zones) {
+            for (let i = 0; i < zone.count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const dist = Math.random() * zone.radius;
+                const mob = new Mob();
+                mob.x = zone.centerX + Math.cos(angle) * dist;
+                mob.z = zone.centerZ + Math.sin(angle) * dist;
+                mob.spawnZoneIndex = -1; // не используется, но пусть будет
+                const id = `mob_${Date.now()}_${Math.random().toString(36).substr(2,9)}`;
+                this.room.state.mobs.set(id, mob);
+            }
+        }
+    }
+
+    public respawnAll(zones: any[]) {
+        this.room.state.mobs.forEach((mob, id) => this.room.state.mobs.delete(id));
+        this.spawnMulti(zones);
     }
 }

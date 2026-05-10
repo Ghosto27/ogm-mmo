@@ -7,7 +7,7 @@ import {
     createEditorUI, showEditorUI,
     updatePropertiesPanel, getScaleFromInputs, getPositionFromInputs,
     setVegetationZones, showVegetationZoneProps,
-    getRotationFromInputs
+    getRotationFromInputs, showMobZoneProps, setMobZones
 } from './EditorUI';
 import { inputState, sprintKey } from '../input';
 import { terrainMesh, getTerrainHeightAtFast } from '../render/TerrainRenderer';
@@ -24,6 +24,11 @@ let vegetationZones: any[] = [];
 let zoneDrawing = false;
 let zoneStartPoint: THREE.Vector3 | null = null;
 let zoneLines: THREE.LineLoop[] = [];
+let mobZones: any[] = [];
+let drawingMobZone = false;
+let mobZoneCenter: THREE.Vector3 | null = null;
+let mobZonePreview: THREE.Line | null = null;
+let mobZoneVisuals: THREE.LineLoop[] = [];
 
 // ---------- свободная камера (оставлено без изменений) ----------
 let freeCameraEnabled = false;
@@ -157,6 +162,10 @@ function deleteSelectedObject() {
 }
 
 async function onEditorClick(event: MouseEvent) {
+    if (drawingMobZone) {
+        handleMobZoneClick(event);
+        return;
+    }
     if (!freeCameraEnabled) return;
     if (event.button !== 0) return;
     if (mouseDragged) return;
@@ -262,7 +271,34 @@ export function initEditor() {
             highlightZone(index);
         },
         onTabVegetationSelected: () => { requestVegetationZones(); },
+        onNewMobZone: startDrawingMobZone,
+        onSaveMobZones: saveMobZones,
+        onDeleteMobZone: deleteSelectedMobZone,
+        onMobZoneSelected: (index) => {
+            showMobZoneProps(index);
+            highlightMobZone(index);
+        },
+        onTabMobsSelected: () => requestMobZones(),
     });
+
+    /* if (room) {
+        room.onMessage('mobZonesData', (data: { zones: any[] }) => {
+            mobZones = data.zones || [];
+            // Очищаем старые линии
+            for (const line of mobZoneVisuals) {
+                scene.remove(line);
+                line.geometry.dispose();
+                (line.material as THREE.Material).dispose();
+            }
+            mobZoneVisuals = [];
+            // Рисуем новые круги
+            for (const z of mobZones) {
+                drawMobZoneCircle(z.centerX, z.centerZ, z.radius);
+            }
+            setMobZones(mobZones);
+            console.log('[EDITOR] Моб-зоны загружены:', mobZones.length);
+        });
+    } */
 
     function requestVegetationZones() {
         if (!room) return;
@@ -366,9 +402,22 @@ function exitEditorMode() {
     stopFreeCamera();
     deselectObject();
     placementMode = false;
+    
+    // Очистка визуализаций зон растительности
     clearZoneVisuals();
     vegetationZones = [];
-
+    
+    // Очистка визуализаций моб-зон
+    for (const line of mobZoneVisuals) {
+        scene.remove(line);
+        line.geometry.dispose();
+        (line.material as THREE.Material).dispose();
+    }
+    mobZoneVisuals = [];
+    mobZones = [];
+    drawingMobZone = false;
+    mobZoneCenter = null;
+    
     editorObjects = [];
     console.log('[EDITOR] Выход из редактора');
 }
@@ -544,4 +593,114 @@ function highlightZone(selectedIndex: number) {
             );
         }
     }
+}
+
+function drawMobZoneCircle(centerX: number, centerZ: number, radius: number) {
+    const segments = 64;
+    const points = [];
+    for (let i = 0; i <= segments; i++) {
+        const angle = (i / segments) * Math.PI * 2;
+        const x = centerX + Math.cos(angle) * radius;
+        const z = centerZ + Math.sin(angle) * radius;
+        const y = getTerrainHeightAtFast(x, z) + 0.5;
+        points.push(new THREE.Vector3(x, y, z));
+    }
+    const geo = new THREE.BufferGeometry().setFromPoints(points);
+    const mat = new THREE.LineBasicMaterial({ color: 0xff0000 });
+    const line = new THREE.LineLoop(geo, mat);
+    scene.add(line);
+    mobZoneVisuals.push(line);
+}
+
+function handleMobZoneClick(event: MouseEvent) {
+    if (!terrainMesh) return;
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObject(terrainMesh);
+    if (intersects.length === 0) return;
+    const point = intersects[0].point;
+
+    if (!mobZoneCenter) {
+        mobZoneCenter = point.clone();
+    } else {
+        const radius = point.distanceTo(mobZoneCenter);
+        const newZone = {
+            id: `mob_zone_${Date.now()}`,
+            centerX: mobZoneCenter.x,
+            centerZ: mobZoneCenter.z,
+            radius,
+            count: 5,
+        };
+        mobZones.push(newZone);
+        setMobZones(mobZones);
+        drawMobZoneCircle(newZone.centerX, newZone.centerZ, newZone.radius);
+        drawingMobZone = false;
+        mobZoneCenter = null;
+    }
+}
+
+function saveMobZones() {
+    if (room) {
+        room.send('editorSaveMobZones', { zones: mobZones });
+    }
+}
+
+function deleteSelectedMobZone() {
+    const select = document.getElementById('select-mob-zone') as HTMLSelectElement;
+    if (!select) return;
+    const idx = parseInt(select.value);
+    if (isNaN(idx) || idx < 0 || idx >= mobZones.length) return;
+    
+    // Удаляем визуализацию круга
+    const line = mobZoneVisuals[idx];
+    if (line) {
+        scene.remove(line);
+        line.geometry.dispose();
+        (line.material as THREE.Material).dispose();
+        mobZoneVisuals.splice(idx, 1);
+    }
+    
+    mobZones.splice(idx, 1);
+    setMobZones(mobZones);
+    mobZoneCenter = null;
+    drawingMobZone = false;
+}
+
+function requestMobZones() { room.send('getMobZones'); }
+
+function startDrawingMobZone() {
+    drawingMobZone = true;
+    mobZoneCenter = null;
+    console.log('[EDITOR] Начало рисования моб-зоны. Кликните для установки центра.');
+}
+
+function highlightMobZone(index: number) {
+    for (let i = 0; i < mobZoneVisuals.length; i++) {
+        const line = mobZoneVisuals[i];
+        if (line && line.material) {
+            (line.material as THREE.LineBasicMaterial).color.set(
+                i === index ? 0x0000ff : 0xff0000
+            );
+        }
+    }
+}
+
+export function applyMobZones(zones: any[]) {
+    // Очищаем старые визуализации
+    for (const line of mobZoneVisuals) {
+        scene.remove(line);
+        line.geometry.dispose();
+        (line.material as THREE.Material).dispose();
+    }
+    mobZoneVisuals = [];
+    mobZones = zones;
+    // Рисуем новые круги
+    for (const z of zones) {
+        drawMobZoneCircle(z.centerX, z.centerZ, z.radius);
+    }
+    setMobZones(zones);
+    console.log('[EDITOR] Моб-зоны загружены:', zones.length);
 }
