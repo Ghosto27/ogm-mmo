@@ -97,12 +97,44 @@ setTimeout(() => renderer.domElement.focus({ preventScroll: true }), 100);
 let lastSend = 0;
 let lastTime = performance.now();
 const playerPhysicalPos = new THREE.Vector3();
-// Переиспользуемые векторы
 const _moveVec = new THREE.Vector3();
 const _rawDelta = new THREE.Vector3();
 const _currentPos = new THREE.Vector3();
 const _forward = new THREE.Vector3();
 const _right = new THREE.Vector3();
+
+function getMovementAnimationName(moveVec: THREE.Vector3, model: THREE.Group, sprint: boolean): string {
+    const EPS = 0.01;
+    if (moveVec.length() < EPS) return 'idle';
+
+    const moveAngle = Math.atan2(moveVec.x, moveVec.z);
+    const modelAngle = model.rotation.y;
+
+    let angleDiff = moveAngle - modelAngle;
+    while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+    while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+
+    const degrees = angleDiff * (180 / Math.PI);
+
+    if (degrees >= -22.5 && degrees < 22.5) {
+        return sprint ? 'run' : 'walk_fwd';
+    } else if (degrees >= 22.5 && degrees < 67.5) {
+        return 'walk_fwd_left';
+    } else if (degrees >= 67.5 && degrees < 112.5) {
+        return 'walk_left';
+    } else if (degrees >= 112.5 && degrees < 157.5) {
+        return 'walk_bwd_left';
+    } else if (degrees >= 157.5 || degrees < -157.5) {
+        return 'walk_bwd';
+    } else if (degrees >= -157.5 && degrees < -112.5) {
+        return 'walk_bwd_right';
+    } else if (degrees >= -112.5 && degrees < -67.5) {
+        return 'walk_right';
+    } else if (degrees >= -67.5 && degrees < -22.5) {
+        return 'walk_fwd_right';
+    }
+    return 'walk_fwd'; // fallback
+}
 
 function loop() {
     updateFPS();
@@ -226,7 +258,17 @@ function loop() {
             }
 
             if (!deathAnimating['local']) {
-                fsm['local']?.transitionTo(sprintKey ? 'run' : 'walk');
+                const newState = getMovementAnimationName(_moveVec, localModel!, sprintKey);
+                if (newState !== 'idle') {
+                    fsm['local']?.transitionTo(newState);
+                    if (newState === 'run') {
+                        fsm['local']?.setTimeScale(1.0);
+                    } else {
+                        fsm['local']?.setTimeScale(sprintKey ? 1.5 : 1.0);
+                    }
+                } else {
+                    fsm['local']?.transitionTo('idle');
+                }
             }
         } else {
             if (!deathAnimating['local']) {

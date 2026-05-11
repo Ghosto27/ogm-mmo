@@ -123,4 +123,9 @@ export class AnimationStateMachine {
             this.currentStateName = 'idle';
         }
     }
+
+    /** Установить скорость воспроизведения (по умолчанию 1.0) */
+    public setTimeScale(scale: number) {
+        this.mixer.timeScale = scale;
+    }
 }

@@ -26,7 +26,7 @@
       "Rock_8",
       "Rock_9"
     ],
-    "count": 150,
+    "count": 20,
     "minScale": 1,
     "maxScale": 3
   },
@@ -40,7 +40,7 @@
     "modelNames": [
       "Tree_10"
     ],
-    "count": 49,
+    "count": 20,
     "minScale": 1,
     "maxScale": 6
   },
@@ -71,12 +71,17 @@
       "Tree_12",
       "Tree_13",
       "Tree_14",
+      "Tree_1",
+      "Tree_11",
+      "Tree_12",
+      "Tree_13",
+      "Tree_14",
       "Rock_4",
       "Rock_5",
       "Rock_6",
       "Rock_7"
     ],
-    "count": 50,
+    "count": 10,
     "minScale": 1,
     "maxScale": 3
   },
@@ -84,7 +89,7 @@
     "id": "custom_zone_1778419549393",
     "centerX": 240.47647844660807,
     "centerZ": 65.01313383723001,
-    "width": 159.18039965066856,
+    "width": 108,
     "depth": 413.5130907661415,
     "objectType": "tree",
     "modelNames": [
@@ -101,7 +106,7 @@
       "Rock_8",
       "Rock_9"
     ],
-    "count": 130,
+    "count": 20,
     "minScale": 1,
     "maxScale": 3
   },
@@ -110,9 +115,14 @@
     "centerX": 123.44964316634704,
     "centerZ": 56.041493101740016,
     "width": 147.58289181240826,
-    "depth": 233,
+    "depth": 184,
     "objectType": "tree",
     "modelNames": [
+      "Tree_1",
+      "Tree_11",
+      "Tree_12",
+      "Tree_13",
+      "Tree_14",
       "Tree_1",
       "Tree_11",
       "Tree_12",
@@ -122,7 +132,7 @@
       "Rock_8",
       "Rock_9"
     ],
-    "count": 40,
+    "count": 10,
     "minScale": 1,
     "maxScale": 3
   },
@@ -130,27 +140,13 @@
     "id": "custom_zone_1778424309856",
     "centerX": -46.0871102217329,
     "centerZ": 523.841163068578,
-    "width": 209,
-    "depth": 166,
+    "width": 244,
+    "depth": 260,
     "objectType": "tree",
     "modelNames": [
       "Rock_2"
     ],
-    "count": 100,
-    "minScale": 1,
-    "maxScale": 3
-  },
-  {
-    "id": "custom_zone_1778437611266",
-    "centerX": -101.65319666207871,
-    "centerZ": 6.293034689515814,
-    "width": 75.39919225631965,
-    "depth": 72.8105734432013,
-    "objectType": "tree",
-    "modelNames": [
-      "Tree_1"
-    ],
-    "count": 50,
+    "count": 10,
     "minScale": 1,
     "maxScale": 3
   }

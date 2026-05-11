@@ -61,10 +61,19 @@ function createModelInstance(sessionId?: string): THREE.Group {
 
     const nameMapping: Record<string, string> = {
         'mm_idle': 'idle',
-        'mf_walk_fwd': 'walk',
+        'mf_walk_fwd': 'walk_fwd',
+        'mf_walk_fwd_left': 'walk_fwd_left',
+        'mf_walk_fwd_right': 'walk_fwd_right',
+        'mf_walk_left': 'walk_left',
+        'mf_walk_right': 'walk_right',
+        'mf_walk_bwd': 'walk_bwd',
+        'mf_walk_bwd_left': 'walk_bwd_left',
+        'mf_walk_bwd_right': 'walk_bwd_right',
         'mf_run_fwd': 'run',
         'mm_death01': 'death',
+        'mm_death02': 'death',
         'mm_punch01': 'sword_attack',
+        'mm_attack_01': 'sword_attack',
     };
 
     defaultAnimations.forEach((clip) => {
