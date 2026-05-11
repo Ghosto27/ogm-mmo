@@ -14,6 +14,7 @@ import { terrainMesh, getTerrainHeightAtFast, getTerrainHeightAt } from '../rend
 import { worldMeshes } from '../render/WorldRenderer';
 import { createModelClone, getModelBaseSize } from '../utils/modelLoader';
 import { getColliderConfig } from '../collisionConfig';
+import { pushUIMode, popUIMode } from '../main';
 
 let transformControls: TransformControls;
 let editorObjects: THREE.Object3D[] = [];
@@ -453,6 +454,7 @@ export function initEditor() {
 async function enterEditorMode() {
     setEditorActive(true);
     showEditorUI(true);
+    pushUIMode();
 
     // --- Очистка мусора: удаляем объекты, которые не являются актуальными оригиналами из worldMeshes ---
     const toRemove: THREE.Object3D[] = [];
@@ -511,6 +513,7 @@ function exitEditorMode() {
     showEditorUI(false);
     stopFreeCamera();
     deselectObject();
+    popUIMode();
     placementMode = false;
     
     // Очистка визуализаций зон растительности

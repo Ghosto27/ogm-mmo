@@ -20,7 +20,7 @@ export const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.outputColorSpace = THREE.SRGBColorSpace; // ← вот ключевая строка!
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
-document.body.appendChild(renderer.domElement);
+document.getElementById('app')!.appendChild(renderer.domElement);
 
 // Освещение
 scene.add(new THREE.AmbientLight(0xffffff, 1.5));

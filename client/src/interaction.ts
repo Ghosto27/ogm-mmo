@@ -5,7 +5,6 @@ import { mobModels } from './mobPlayer';
 import { room, interactionState } from './network';
 import { setSelectedTarget } from './selection';
 import { showTargetUI, hideTargetUI } from './targetUI';
-import { } from './render/LootRenderer';
 import { showLootUI, hideLootUI } from './ui/LootWindowUI';
 import { lootMeshes } from './render/LootRenderer';
 import { npcMeshes } from './render/NPCRenderer';
@@ -15,6 +14,7 @@ import { getTerrainHeightAtFast } from './render/TerrainRenderer';
 import { toggleCollisionDebug } from './debug/debugState';
 import { isEditorActive } from './editor/EditorState';
 import { worldMeshes } from './render/WorldRenderer';
+import { actionMode } from './cameraControls';   // <-- импорт режима
 
 console.log('[INTERACTION] Module loaded');
 
@@ -74,11 +74,29 @@ window.addEventListener('mousedown', (event) => {
 
 window.addEventListener('mouseup', (event) => {
     if (isEditorActive()) return;
+
+    // ---------- ACTION MODE (боевой) ----------
+    if (actionMode) {
+        if (event.button === 0) {
+            // ЛКМ в action‑режиме – простая атака (пока без поиска цели, просто анимация)
+            if (room && localModel) {
+                room.send("attack", { target: '' });   // позже добавим рейкаст цели
+                fsm['local']?.requestAttack();
+            }
+            return;
+        }
+        // ПКМ в action‑режиме – будет использована для блока / сильной атаки, пока оставляем заготовку
+        if (event.button === 2) {
+            // TODO: блок или заряженная атака
+            return;
+        }
+    }
+
+    // ---------- CURSOR MODE (обычный) ----------
     if (event.button === 2) {
-        // Правая кнопка: атака (короткий клик)
         const duration = Date.now() - rightButtonDownTime;
         if (duration < CLICK_THRESHOLD_MS) {
-           // Атака по игрокам
+            // Атака по игрокам
             const playerTargets = Object.values(otherPlayers).filter(m => m.visible);
             if (tryAttack(event, playerTargets, (obj) => obj.userData?.sessionId || null, 'attack', 4)) return;
 
@@ -98,7 +116,10 @@ window.addEventListener('mouseup', (event) => {
 
     if (event.button === 0) {
         if (isEditorActive()) return;
-        // Левая кнопка: выделение
+
+        // Левая кнопка: выделение (только в Cursor‑режиме)
+        if (actionMode) return;   // дополнительная подстраховка
+
         const playerTargets = Object.values(otherPlayers).filter(m => m.visible);
         const playerInters = getIntersections(event, playerTargets);
         if (playerInters.length > 0) {
@@ -115,14 +136,10 @@ window.addEventListener('mouseup', (event) => {
             }
         }
 
-                // Собираем все статические объекты в один массив
+        // Собираем все статические объекты в один массив
         const staticTargets: THREE.Object3D[] = [];
-
-        // InstancedMesh растительности
         const vegMeshes = getAllInstancedMeshes();
         vegMeshes.forEach(m => staticTargets.push(m));
-
-        // Объекты из worldMeshes (editor_ и vegezone_)
         for (const id in worldMeshes) {
             if (id.startsWith('editor_') || id.startsWith('vegezone_')) {
                 staticTargets.push(worldMeshes[id]);
@@ -131,9 +148,6 @@ window.addEventListener('mouseup', (event) => {
 
         // Общий raycast по всем статическим объектам
         if (staticTargets.length > 0) {
-            // Уже используем глобальный raycaster и mouse, установленные ранее? 
-            // Нет, мы ещё не обновили raycaster для этого клика. Надо сделать это.
-            // Обновим raycaster для левого клика
             const lMouse = new THREE.Vector2();
             lMouse.x = (event.clientX / window.innerWidth) * 2 - 1;
             lMouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
@@ -144,7 +158,6 @@ window.addEventListener('mouseup', (event) => {
                 const nearest = staticIntersections[0];
                 const point = nearest.point;
                 let obj: THREE.Object3D | null = nearest.object;
-                // Поднимаемся вверх по иерархии, пока не найдём modelName (для Group-обёрток)
                 while (obj && !obj.userData?.modelName) {
                     obj = obj.parent;
                 }
@@ -160,7 +173,6 @@ window.addEventListener('mouseup', (event) => {
                 console.log('Terrain height:', groundY.toFixed(2));
                 console.log('Delta (modelY - terrain):', (point.y - groundY).toFixed(2));
 
-                // Красная сфера для визуального маркера
                 const sphere = new THREE.Mesh(
                     new THREE.SphereGeometry(0.3, 8, 8),
                     new THREE.MeshBasicMaterial({ color: 0xff0000 })
@@ -170,10 +182,9 @@ window.addEventListener('mouseup', (event) => {
                 setTimeout(() => scene.remove(sphere), 5000);
 
                 console.groupEnd();
-                return; // обработали клик, выходим
+                return;
             }
         }
-
 
         const mobTargets: THREE.Object3D[] = Object.values(mobModels).filter(m => m.visible);
         const mobInters = getIntersections(event, mobTargets);
@@ -195,7 +206,6 @@ window.addEventListener('mouseup', (event) => {
             }
         }
 
-        // Клик по земле – сброс выделения
         setSelectedTarget(null);
         hideTargetUI();
         console.log('[LCLICK] Выделение снято');

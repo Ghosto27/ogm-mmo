@@ -1,33 +1,69 @@
 import * as THREE from 'three';
 import { camera, renderer } from './scene';
 
-// --- Храним состояние камеры в сферических координатах относительно игрока ---
-let minDistance = 2;
-let maxDistance = 20;
-let theta = Math.PI / 2;    // начинаем строго позади персонажа (вид со спины)
-let distance = 12;          // чуть отодвинем для лучшего обзора
-let phi = Math.PI / 4;       // вертикальный угол (от 0 до PI)
+let cameraTarget = new THREE.Vector3(0, 0, 0);
+let theta = 0;
+let phi = Math.PI / 4;
+let distance = 5;
+const MIN_PHI = 0.1;
+const MAX_PHI = Math.PI / 2.2;
+const MIN_DIST = 1.5;
+const MAX_DIST = 15;
 
-const rotationSpeed = 0.005; // чувствительность мыши
-const zoomSpeed = 0.5;       // скорость зума колёсиком
-const targetPosition = new THREE.Vector3(); // позиция игрока (цель)
-
-// Флаги и переменные для управления мышью
 export let isRightDragging = false;
-let lastMouseX = 0;
-let lastMouseY = 0;
+let prevMouse = new THREE.Vector2();
 
-// --- Привязка событий мыши к элементу рендерера ---
-const canvas = renderer.domElement;
+// ----- Action / Cursor mode -----
+export let actionMode = false;            // реальное состояние (синхронизируется с pointer‑lock)
 
-// Отключаем стандартное контекстное меню
-canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+/** Попытаться войти в Action‑режим (захватить мышь) */
+export function enableActionMode() {
+    if (!document.pointerLockElement) {
+        renderer.domElement.requestPointerLock();
+    }
+    // Если захват уже активен, флаг будет обновлён в pointerlockchange
+}
 
-canvas.addEventListener('mousedown', (e) => {
-    if (e.button === 2) { // ПКМ
+/** Принудительно выйти из Action‑режима (показать курсор) */
+export function disableActionMode() {
+    if (document.pointerLockElement === renderer.domElement) {
+        document.exitPointerLock();
+    }
+}
+
+// Обработчик смены состояния захвата
+document.addEventListener('pointerlockchange', () => {
+    const isLocked = document.pointerLockElement === renderer.domElement;
+    actionMode = isLocked;
+    if (!isLocked) {
+        // Если захват снят (Escape, Alt, UI), можно установить курсор по умолчанию
+        document.body.style.cursor = 'default';
+    } else {
+        document.body.style.cursor = 'none';
+    }
+    console.log(`[CAMERA] Action mode: ${isLocked ? 'ON' : 'OFF'}`);
+});
+
+// Если захват потерян не по нашей воле (например, Escape), ничего страшного,
+// следующий клик/нажатие в canvas снова запросит захват (см. main.ts)
+
+export function setCameraTarget(x: number, y: number, z: number) {
+    cameraTarget.set(x, y, z);
+}
+
+export function updateCamera() {
+    const camX = cameraTarget.x + distance * Math.sin(phi) * Math.sin(theta);
+    const camY = cameraTarget.y + distance * Math.cos(phi);
+    const camZ = cameraTarget.z + distance * Math.sin(phi) * Math.cos(theta);
+    camera.position.set(camX, camY, camZ);
+    camera.lookAt(cameraTarget);
+}
+
+// ---------- Управление мышью ----------
+window.addEventListener('mousedown', (e) => {
+    if (e.button === 2) {
         isRightDragging = true;
-        lastMouseX = e.clientX;
-        lastMouseY = e.clientY;
+        prevMouse.set(e.clientX, e.clientY);
     }
 });
 
@@ -38,51 +74,30 @@ window.addEventListener('mouseup', (e) => {
 });
 
 window.addEventListener('mousemove', (e) => {
+    // В Action‑режиме (захват активен) используем movementX/Y
+    if (actionMode) {
+        const sensitivity = 0.002;
+        theta -= e.movementX * sensitivity;
+        phi -= e.movementY * sensitivity;
+        if (phi < MIN_PHI) phi = MIN_PHI;
+        if (phi > MAX_PHI) phi = MAX_PHI;
+        return;
+    }
+
+    // В Cursor‑режиме вращаем камеру только при зажатой ПКМ
     if (!isRightDragging) return;
-
-    const deltaX = e.clientX - lastMouseX;
-    const deltaY = e.clientY - lastMouseY;
-
-    // Вращение: горизонтальное (влево-вправо) и вертикальное (вверх-вниз)
-    theta += deltaX * rotationSpeed;
-    phi -= deltaY * rotationSpeed;
-
-    // Ограничиваем вертикальный угол, чтобы камера не переворачивалась
-    const EPS = 0.01;
-    phi = Math.max(EPS, Math.min(Math.PI - EPS, phi));
-
-    lastMouseX = e.clientX;
-    lastMouseY = e.clientY;
+    const dx = e.clientX - prevMouse.x;
+    const dy = e.clientY - prevMouse.y;
+    prevMouse.set(e.clientX, e.clientY);
+    const sensitivity = 0.01;
+    theta -= dx * sensitivity;
+    phi -= dy * sensitivity;
+    if (phi < MIN_PHI) phi = MIN_PHI;
+    if (phi > MAX_PHI) phi = MAX_PHI;
 });
 
-canvas.addEventListener('wheel', (e) => {
-    e.preventDefault();
-    // Зум колёсиком: изменяем дистанцию
-    distance += e.deltaY * 0.01 * zoomSpeed;
-    distance = Math.max(minDistance, Math.min(maxDistance, distance));
-}, { passive: false });
-
-// --- Установить цель камеры (обычно позиция игрока) ---
-export function setCameraTarget(x: number, y: number, z: number) {
-    targetPosition.set(x, y, z);
-}
-
-// --- Обновление камеры (вызывать каждый кадр) ---
-export function updateCamera() {
-    // Вычисляем позицию камеры на основе сферических координат и цели
-    const sinPhi = Math.sin(phi);
-    const cosPhi = Math.cos(phi);
-    const sinTheta = Math.sin(theta);
-    const cosTheta = Math.cos(theta);
-
-    const offset = new THREE.Vector3(
-        distance * sinPhi * cosTheta,
-        distance * cosPhi,
-        distance * sinPhi * sinTheta
-    );
-
-    // Камера всегда смотрит на цель
-    const camPos = targetPosition.clone().add(offset);
-    camera.position.copy(camPos);
-    camera.lookAt(targetPosition);
-}
+renderer.domElement.addEventListener('wheel', (e) => {
+    distance += e.deltaY * 0.01;
+    if (distance < MIN_DIST) distance = MIN_DIST;
+    if (distance > MAX_DIST) distance = MAX_DIST;
+}, { passive: true });

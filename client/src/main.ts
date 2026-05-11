@@ -6,7 +6,7 @@ import { localModel, otherPlayers, modelReady, fsm, deathAnimating } from './pla
 import { room, startConnection, lastMoveTimes } from './network';
 import { composer, outlinePass } from './postprocessing';
 import { updateAnimations } from './animationUtils';
-import { setCameraTarget, updateCamera, isRightDragging } from './cameraControls';
+import { setCameraTarget, updateCamera, isRightDragging, enableActionMode, disableActionMode, actionMode } from './cameraControls';
 import { cleanUpScene } from './startupCleanup';
 import { createMinimap, updateMinimap } from './minimap';
 import { createWorldMap, updateWorldMap, toggleWorldMap } from './worldMap';
@@ -46,6 +46,9 @@ cleanUpScene();
 
 modelReady.then(() => {
     startConnection(playerName);
+    setTimeout(() => {
+        enableActionMode();
+    }, 1000);
     createPlayerUI(playerName, 1);
     createTargetUI();
     createMinimap();
@@ -102,6 +105,45 @@ const _rawDelta = new THREE.Vector3();
 const _currentPos = new THREE.Vector3();
 const _forward = new THREE.Vector3();
 const _right = new THREE.Vector3();
+
+// Счётчик открытых UI‑окон
+let uiWindowsOpen = 0;
+export function pushUIMode() {
+    uiWindowsOpen++;
+    if (uiWindowsOpen > 0) disableActionMode();
+}
+export function popUIMode() {
+    uiWindowsOpen--;
+    if (uiWindowsOpen <= 0) {
+        uiWindowsOpen = 0;
+        if (!altToggled) enableActionMode();   // только если Alt не зажат
+    }
+}
+
+let altToggled = false;   // true = Cursor Mode, false = Action Mode
+window.addEventListener('keydown', (e) => {
+    // Блокируем горячие клавиши браузера при Alt+WASD (на всякий случай)
+    if (e.altKey && (e.key === 'w' || e.key === 'a' || e.key === 's' || e.key === 'd')) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+    }
+    // Переключение режима по Alt (только нажатие, не удержание)
+    if (e.key === 'Alt') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        // Не реагируем на автоповтор при удержании
+        if (e.repeat) return;
+
+        altToggled = !altToggled;
+        if (altToggled) {
+            disableActionMode();   // Cursor Mode
+        } else {
+            if (uiWindowsOpen === 0) {
+                enableActionMode();    // Action Mode
+            }
+        }
+    }
+});
 
 function getMovementAnimationName(moveVec: THREE.Vector3, model: THREE.Group, sprint: boolean): string {
     const EPS = 0.01;
@@ -176,35 +218,43 @@ function loop() {
     const alive = myPlayer && myPlayer.hp > 0;
 
     if (alive) {
-        if (isRightDragging) {
+        if (actionMode) {
+            // Action Mode: движение всегда относительно камеры
             _moveVec.copy(getCameraRelativeMovement(camera));
-            if (_moveVec.lengthSq() > 0) {
-                const targetAngle = Math.atan2(_moveVec.x, _moveVec.z);
-                const rotationSpeed = 10.0;
-                const currentAngle = localModel.rotation.y;
-                let angleDiff = targetAngle - currentAngle;
-                while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
-                while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
-                localModel.rotation.y += angleDiff * Math.min(1, rotationSpeed * deltaTime);
-            }
+        } else if (isRightDragging) {
+            _moveVec.copy(getCameraRelativeMovement(camera));
         } else {
             if (isChatActive()) {
                 _moveVec.set(0, 0, 0);
             } else {
                 const raw = getMovementInput();
                 if (raw.x !== 0 || raw.z !== 0) {
-                    _forward.set(0, 0, 1).applyQuaternion(localModel!.quaternion);
-                    _forward.y = 0; _forward.normalize();
-                    _right.set(1, 0, 0).applyQuaternion(localModel!.quaternion);
-                    _right.y = 0; _right.normalize();
+                    const forward = new THREE.Vector3(0, 0, 1)
+                        .applyQuaternion(localModel!.quaternion);
+                    forward.y = 0; forward.normalize();
+                    const right = new THREE.Vector3(1, 0, 0)
+                        .applyQuaternion(localModel!.quaternion);
+                    right.y = 0; right.normalize();
+
                     _moveVec.set(0, 0, 0)
-                        .addScaledVector(_forward, -raw.z)
-                        .addScaledVector(_right, raw.x)
+                        .addScaledVector(forward, -raw.z)
+                        .addScaledVector(right, raw.x)
                         .normalize();
                 } else {
                     _moveVec.set(0, 0, 0);
                 }
             }
+        }
+
+        // В Action Mode плавно доворачиваем персонажа к направлению движения
+        if ((actionMode || isRightDragging) && _moveVec.lengthSq() > 0) {
+            const targetAngle = Math.atan2(_moveVec.x, _moveVec.z);
+            const rotationSpeed = 10.0;
+            const currentAngle = localModel.rotation.y;
+            let angleDiff = targetAngle - currentAngle;
+            while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+            while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+            localModel.rotation.y += angleDiff * Math.min(1, rotationSpeed * deltaTime);
         }
 
         const isMoving = _moveVec.lengthSq() > 0;
@@ -354,6 +404,34 @@ function loop() {
         localModel.position,
         30
     );
+
+    if ((actionMode || isRightDragging) && localModel && _moveVec.length() < 0.01) {
+        // плавный доворот к камере, когда стоим
+        const cameraForward = new THREE.Vector3();
+        camera.getWorldDirection(cameraForward);
+        cameraForward.y = 0;
+        cameraForward.normalize();
+        if (cameraForward.length() > 0.01) {
+            const targetAngle = Math.atan2(cameraForward.x, cameraForward.z);
+            const currentAngle = localModel.rotation.y;
+            let diff = targetAngle - currentAngle;
+            while (diff > Math.PI) diff -= 2 * Math.PI;
+            while (diff < -Math.PI) diff += 2 * Math.PI;
+            localModel.rotation.y += diff * Math.min(1, 10 * deltaTime);
+        }
+    }
+
+    // Запрос захвата при первом же клике/клавише в игре, если захват отсутствует
+    renderer.domElement.addEventListener('click', () => {
+        if (!document.pointerLockElement && uiWindowsOpen === 0 && !altToggled) {
+            enableActionMode();
+        }
+    });
+    window.addEventListener('keydown', () => {
+        if (!document.pointerLockElement && uiWindowsOpen === 0 && !altToggled) {
+            enableActionMode();
+        }
+    });
 
     // Рендер
     composer.render();
