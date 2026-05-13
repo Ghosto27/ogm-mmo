@@ -6,7 +6,9 @@ import { localModel, otherPlayers, modelReady, fsm, deathAnimating } from './pla
 import { room, startConnection, lastMoveTimes } from './network';
 import { composer, outlinePass } from './postprocessing';
 import { updateAnimations } from './animationUtils';
-import { setCameraTarget, updateCamera, isRightDragging, enableActionMode, disableActionMode, actionMode } from './cameraControls';
+import { setCameraTarget, updateCamera, isRightDragging, 
+    enableActionMode, disableActionMode, actionMode, 
+    pushUIMode, popUIMode, uiWindowsOpen, toggleAltMode, isAltToggled } from './cameraControls';
 import { cleanUpScene } from './startupCleanup';
 import { createMinimap, updateMinimap } from './minimap';
 import { createWorldMap, updateWorldMap, toggleWorldMap } from './worldMap';
@@ -106,21 +108,6 @@ const _currentPos = new THREE.Vector3();
 const _forward = new THREE.Vector3();
 const _right = new THREE.Vector3();
 
-// Счётчик открытых UI‑окон
-let uiWindowsOpen = 0;
-export function pushUIMode() {
-    uiWindowsOpen++;
-    if (uiWindowsOpen > 0) disableActionMode();
-}
-export function popUIMode() {
-    uiWindowsOpen--;
-    if (uiWindowsOpen <= 0) {
-        uiWindowsOpen = 0;
-        if (!altToggled) enableActionMode();   // только если Alt не зажат
-    }
-}
-
-let altToggled = false;   // true = Cursor Mode, false = Action Mode
 window.addEventListener('keydown', (e) => {
     // Блокируем горячие клавиши браузера при Alt+WASD (на всякий случай)
     if (e.altKey && (e.key === 'w' || e.key === 'a' || e.key === 's' || e.key === 'd')) {
@@ -131,11 +118,10 @@ window.addEventListener('keydown', (e) => {
     if (e.key === 'Alt') {
         e.preventDefault();
         e.stopImmediatePropagation();
-        // Не реагируем на автоповтор при удержании
         if (e.repeat) return;
 
-        altToggled = !altToggled;
-        if (altToggled) {
+        toggleAltMode();
+        if (isAltToggled()) {
             disableActionMode();   // Cursor Mode
         } else {
             if (uiWindowsOpen === 0) {
@@ -147,6 +133,7 @@ window.addEventListener('keydown', (e) => {
 
 function getMovementAnimationName(moveVec: THREE.Vector3, model: THREE.Group, sprint: boolean): string {
     const EPS = 0.01;
+    
     if (moveVec.length() < EPS) return 'idle';
 
     const moveAngle = Math.atan2(moveVec.x, moveVec.z);
@@ -246,15 +233,36 @@ function loop() {
             }
         }
 
-        // В Action Mode плавно доворачиваем персонажа к направлению движения
-        if ((actionMode || isRightDragging) && _moveVec.lengthSq() > 0) {
-            const targetAngle = Math.atan2(_moveVec.x, _moveVec.z);
-            const rotationSpeed = 10.0;
-            const currentAngle = localModel.rotation.y;
-            let angleDiff = targetAngle - currentAngle;
-            while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
-            while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
-            localModel.rotation.y += angleDiff * Math.min(1, rotationSpeed * deltaTime);
+                // В Action Mode персонаж всегда смотрит туда же, куда и камера
+        if (actionMode && localModel && _moveVec.length() > 0) {
+            const cameraForward = new THREE.Vector3();
+            camera.getWorldDirection(cameraForward);
+            cameraForward.y = 0;
+            cameraForward.normalize();
+            if (cameraForward.length() > 0.01) {
+                const targetAngle = Math.atan2(cameraForward.x, cameraForward.z);
+                const currentAngle = localModel.rotation.y;
+                let diff = targetAngle - currentAngle;
+                while (diff > Math.PI) diff -= 2 * Math.PI;
+                while (diff < -Math.PI) diff += 2 * Math.PI;
+                localModel.rotation.y += diff * Math.min(1, 10 * deltaTime);
+            }
+        }
+
+        // При зажатой ПКМ в Cursor-режиме – поворот к камере ТОЛЬКО ВО ВРЕМЯ ДВИЖЕНИЯ
+        if (isRightDragging && localModel && _moveVec.length() > 0) {
+            const cameraForward = new THREE.Vector3();
+            camera.getWorldDirection(cameraForward);
+            cameraForward.y = 0;
+            cameraForward.normalize();
+            if (cameraForward.length() > 0.01) {
+                const targetAngle = Math.atan2(cameraForward.x, cameraForward.z);
+                const currentAngle = localModel.rotation.y;
+                let diff = targetAngle - currentAngle;
+                while (diff > Math.PI) diff -= 2 * Math.PI;
+                while (diff < -Math.PI) diff += 2 * Math.PI;
+                localModel.rotation.y += diff * Math.min(1, 10 * deltaTime);
+            }
         }
 
         const isMoving = _moveVec.lengthSq() > 0;
@@ -311,11 +319,6 @@ function loop() {
                 const newState = getMovementAnimationName(_moveVec, localModel!, sprintKey);
                 if (newState !== 'idle') {
                     fsm['local']?.transitionTo(newState);
-                    if (newState === 'run') {
-                        fsm['local']?.setTimeScale(1.0);
-                    } else {
-                        fsm['local']?.setTimeScale(sprintKey ? 1.5 : 1.0);
-                    }
                 } else {
                     fsm['local']?.transitionTo('idle');
                 }
@@ -405,30 +408,14 @@ function loop() {
         30
     );
 
-    if ((actionMode || isRightDragging) && localModel && _moveVec.length() < 0.01) {
-        // плавный доворот к камере, когда стоим
-        const cameraForward = new THREE.Vector3();
-        camera.getWorldDirection(cameraForward);
-        cameraForward.y = 0;
-        cameraForward.normalize();
-        if (cameraForward.length() > 0.01) {
-            const targetAngle = Math.atan2(cameraForward.x, cameraForward.z);
-            const currentAngle = localModel.rotation.y;
-            let diff = targetAngle - currentAngle;
-            while (diff > Math.PI) diff -= 2 * Math.PI;
-            while (diff < -Math.PI) diff += 2 * Math.PI;
-            localModel.rotation.y += diff * Math.min(1, 10 * deltaTime);
-        }
-    }
-
     // Запрос захвата при первом же клике/клавише в игре, если захват отсутствует
     renderer.domElement.addEventListener('click', () => {
-        if (!document.pointerLockElement && uiWindowsOpen === 0 && !altToggled) {
+        if (!document.pointerLockElement && uiWindowsOpen === 0 && !isAltToggled()) {
             enableActionMode();
         }
     });
     window.addEventListener('keydown', () => {
-        if (!document.pointerLockElement && uiWindowsOpen === 0 && !altToggled) {
+        if (!document.pointerLockElement && uiWindowsOpen === 0 && !isAltToggled()) {
             enableActionMode();
         }
     });

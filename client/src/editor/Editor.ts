@@ -14,7 +14,7 @@ import { terrainMesh, getTerrainHeightAtFast, getTerrainHeightAt } from '../rend
 import { worldMeshes } from '../render/WorldRenderer';
 import { createModelClone, getModelBaseSize } from '../utils/modelLoader';
 import { getColliderConfig } from '../collisionConfig';
-import { pushUIMode, popUIMode } from '../main';
+import { pushUIMode, popUIMode } from '../cameraControls';
 
 let transformControls: TransformControls;
 let editorObjects: THREE.Object3D[] = [];

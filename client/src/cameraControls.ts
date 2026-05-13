@@ -34,6 +34,9 @@ export function disableActionMode() {
 // Обработчик смены состояния захвата
 document.addEventListener('pointerlockchange', () => {
     const isLocked = document.pointerLockElement === renderer.domElement;
+    if (isLocked !== actionMode) {
+        console.log(`[CAMERA] Action mode: ${isLocked ? 'ON' : 'OFF'}`);
+    }
     actionMode = isLocked;
     if (!isLocked) {
         // Если захват снят (Escape, Alt, UI), можно установить курсор по умолчанию
@@ -41,7 +44,6 @@ document.addEventListener('pointerlockchange', () => {
     } else {
         document.body.style.cursor = 'none';
     }
-    console.log(`[CAMERA] Action mode: ${isLocked ? 'ON' : 'OFF'}`);
 });
 
 // Если захват потерян не по нашей воле (например, Escape), ничего страшного,
@@ -57,6 +59,35 @@ export function updateCamera() {
     const camZ = cameraTarget.z + distance * Math.sin(phi) * Math.cos(theta);
     camera.position.set(camX, camY, camZ);
     camera.lookAt(cameraTarget);
+}
+
+// ---------- Управление режимом камеры из UI ----------
+export let uiWindowsOpen = 0;
+let altToggled = false;
+
+export function pushUIMode() {
+    console.trace('pushUIMode called');
+    uiWindowsOpen++;
+    if (uiWindowsOpen > 0) disableActionMode();
+}
+
+export function popUIMode() {
+    console.trace('popUIMode called');
+    uiWindowsOpen--;
+    if (uiWindowsOpen <= 0) {
+        uiWindowsOpen = 0;
+        if (!altToggled) enableActionMode();
+    }
+}
+
+/** Переключить состояние Alt (true – Cursor Mode, false – Action Mode) */
+export function toggleAltMode() {
+    altToggled = !altToggled;
+}
+
+/** Проверить, включён ли Cursor Mode через Alt */
+export function isAltToggled(): boolean {
+    return altToggled;
 }
 
 // ---------- Управление мышью ----------
