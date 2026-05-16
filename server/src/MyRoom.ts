@@ -731,7 +731,23 @@ export class MyRoom extends Room<MyRoomState> {
             const fromSlot = player.inventory.slots[fromSlotIndex];
             const toSlot = player.inventory.slots[toSlotIndex];
             if (!fromSlot.item) return;
-            // Swap items between slots
+            // If same item type, try to stack first
+            if (toSlot.item && fromSlot.item && toSlot.item.id === fromSlot.item.id) {
+                const maxStack = toSlot.item.maxStack;
+                const canAdd = maxStack - toSlot.quantity;
+                if (canAdd > 0) {
+                    const toMove = Math.min(fromSlot.quantity, canAdd);
+                    toSlot.quantity += toMove;
+                    fromSlot.quantity -= toMove;
+                    if (fromSlot.quantity <= 0) {
+                        fromSlot.item = null;
+                        fromSlot.quantity = 0;
+                    }
+                    PlayerPersistence.savePlayer(player);
+                    return;
+                }
+            }
+            // Otherwise swap items between slots
             const tempItem = toSlot.item;
             const tempQty = toSlot.quantity;
             toSlot.item = fromSlot.item;
@@ -781,7 +797,22 @@ export class MyRoom extends Room<MyRoomState> {
             const item = player.equipment.get(slot);
             if (!item) return;
             const destSlot = player.inventory.slots[toSlotIndex];
-            if (!destSlot || destSlot.item) return; // must be empty
+            if (!destSlot) return;
+            // If destination has same item, stack instead
+            if (destSlot.item && destSlot.item.id === item.id) {
+                const maxStack = destSlot.item.maxStack;
+                const canAdd = maxStack - destSlot.quantity;
+                if (canAdd > 0) {
+                    EquipmentSystem.applyBonuses(player.stats, item.bonuses, -1);
+                    player.equipment.delete(slot);
+                    destSlot.quantity = Math.min(destSlot.quantity + 1, maxStack);
+                    EquipmentSystem.recalculateStats(player);
+                    PlayerPersistence.savePlayer(player);
+                    return;
+                }
+            }
+            // Must be empty if different item
+            if (destSlot.item) return;
             // Manually unequip: remove bonuses, delete from equipment, place in target slot
             EquipmentSystem.applyBonuses(player.stats, item.bonuses, -1);
             player.equipment.delete(slot);
@@ -789,6 +820,28 @@ export class MyRoom extends Room<MyRoomState> {
             destSlot.quantity = 1;
             EquipmentSystem.recalculateStats(player);
             PlayerPersistence.savePlayer(player);
+        });
+
+        this.onMessage("splitItem", (client, message: { fromSlotIndex: number, quantity: number }) => {
+            const player = this.state.players.get(client.sessionId);
+            if (!player || player.hp <= 0) return;
+            const { fromSlotIndex, quantity } = message;
+            if (fromSlotIndex < 0 || fromSlotIndex >= player.inventory.slots.length) return;
+            const fromSlot = player.inventory.slots[fromSlotIndex];
+            if (!fromSlot || !fromSlot.item) return;
+            if (fromSlot.quantity <= quantity || quantity <= 0) return; // must leave at least 1
+            // Find first empty slot
+            for (let i = 0; i < player.inventory.slots.length; i++) {
+                if (i === fromSlotIndex) continue;
+                const slot = player.inventory.slots[i];
+                if (!slot.item) {
+                    slot.item = fromSlot.item.cloneItem();
+                    slot.quantity = quantity;
+                    fromSlot.quantity -= quantity;
+                    PlayerPersistence.savePlayer(player);
+                    return;
+                }
+            }
         });
 
         this.onMessage("editorSave", (client, message: { objects: any[] }) => {

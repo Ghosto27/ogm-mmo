@@ -65,7 +65,7 @@ function cleanupGhost() {
 
 function clearHighlight() {
     if (highlightedTarget) {
-        highlightedTarget.style.border = '';
+        highlightedTarget.style.outline = '';
         highlightedTarget.style.boxShadow = '';
         highlightedTarget = null;
     }
@@ -75,9 +75,9 @@ function highlightDropZones(enable: boolean) {
     const allDroppable = document.querySelectorAll<HTMLElement>('[data-dropzone]');
     allDroppable.forEach(el => {
         if (enable) {
-            el.style.border = '2px dashed #888';
+            el.style.outline = '2px dashed #888';
         } else {
-            el.style.border = '';
+            el.style.outline = '';
             el.style.boxShadow = '';
         }
     });
@@ -89,10 +89,10 @@ function updateHoverHighlight(clientX: number, clientY: number) {
     if (target) {
         const isValid = isValidDrop(dragState.sourceType, dragState.sourceIndex, target);
         if (isValid) {
-            target.style.border = '2px solid #44ff44';
+            target.style.outline = '2px solid #44ff44';
             target.style.boxShadow = '0 0 8px rgba(68, 255, 68, 0.5)';
         } else {
-            target.style.border = '2px solid #ff4444';
+            target.style.outline = '2px solid #ff4444';
             target.style.boxShadow = '0 0 8px rgba(255, 68, 68, 0.5)';
         }
         highlightedTarget = target;
