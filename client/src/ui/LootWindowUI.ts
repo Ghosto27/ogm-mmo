@@ -1,5 +1,6 @@
 import { room } from '../network';
 import { showTooltip, hideTooltip } from '../tooltip';
+import { pushUIMode, popUIMode } from '../cameraControls';
 
 let container: HTMLDivElement;
 let slotElements: HTMLDivElement[] = [];
@@ -93,11 +94,14 @@ export function showLootUI(bagId: string, items: any[]) {
     currentBagId = bagId;
     container.style.display = 'block';
     updateLootSlots(items);
+    pushUIMode();
 }
 
 export function hideLootUI() {
+    const wasVisible = container.style.display !== 'none';
     container.style.display = 'none';
     currentBagId = null;
+    if (wasVisible) popUIMode();
 }
 
 export function updateLootSlots(items: any[]) {

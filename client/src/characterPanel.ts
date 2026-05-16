@@ -1,5 +1,6 @@
 import { room } from './network';
 import { showTooltip, hideTooltip } from './tooltip';
+import { pushUIMode, popUIMode } from './cameraControls';
 
 let container: HTMLDivElement;
 let isVisible = false;
@@ -134,6 +135,11 @@ function getSlotLabel(slot: string): string {
 export function toggleCharacterPanel() {
     isVisible = !isVisible;
     container.style.display = isVisible ? 'block' : 'none';
+    if (isVisible) {
+        pushUIMode();
+    } else {
+        popUIMode();
+    }
 }
 
 export function updateCharacterPanel(player: any) {

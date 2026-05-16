@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { Client } from 'colyseus.js';
 import { SERVER_URL } from './config';
 import {
@@ -21,7 +22,8 @@ import { PlayerSyncManager } from './sync/PlayerSyncManager';
 import { showDialog, hideDialog } from './ui/DialogUI';
 import { updateNPCMeshes, setNPCProximity } from './render/NPCRenderer';
 import { updateQuestList } from './quest/QuestJournalUI';
-import { showNotification } from './ui/notificationUI'; 
+import { showNotification } from './ui/notificationUI';
+import { showFloatingDamage } from './damageNumbers';
 import { setQuestDefs, getQuestName } from './quest/questData';
 import { updateWorldObjects, worldMeshes } from './render/WorldRenderer';
 import { updateTerrain, getTerrainHeightAt, terrainReady, getTerrainHeightAtFast } from './render/TerrainRenderer';
@@ -370,6 +372,27 @@ function join(playerName: string) {
             if (message.attacker !== room.sessionId) {
                 fsm[message.attacker]?.requestAttack();
             }
+        });
+
+        room.onMessage("attackResult", (data: {
+            targetName: string;
+            damage: number;
+            attackType: string;
+            isCrit: boolean;
+            targetX: number;
+            targetZ: number;
+        }) => {
+            // Show floating damage number at target position
+            const pos = new THREE.Vector3(data.targetX, 0, data.targetZ);
+            showFloatingDamage(pos, data.damage, data.isCrit);
+
+            // Show notification with damage details
+            let attackLabel = 'Normal';
+            if (data.attackType === 'heavy') attackLabel = 'Heavy';
+            else if (data.attackType === 'shift') attackLabel = 'Power Strike';
+
+            const critText = data.isCrit ? ' CRIT!' : '';
+            showNotification(`${data.targetName}: -${data.damage}${critText} (${attackLabel})`, 2000);
         });
 
         room.onMessage("initialPosition", (data: { sessionId: string, x: number, z: number, rotationY?: number }) => {

@@ -1,4 +1,5 @@
 import { room, interactionState } from '../network';
+import { pushUIMode, popUIMode } from '../cameraControls';
 
 let container: HTMLDivElement;
 let textEl: HTMLElement;
@@ -31,6 +32,7 @@ export function createDialogUI() {
 }
 
 export function showDialog(npcId: string, npcName: string, text: string, choices: { text: string; action?: string; questId?: string }[]) {
+    const wasHidden = container.style.display === 'none';
     console.log('[DIALOG] showDialog', { npcId, text, choicesCount: choices.length });
     textEl.textContent = `[${npcName}] ${text}`;
     choicesEl.innerHTML = '';
@@ -49,14 +51,14 @@ export function showDialog(npcId: string, npcName: string, text: string, choices
         btn.addEventListener('click', () => {
             if (!room) return;
             if (choice.action) {
-                // Динамическое действие (взять/сдать квест)
+                // Dynamic action (take/complete quest)
                 room.send('dialogueChoice', {
                     npcId: interactionState.currentInteractNpcId,
                     action: choice.action,
                     questId: choice.questId,
                 });
             } else {
-                // Обычный статический выбор – передаём индекс
+                // Regular static choice – send index
                 room.send('dialogueChoice', {
                     npcId: interactionState.currentInteractNpcId,
                     choiceIndex: index,
@@ -66,8 +68,11 @@ export function showDialog(npcId: string, npcName: string, text: string, choices
         choicesEl.appendChild(btn);
     });
     container.style.display = 'block';
+    if (wasHidden) pushUIMode();
 }
 
 export function hideDialog() {
+    const wasVisible = container.style.display !== 'none';
     container.style.display = 'none';
+    if (wasVisible) popUIMode();
 }

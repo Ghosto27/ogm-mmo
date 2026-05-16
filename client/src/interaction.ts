@@ -14,12 +14,15 @@ import { getTerrainHeightAtFast } from './render/TerrainRenderer';
 import { toggleCollisionDebug } from './debug/debugState';
 import { isEditorActive } from './editor/EditorState';
 import { worldMeshes } from './render/WorldRenderer';
-import { actionMode } from './cameraControls';   // <-- импорт режима
+import { actionMode } from './cameraControls';
+import { sprintKey } from './input';
 
 console.log('[INTERACTION] Module loaded');
 
 let rightButtonDownTime = 0;
+let leftButtonDownTime = 0;
 const CLICK_THRESHOLD_MS = 200;
+const HEAVY_ATTACK_THRESHOLD_MS = 300; // hold longer than this = heavy attack
 
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
@@ -61,12 +64,53 @@ function tryAttack(
     room.send(attackCommand, { target: targetId, mobId: targetId });
     fsm['local']?.requestAttack();
     console.log(`[ATTACK] Атака ${attackCommand} на ${targetId} (дист. ${dist.toFixed(2)})`);
-    return true;
+}
+
+/**
+ * Raycast from screen center (0,0) to find target under crosshair in Action Mode.
+ * Checks players first, then mobs.
+ */
+function getActionModeTarget(): { type: 'player' | 'mob'; id: string } | null {
+    // In Action Mode with Pointer Lock, crosshair is at screen center
+    mouse.x = 0;
+    mouse.y = 0;
+    raycaster.setFromCamera(mouse, camera);
+
+    // Check players first
+    const playerTargets = Object.values(otherPlayers).filter(m => m.visible);
+    const playerIntersects = raycaster.intersectObjects(playerTargets, true);
+    if (playerIntersects.length > 0) {
+        const mesh = playerIntersects[0].object;
+        const targetId = mesh.userData?.sessionId;
+        if (targetId && targetId !== room?.sessionId) {
+            return { type: 'player', id: targetId };
+        }
+    }
+
+    // Check mobs
+    const mobTargets: THREE.Object3D[] = Object.values(mobModels).filter(m => m.visible);
+    const mobIntersects = raycaster.intersectObjects(mobTargets, true);
+    if (mobIntersects.length > 0) {
+        const mesh = mobIntersects[0].object;
+        const mobId = Object.keys(mobModels).find(id => {
+            let found = false;
+            mobModels[id].traverse(child => { if (child === mesh) found = true; });
+            return found;
+        });
+        if (mobId) {
+            return { type: 'mob', id: mobId };
+        }
+    }
+
+    return null;
 }
 
 // ---------- Обработка нажатия кнопок мыши ----------
 window.addEventListener('mousedown', (event) => {
     if (isEditorActive()) return;
+    if (event.button === 0) {
+        leftButtonDownTime = Date.now();
+    }
     if (event.button === 2) {
         rightButtonDownTime = Date.now();
     }
@@ -78,11 +122,55 @@ window.addEventListener('mouseup', (event) => {
     // ---------- ACTION MODE (боевой) ----------
     if (actionMode) {
         if (event.button === 0) {
-            // ЛКМ в action‑режиме – простая атака (пока без поиска цели, просто анимация)
-            if (room && localModel) {
-                room.send("attack", { target: '' });   // позже добавим рейкаст цели
-                fsm['local']?.requestAttack();
+            if (!room || !localModel) return;
+
+            const holdDuration = Date.now() - leftButtonDownTime;
+
+            // Determine attack type by hold duration and modifier keys
+            let attackType: string;
+            if (sprintKey) {
+                attackType = 'shift';       // Shift + LMB = power strike
+            } else if (holdDuration > HEAVY_ATTACK_THRESHOLD_MS) {
+                attackType = 'heavy';       // hold > 300ms = charged heavy attack
+            } else {
+                attackType = 'normal';      // quick tap = normal attack
             }
+
+            // Raycast target from screen center (where crosshair points)
+            const target = getActionModeTarget();
+
+            if (target) {
+                const targetModel = target.type === 'player'
+                    ? otherPlayers[target.id]
+                    : mobModels[target.id];
+
+                if (targetModel) {
+                    const dist = localModel.position.distanceTo(targetModel.position);
+                    if (dist <= 4) {
+                        const command = target.type === 'player' ? 'attack' : 'attackMob';
+                        room.send(command, {
+                            target: target.id,
+                            mobId: target.id,
+                            attackType: attackType,
+                            holdDuration: holdDuration
+                        });
+
+                        // Play appropriate animation
+                        if (attackType === 'heavy') {
+                            fsm['local']?.requestHeavyAttack();
+                        } else {
+                            fsm['local']?.requestAttack();
+                        }
+                        console.log(`[ACTION ATTACK] ${attackType} on ${target.type} ${target.id} (hold: ${holdDuration}ms)`);
+                        return;
+                    }
+                }
+            }
+
+            // No valid target found or out of range — swing in air (normal attack animation)
+            room.send("attack", { target: '', attackType: 'normal', holdDuration: 0 });
+            fsm['local']?.requestAttack();
+            console.log(`[ACTION ATTACK] normal swing (no target)`);
             return;
         }
         // ПКМ в action‑режиме – будет использована для блока / сильной атаки, пока оставляем заготовку

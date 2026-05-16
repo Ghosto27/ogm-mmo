@@ -40,11 +40,19 @@ export class AnimationStateMachine {
         this.currentStateName = stateName;
     }
 
-    // ---------- Атака ----------
+    // ---------- Атака (обычная) ----------
     requestAttack(): void {
         if (this.isDead || this.isDying) return;
         if (this.isPlayingOneShot) return;
-        this._playOneShot('sword_attack');
+        this._playOneShot('sword_attack', 1.0);
+    }
+
+    // ---------- Атака (тяжёлая, заряженная) ----------
+    requestHeavyAttack(): void {
+        if (this.isDead || this.isDying) return;
+        if (this.isPlayingOneShot) return;
+        // Slower animation speed = heavier feel
+        this._playOneShot('sword_attack', 0.65);
     }
 
     // ---------- Реакция на урон ----------
@@ -84,7 +92,7 @@ export class AnimationStateMachine {
     }
 
     // ---------- Приватный запуск одноразовой анимации ----------
-    private _playOneShot(actionName: string): void {
+    private _playOneShot(actionName: string, timeScale: number = 1.0): void {
         const action = this.actions[actionName];
         if (!action) return;
 
@@ -98,12 +106,14 @@ export class AnimationStateMachine {
         action.reset();
         action.setLoop(THREE.LoopOnce, 1);
         action.clampWhenFinished = true;
+        action.timeScale = timeScale;
         action.play();
         this.currentStateName = actionName;
 
         const onFinished = () => {
             this.mixer.removeEventListener('finished', onFinished);
             action.stop();
+            action.timeScale = 1.0; // Reset timeScale
             // Снимаем с паузы циклические
             Object.values(this.actions).forEach(a => {
                 if (a && a.loop === THREE.LoopRepeat) a.paused = false;

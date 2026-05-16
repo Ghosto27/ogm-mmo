@@ -1,5 +1,6 @@
 import { room } from './network';
 import { showTooltip, hideTooltip } from './tooltip';
+import { pushUIMode, popUIMode } from './cameraControls';
 
 let container: HTMLDivElement;
 let slotElements: HTMLDivElement[] = [];
@@ -93,6 +94,11 @@ export function createInventoryUI() {
 export function toggleInventory() {
     isVisible = !isVisible;
     container.style.display = isVisible ? 'block' : 'none';
+    if (isVisible) {
+        pushUIMode();
+    } else {
+        popUIMode();
+    }
 }
 
 export function updateInventoryUI(inventory: any) {

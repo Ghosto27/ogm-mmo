@@ -304,6 +304,12 @@ export class MyRoom extends Room<MyRoomState> {
             if (!attacker || attacker.hp <= 0) return;
 
             const targetId = message.target;
+            // If no target (swing in air), just broadcast animation
+            if (!targetId || targetId === '') {
+                this.broadcast("attackAnim", { attacker: client.sessionId });
+                return;
+            }
+
             const target = this.state.players.get(targetId);
             if (!target || target.hp <= 0) return;
 
@@ -311,10 +317,48 @@ export class MyRoom extends Room<MyRoomState> {
             const dz = attacker.z - target.z;
             if (Math.sqrt(dx*dx + dz*dz) > 4) return;
 
-            const damage = Math.max(1, Math.floor(attacker.stats.attackPower - target.stats.defense * 0.3));
+            const attackType: string = message.attackType || 'normal';
+            const holdDuration: number = message.holdDuration || 0;
+
+            // Calculate damage multiplier based on attack type
+            let damageMultiplier = 1.0;
+            let isCrit = false;
+
+            switch (attackType) {
+                case 'heavy':
+                    // Scale damage with hold duration (max 1.5x at 1000ms hold)
+                    damageMultiplier = 1.0 + Math.min(holdDuration, 1000) / 2000 * 0.5;
+                    break;
+                case 'shift':
+                    // Power strike: 1.2x damage + bonus crit chance
+                    damageMultiplier = 1.2;
+                    isCrit = Math.random() < 0.25; // 25% crit chance (default is 0%)
+                    break;
+                default:
+                    damageMultiplier = 1.0;
+                    break;
+            }
+
+            let baseDamage = Math.max(1, Math.floor(attacker.stats.attackPower - target.stats.defense * 0.3));
+            let damage = Math.floor(baseDamage * damageMultiplier);
+            if (isCrit) {
+                damage = Math.floor(damage * 1.5); // crit = 1.5x extra
+                console.log(`[CRIT] ${attacker.name} критически ударил ${target.name}!`);
+            }
             target.hp -= damage;
-            console.log(`[ATTACK] ${attacker.name} -> ${target.name} на ${damage} урона (AP: ${attacker.stats.attackPower}, Def: ${target.stats.defense})`);
-            this.addExperience(attacker, 10);
+            console.log(`[ATTACK] ${attacker.name} -> ${target.name} на ${damage} урона (${attackType}, AP: ${attacker.stats.attackPower}, Def: ${target.stats.defense})`);
+
+            // Send damage feedback to the attacker
+            client.send("attackResult", {
+                targetName: target.name,
+                damage: damage,
+                attackType: attackType,
+                isCrit: isCrit,
+                targetX: target.x,
+                targetZ: target.z
+            });
+
+            this.addExperience(attacker, attackType === 'heavy' ? 15 : 10);
 
             // Рассылаем анимацию атаки всем клиентам
             this.broadcast("attackAnim", { attacker: client.sessionId });
@@ -420,9 +464,44 @@ export class MyRoom extends Room<MyRoomState> {
             const dz = attacker.z - mob.z;
             if (Math.sqrt(dx*dx + dz*dz) > 4) return;
 
-            const damage = Math.max(1, Math.floor(attacker.stats.attackPower * 0.5));
+            const attackType: string = message.attackType || 'normal';
+            const holdDuration: number = message.holdDuration || 0;
+
+            // Calculate damage multiplier based on attack type
+            let damageMultiplier = 1.0;
+            let isCrit = false;
+
+            switch (attackType) {
+                case 'heavy':
+                    damageMultiplier = 1.0 + Math.min(holdDuration, 1000) / 2000 * 0.5;
+                    break;
+                case 'shift':
+                    damageMultiplier = 1.2;
+                    isCrit = Math.random() < 0.25;
+                    break;
+                default:
+                    damageMultiplier = 1.0;
+                    break;
+            }
+
+            let baseDamage = Math.max(1, Math.floor(attacker.stats.attackPower * 0.5));
+            let damage = Math.floor(baseDamage * damageMultiplier);
+            if (isCrit) {
+                damage = Math.floor(damage * 1.5);
+                console.log(`[CRIT] ${attacker.name} критически ударил волка ${mobId}!`);
+            }
             mob.hp -= damage;
-            console.log(`[ATTACK] ${attacker.name} ударил волка ${mobId} на ${damage} урона (AP: ${attacker.stats.attackPower})`);
+            console.log(`[ATTACK] ${attacker.name} ударил волка ${mobId} на ${damage} урона (${attackType}, AP: ${attacker.stats.attackPower})`);
+
+            // Send damage feedback to the attacker
+            client.send("attackResult", {
+                targetName: "Волк",
+                damage: damage,
+                attackType: attackType,
+                isCrit: isCrit,
+                targetX: mob.x,
+                targetZ: mob.z
+            });
 
             const hitAnim = Math.random() < 0.5 ? 'idle_hitreact1' : 'idle_hitreact2';
             mob.state = hitAnim;   // клиент подхватит через updateMobState
