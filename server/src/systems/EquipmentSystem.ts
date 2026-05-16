@@ -44,7 +44,7 @@ export class EquipmentSystem {
         return true;
     }
 
-    private static applyBonuses(stats: PlayerStats, bonuses: MapSchema<number>, multiplier: 1 | -1) {
+    public static applyBonuses(stats: PlayerStats, bonuses: MapSchema<number>, multiplier: 1 | -1) {
         bonuses.forEach((value, key) => {
             switch (key) {
                 case 'strength': stats.strength += value * multiplier; break;

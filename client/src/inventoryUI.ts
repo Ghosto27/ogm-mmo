@@ -51,6 +51,11 @@ export function createInventoryUI() {
         slot.style.position = 'relative';
         slot.dataset.index = String(i);
         slot.title = `Слот ${i+1}`;
+        // Drag & Drop attributes
+        slot.dataset.dropzone = 'inventory';
+        slot.dataset.slotIndex = String(i);
+        slot.dataset.draggable = 'true';
+        slot.dataset.sourceType = 'inventory';
 
         // ----- Обработчики мыши -----
         // ПКМ – использовать предмет (зелье)
@@ -162,3 +167,5 @@ function getSlotData(slotIndex: number): any {
     const slot = player.inventory.slots[slotIndex];
     return slot ? { item: slot.item, quantity: slot.quantity } : null;
 }
+
+export { slotElements };

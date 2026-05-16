@@ -31,6 +31,7 @@ import { applyMovementWithCollisions, updateDynamicColliders, getAllColliders, P
 import { updateCollisionDebug } from './debug/collisionDebug';
 import { isCollisionDebugVisible } from './debug/debugState';
 import { initEditor, updateEditor } from './editor/Editor';
+import { initDragDrop } from './inventoryDnD';
 import { isEditorActive } from './editor/EditorState';
 
 let playerName = localStorage.getItem(STORAGE_KEY) || '';
@@ -63,6 +64,7 @@ modelReady.then(() => {
     createQuestJournal();
     createNotificationUI();
     initEditor();
+    initDragDrop();
     setTimeout(() => {
         fsm['local']?.transitionTo('idle');
     }, 500);

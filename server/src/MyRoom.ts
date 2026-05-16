@@ -719,6 +719,78 @@ export class MyRoom extends Room<MyRoomState> {
             }
         });
 
+        // ---------- Drag & Drop handlers ----------
+
+        this.onMessage("moveItem", (client, message: { fromSlotIndex: number, toSlotIndex: number }) => {
+            const player = this.state.players.get(client.sessionId);
+            if (!player || player.hp <= 0) return;
+            const { fromSlotIndex, toSlotIndex } = message;
+            if (fromSlotIndex === toSlotIndex) return;
+            if (fromSlotIndex < 0 || fromSlotIndex >= player.inventory.slots.length) return;
+            if (toSlotIndex < 0 || toSlotIndex >= player.inventory.slots.length) return;
+            const fromSlot = player.inventory.slots[fromSlotIndex];
+            const toSlot = player.inventory.slots[toSlotIndex];
+            if (!fromSlot.item) return;
+            // Swap items between slots
+            const tempItem = toSlot.item;
+            const tempQty = toSlot.quantity;
+            toSlot.item = fromSlot.item;
+            toSlot.quantity = fromSlot.quantity;
+            fromSlot.item = tempItem;
+            fromSlot.quantity = tempQty;
+            PlayerPersistence.savePlayer(player);
+        });
+
+        this.onMessage("dropItem", (client, message: { slotIndex: number }) => {
+            const player = this.state.players.get(client.sessionId);
+            if (!player || player.hp <= 0) return;
+            const { slotIndex } = message;
+            const slot = player.inventory.slots[slotIndex];
+            if (!slot || !slot.item) return;
+            const item = slot.item.cloneItem();
+            const quantity = slot.quantity;
+            // Remove from inventory
+            player.inventory.removeItem(slotIndex, quantity);
+            // Create loot bag at player position
+            const bagId = `loot_drop_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+            const bag = new LootBag(bagId, player.x, player.z, player.x, player.z, [{ item, quantity }]);
+            this.state.lootBags.set(bagId, bag);
+            // Cleanup bag after 30 seconds
+            setTimeout(() => {
+                this.state.lootBags.delete(bagId);
+            }, 30000);
+            PlayerPersistence.savePlayer(player);
+        });
+
+        this.onMessage("equipItemToSlot", (client, message: { slotIndex: number, targetSlot: string }) => {
+            const player = this.state.players.get(client.sessionId);
+            if (!player || player.hp <= 0) return;
+            const { slotIndex, targetSlot } = message;
+            const slot = player.inventory.slots[slotIndex];
+            if (!slot || !slot.item) return;
+            const item = slot.item;
+            if (item.slot !== targetSlot) return; // wrong slot type for this equipment slot
+            const success = EquipmentSystem.equipItem(player, item, slotIndex);
+            if (success) PlayerPersistence.savePlayer(player);
+        });
+
+        this.onMessage("unequipToSlot", (client, message: { slot: string, toSlotIndex: number }) => {
+            const player = this.state.players.get(client.sessionId);
+            if (!player || player.hp <= 0) return;
+            const { slot, toSlotIndex } = message;
+            const item = player.equipment.get(slot);
+            if (!item) return;
+            const destSlot = player.inventory.slots[toSlotIndex];
+            if (!destSlot || destSlot.item) return; // must be empty
+            // Manually unequip: remove bonuses, delete from equipment, place in target slot
+            EquipmentSystem.applyBonuses(player.stats, item.bonuses, -1);
+            player.equipment.delete(slot);
+            destSlot.item = item;
+            destSlot.quantity = 1;
+            EquipmentSystem.recalculateStats(player);
+            PlayerPersistence.savePlayer(player);
+        });
+
         this.onMessage("editorSave", (client, message: { objects: any[] }) => {
             console.log(`[SERVER-EDITOR] Получено объектов: ${message.objects.length}`);
             message.objects.forEach(o => console.log(`  id=${o.id}, x=${o.x}, z=${o.z}`));

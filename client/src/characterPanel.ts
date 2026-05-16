@@ -90,6 +90,11 @@ export function createCharacterPanel() {
         slotDiv.style.alignItems = 'center';
         slotDiv.style.justifyContent = 'center';
         slotDiv.title = getSlotLabel(slotName);
+        // Drag & Drop attributes
+        slotDiv.dataset.dropzone = 'equipment';
+        slotDiv.dataset.equipSlot = slotName;
+        slotDiv.dataset.draggable = 'true';
+        slotDiv.dataset.sourceType = 'equipment';
 
         // Обработчики мыши для снятия предмета
         slotDiv.addEventListener('contextmenu', (event) => {
@@ -183,3 +188,5 @@ export function updateCharacterPanel(player: any) {
         `;
     }
 }
+
+export const equipmentSlotElements = slotDivs;
