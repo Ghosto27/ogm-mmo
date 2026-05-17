@@ -346,14 +346,13 @@ function loop() {
         }
     }
 
-    // Камера следует за игроком
+    // Камера следует за игроком (over-the-shoulder)
     if (localModel) {
-        _box.setFromObject(localModel);
-        _box.getCenter(_center);
-        _center.y += 1.4;
+        _center.copy(localModel.position);
+        _center.y += 1.2;
         setCameraTarget(_center.x, _center.y, _center.z);
     }
-    updateCamera();
+    updateCamera(deltaTime);
 
     // Миникарта и большая карта
     if (localModel) {

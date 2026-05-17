@@ -1,27 +1,40 @@
 import * as THREE from 'three';
 import { camera, renderer } from './scene';
+import { getTerrainHeightAtFast } from './render/TerrainRenderer';
 
-let cameraTarget = new THREE.Vector3(0, 0, 0);
-let theta = 0;
-let phi = Math.PI / 4;
-let distance = 5;
-const MIN_PHI = 0.1;
-const MAX_PHI = Math.PI / 2.2;
+// === Over-the-Shoulder Camera State ===
+let cameraTarget = new THREE.Vector3(0, 0, 0);  // Pivot point (player shoulder area)
+let yaw = 0;                                      // Horizontal rotation (full 360°)
+let pitch = 0.2;                                  // Vertical angle from horizon; positive = camera above pivot (look down), negative = camera below (look up)
+let distance = 4;                                 // Distance from pivot
+
+const MIN_PITCH = -0.5;                           // ~-30° below horizon (look up at sky)
+const MAX_PITCH = 1.0;                            // ~+60° above horizon (look down at ground)
 const MIN_DIST = 1.5;
-const MAX_DIST = 15;
+const MAX_DIST = 10;
 
-export let isRightDragging = false;
-let prevMouse = new THREE.Vector2();
+// Over-the-shoulder offset (camera positioned to right of player center)
+const SHOULDER_OFFSET_X = 0.5;   // right bias in world units
+const SHOULDER_OFFSET_Y = 0.3;   // slight upward bias
+
+// Lerp smoothing speed
+const LERP_SPEED = 8;
+
+// Terrain collision offset — keep camera this high above terrain
+const COLLISION_OFFSET = 0.3;
+
+let currentCamPos = new THREE.Vector3(0, 0, 0);
 
 // ----- Action / Cursor mode -----
-export let actionMode = false;            // реальное состояние (синхронизируется с pointer‑lock)
+export let actionMode = false;
+export let isRightDragging = false;
+let prevMouse = new THREE.Vector2();
 
 /** Попытаться войти в Action‑режим (захватить мышь) */
 export function enableActionMode() {
     if (!document.pointerLockElement) {
         renderer.domElement.requestPointerLock();
     }
-    // Если захват уже активен, флаг будет обновлён в pointerlockchange
 }
 
 /** Принудительно выйти из Action‑режима (показать курсор) */
@@ -39,26 +52,59 @@ document.addEventListener('pointerlockchange', () => {
     }
     actionMode = isLocked;
     if (!isLocked) {
-        // Если захват снят (Escape, Alt, UI), можно установить курсор по умолчанию
         document.body.style.cursor = 'default';
     } else {
         document.body.style.cursor = 'none';
     }
 });
 
-// Если захват потерян не по нашей воле (например, Escape), ничего страшного,
-// следующий клик/нажатие в canvas снова запросит захват (см. main.ts)
-
 export function setCameraTarget(x: number, y: number, z: number) {
     cameraTarget.set(x, y, z);
 }
 
-export function updateCamera() {
-    const camX = cameraTarget.x + distance * Math.sin(phi) * Math.sin(theta);
-    const camY = cameraTarget.y + distance * Math.cos(phi);
-    const camZ = cameraTarget.z + distance * Math.sin(phi) * Math.cos(theta);
-    camera.position.set(camX, camY, camZ);
-    camera.lookAt(cameraTarget);
+/**
+ * Over-the-shoulder camera update.
+ * Should be called every frame with deltaTime for smooth lerp.
+ */
+export function updateCamera(deltaTime: number) {
+    const pivot = cameraTarget;
+
+    // Pre-compute trig values
+    const sinYaw = Math.sin(yaw);
+    const cosYaw = Math.cos(yaw);
+    const cosPitch = Math.cos(pitch);
+    const sinPitch = Math.sin(pitch);
+
+    // 1. Calculate ideal camera position (behind pivot at distance)
+    const idealPos = new THREE.Vector3(
+        pivot.x + distance * cosPitch * sinYaw,
+        pivot.y + distance * sinPitch,
+        pivot.z + distance * cosPitch * cosYaw
+    );
+
+    // 2. Apply shoulder offset (to the right in camera-relative space)
+    const rightDir = new THREE.Vector3(cosYaw, 0, -sinYaw);
+    idealPos.addScaledVector(rightDir, SHOULDER_OFFSET_X);
+    idealPos.y += SHOULDER_OFFSET_Y;
+
+    // 3. Terrain collision — prevent camera from going below terrain
+    const terrainHeight = getTerrainHeightAtFast(idealPos.x, idealPos.z);
+    const minY = terrainHeight + COLLISION_OFFSET;
+    if (idealPos.y < minY) {
+        idealPos.y = minY;
+    }
+
+    // 4. Lerp smoothing for camera movement
+    if (currentCamPos.lengthSq() === 0) {
+        currentCamPos.copy(idealPos);
+    } else {
+        const lerpFactor = Math.min(1, LERP_SPEED * deltaTime);
+        currentCamPos.lerp(idealPos, lerpFactor);
+    }
+
+    // 5. Set camera position and look at pivot
+    camera.position.copy(currentCamPos);
+    camera.lookAt(pivot);
 }
 
 // ---------- Управление режимом камеры из UI ----------
@@ -66,20 +112,14 @@ export let uiWindowsOpen = 0;
 let altToggled = false;
 
 export function pushUIMode() {
-    //console.trace('pushUIMode called');
     uiWindowsOpen++;
     if (uiWindowsOpen > 0) disableActionMode();
 }
 
 export function popUIMode() {
-    //console.trace('popUIMode called');
     uiWindowsOpen--;
     if (uiWindowsOpen <= 0) {
         uiWindowsOpen = 0;
-        // Always try to re-enable action mode when the last UI window closes.
-        // Do NOT check altToggled here — that check causes a race condition where
-        // pressing Alt while a UI window is open leaves the user stuck in cursor mode
-        // after the window closes (the pop already happened, Alt toggle can't re-trigger it).
         enableActionMode();
     }
 }
@@ -112,10 +152,10 @@ window.addEventListener('mousemove', (e) => {
     // В Action‑режиме (захват активен) используем movementX/Y
     if (actionMode) {
         const sensitivity = 0.002;
-        theta -= e.movementX * sensitivity;
-        phi -= e.movementY * sensitivity;
-        if (phi < MIN_PHI) phi = MIN_PHI;
-        if (phi > MAX_PHI) phi = MAX_PHI;
+        yaw -= e.movementX * sensitivity;
+        pitch += e.movementY * sensitivity;
+        if (pitch < MIN_PITCH) pitch = MIN_PITCH;
+        if (pitch > MAX_PITCH) pitch = MAX_PITCH;
         return;
     }
 
@@ -125,10 +165,10 @@ window.addEventListener('mousemove', (e) => {
     const dy = e.clientY - prevMouse.y;
     prevMouse.set(e.clientX, e.clientY);
     const sensitivity = 0.01;
-    theta -= dx * sensitivity;
-    phi -= dy * sensitivity;
-    if (phi < MIN_PHI) phi = MIN_PHI;
-    if (phi > MAX_PHI) phi = MAX_PHI;
+    yaw -= dx * sensitivity;
+    pitch += dy * sensitivity;
+    if (pitch < MIN_PITCH) pitch = MIN_PITCH;
+    if (pitch > MAX_PITCH) pitch = MAX_PITCH;
 });
 
 renderer.domElement.addEventListener('wheel', (e) => {
