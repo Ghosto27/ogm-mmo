@@ -138,6 +138,7 @@ export const mobHpBars: { [mobId: string]: THREE.Sprite } = {};
 export const mobDeathAnimating: { [mobId: string]: boolean } = {};
 
 const mobTargetPositions: { [mobId: string]: THREE.Vector3 } = {};
+const mobTargetRotations: { [mobId: string]: number } = {};
 const MOB_INTERPOLATION_SPEED = 10.0;
 
 // ---------- ФУНКЦИЯ СОЗДАНИЯ ЭКЗЕМПЛЯРА МОБА ----------
@@ -411,7 +412,7 @@ export function spawnMob(mobId: string, x: number, z: number, hp: number, maxHp:
     }
 }
 
-export function updateMobState(mobId: string, x: number, z: number, hp: number, maxHp: number, state: string) {
+export function updateMobState(mobId: string, x: number, z: number, hp: number, maxHp: number, state: string, rotationY?: number) {
     const model = mobModels[mobId];
     if (!model) return;
     
@@ -425,6 +426,14 @@ export function updateMobState(mobId: string, x: number, z: number, hp: number, 
     setMobTargetPosition(mobId, x, z);
     updateHpBarSprite(mobHpBars[mobId], hp, maxHp);
     
+    // Store server rotation as target for smooth interpolation (avoids snapping)
+    // Server uses atan2(dz, dx) convention (angle 0 = +X), convert to Three.js atan2(dx, dz) (angle 0 = +Z)
+    if (rotationY !== undefined) {
+        // Server uses atan2(dz, dx) convention (angle 0 = +X), convert to Three.js atan2(dx, dz) (angle 0 = +Z)
+        // threeAngle = PI/2 - serverAngle
+        mobTargetRotations[mobId] = Math.PI / 2 - rotationY;
+    }
+
     const fsm = mobFSM[mobId];
     if (!fsm) return;
 
@@ -502,9 +511,11 @@ export function despawnMob(mobId: string) {
     if (mobActions[mobId]) delete mobActions[mobId];
     if (mobFSM[mobId]) delete mobFSM[mobId];
     delete mobTargetPositions[mobId];
+    delete mobTargetRotations[mobId];
 }
 
 export function updateMobAnimations(deltaTime: number) {
+    // Update all skeletal mixers
     for (const id in mobMixers) {
         mobMixers[id].update(deltaTime);
     }
@@ -525,16 +536,25 @@ export function interpolateMobPositions(deltaTime: number) {
             const lerpFactor = 0.2; // скорость сглаживания (0..1)
             model.position.y += (targetY - model.position.y) * lerpFactor;
 
-            // Вычисляем угол движения по разнице между целевой и предыдущей позицией
+            // Rotation: use server rotation when stationary, movement direction when moving
             const prevPos = lastMobPositions[mobId];
+            const targetRot = mobTargetRotations[mobId];
             if (prevPos) {
                 const dx = targetPos.x - prevPos.x;
                 const dz = targetPos.z - prevPos.z;
                 const dist = Math.sqrt(dx * dx + dz * dz);
                 if (dist > 0.01) {
+                    // Moving: rotate toward movement direction
                     const targetAngle = Math.atan2(dx, dz);
                     const currentAngle = model.rotation.y;
                     let diff = targetAngle - currentAngle;
+                    while (diff > Math.PI) diff -= 2 * Math.PI;
+                    while (diff < -Math.PI) diff += 2 * Math.PI;
+                    model.rotation.y += diff * Math.min(1, MOB_ANGLE_INTERPOLATION * deltaTime);
+                } else if (targetRot !== undefined) {
+                    // Stationary: smoothly interpolate toward server rotation (for attacking in place)
+                    const currentAngle = model.rotation.y;
+                    let diff = targetRot - currentAngle;
                     while (diff > Math.PI) diff -= 2 * Math.PI;
                     while (diff < -Math.PI) diff += 2 * Math.PI;
                     model.rotation.y += diff * Math.min(1, MOB_ANGLE_INTERPOLATION * deltaTime);

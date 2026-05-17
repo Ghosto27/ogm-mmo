@@ -178,8 +178,15 @@ function loop() {
     requestAnimationFrame(loop);
 
     const now = performance.now();
-    const deltaTime = (now - lastTime) / 1000;
+    const frameDuration = now - lastTime;
+    const deltaTime = frameDuration / 1000;
     lastTime = now;
+
+    // Log long frames (>50ms) which may cause stutter
+    if (frameDuration > 50) {
+        console.warn(`[PERF] Long frame: ${frameDuration.toFixed(1)}ms, alive=${!!(room?.state?.players?.get(room.sessionId)?.hp > 0)}`);
+    }
+
     let lastDebugVisible = false;
 
     if (!room || !localModel) return;
@@ -249,6 +256,11 @@ function loop() {
                     _moveVec.set(0, 0, 0);
                 }
             }
+        }
+
+        // Block movement and rotation during one-shot animations (attack, hit reaction, etc.)
+        if (fsm['local']?.isPlayingOneShot) {
+            _moveVec.set(0, 0, 0);
         }
 
                 // В Action Mode персонаж всегда смотрит туда же, куда и камера

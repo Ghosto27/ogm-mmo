@@ -161,7 +161,7 @@ window.addEventListener('mouseup', (event) => {
                         } else {
                             fsm['local']?.requestAttack();
                         }
-                        console.log(`[ACTION ATTACK] ${attackType} on ${target.type} ${target.id} (hold: ${holdDuration}ms)`);
+                        //console.log(`[ACTION ATTACK] ${attackType} on ${target.type} ${target.id} (hold: ${holdDuration}ms)`);
                         return;
                     }
                 }
@@ -170,7 +170,7 @@ window.addEventListener('mouseup', (event) => {
             // No valid target found or out of range — swing in air (normal attack animation)
             room.send("attack", { target: '', attackType: 'normal', holdDuration: 0 });
             fsm['local']?.requestAttack();
-            console.log(`[ACTION ATTACK] normal swing (no target)`);
+            //console.log(`[ACTION ATTACK] normal swing (no target)`);
             return;
         }
         // ПКМ в action‑режиме – будет использована для блока / сильной атаки, пока оставляем заготовку

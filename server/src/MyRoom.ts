@@ -583,6 +583,13 @@ export class MyRoom extends Room<MyRoomState> {
 
                         // 1. MELEE - target within striking distance
                         if (dist <= SKELETON_MELEE_RANGE && canAttack) {
+                            // Rotate to face the target
+                            const targetAngle = Math.atan2(target.z - mob.z, target.x - mob.x);
+                            let diff = targetAngle - mob.rotationY;
+                            while (diff > Math.PI) diff -= 2 * Math.PI;
+                            while (diff < -Math.PI) diff += 2 * Math.PI;
+                            mob.rotationY += diff * 0.5;
+
                             mob.state = 'idle';
                             if (!mob.lastAttackTime || Date.now() - mob.lastAttackTime > SKELETON_ATTACK_COOLDOWN) {
                                 const attackVariant = Math.random();
@@ -601,6 +608,13 @@ export class MyRoom extends Room<MyRoomState> {
                         // 2. PURSUIT RANGED - was fighting in melee, now player is fleeing
                         // Skeleton throws bone at the running player (pursuit scenario)
                         else if (wasInCombat && dist > SKELETON_MELEE_RANGE && dist <= SKELETON_RANGED_RANGE && canAttack) {
+                            // Rotate to face the target
+                            const targetAngle = Math.atan2(target.z - mob.z, target.x - mob.x);
+                            let diff = targetAngle - mob.rotationY;
+                            while (diff > Math.PI) diff -= 2 * Math.PI;
+                            while (diff < -Math.PI) diff += 2 * Math.PI;
+                            mob.rotationY += diff * 0.5;
+
                             mob.state = 'idle';
                             if (!mob.lastAttackTime || Date.now() - mob.lastAttackTime > SKELETON_ATTACK_COOLDOWN * 0.7) {
                                 mob.state = 'throw_projectiles';
@@ -640,6 +654,13 @@ export class MyRoom extends Room<MyRoomState> {
                         }
 
                         if (dist <= WOLF_ATTACK_RANGE && target.hp > 0 && !target.godMode) {
+                            // Rotate to face the target
+                            const wolfTargetAngle = Math.atan2(target.z - mob.z, target.x - mob.x);
+                            let wolfDiff = wolfTargetAngle - mob.rotationY;
+                            while (wolfDiff > Math.PI) wolfDiff -= 2 * Math.PI;
+                            while (wolfDiff < -Math.PI) wolfDiff += 2 * Math.PI;
+                            mob.rotationY += wolfDiff * 0.5;
+
                             mob.state = 'attack';
                             if (!mob.lastAttackTime || Date.now() - mob.lastAttackTime > WOLF_ATTACK_COOLDOWN) {
                                 target.hp -= WOLF_ATTACK_DMG;

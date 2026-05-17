@@ -1,6 +1,7 @@
 import { room } from '../network';
 import { showTooltip, hideTooltip } from '../tooltip';
 import { pushUIMode, popUIMode } from '../cameraControls';
+import { fsm } from '../player';
 
 let container: HTMLDivElement;
 let slotElements: HTMLDivElement[] = [];
@@ -88,6 +89,8 @@ function onSlotClick(slotIndex: number) {
     if (room) {
         room.send("lootItem", { bagId: currentBagId, slotIndex });
     }
+    // Play loot animation
+    fsm['local']?.requestChestOpen();
 }
 
 export function showLootUI(bagId: string, items: any[]) {

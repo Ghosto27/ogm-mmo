@@ -1,6 +1,7 @@
 import { room } from './network';
 import { showTooltip, hideTooltip } from './tooltip';
 import { pushUIMode, popUIMode } from './cameraControls';
+import { fsm } from './player';
 
 let container: HTMLDivElement;
 let slotElements: HTMLDivElement[] = [];
@@ -71,6 +72,8 @@ export function createInventoryUI() {
                 } else if (item.id === 'potion_hp_01') {
                     // Зелье – использовать
                     room?.send('useItem', { slotIndex: index });
+                    // Play consume animation
+                    fsm['local']?.requestConsume();
                 }
             }
         });

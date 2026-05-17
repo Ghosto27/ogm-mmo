@@ -60,6 +60,7 @@ function createModelInstance(sessionId?: string): THREE.Group {
     actions[id] = {};
 
     const nameMapping: Record<string, string> = {
+        // Movement
         'mm_idle': 'idle',
         'mf_walk_fwd': 'walk_fwd',
         'mf_walk_fwd_left': 'walk_fwd_left',
@@ -70,10 +71,18 @@ function createModelInstance(sessionId?: string): THREE.Group {
         'mf_walk_bwd_left': 'walk_bwd_left',
         'mf_walk_bwd_right': 'walk_bwd_right',
         'mf_run_fwd': 'run',
+        // Death (two variants, unique keys for random selection)
         'mm_death01': 'death',
-        'mm_death02': 'death',
+        'mm_death02': 'death_02',
+        // Attack (one main)
         'mm_punch01': 'sword_attack',
-        'mm_attack_01': 'sword_attack',
+        // Loot pickup
+        'mm_chest_open': 'chest_open',
+        // Consume (potion/food)
+        'mm_consume': 'consume',
+        // Fall / Land
+        'mm_fall_loop': 'fall_loop',
+        'mm_land': 'land',
     };
 
     defaultAnimations.forEach((clip) => {
@@ -84,7 +93,11 @@ function createModelInstance(sessionId?: string): THREE.Group {
     });
 
     // Устанавливаем loop для одноразовых анимаций
-    const oneShotActions = ['sword_attack', 'death', 'recievehit'];
+    const oneShotActions = [
+        'sword_attack',
+        'death', 'death_02',
+        'chest_open', 'consume', 'land',
+    ];
     for (const name of oneShotActions) {
         const action = actions[id][name];
         if (action) {

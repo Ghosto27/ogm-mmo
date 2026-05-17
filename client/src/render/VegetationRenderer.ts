@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { scene } from '../scene';
 import { getTerrainHeightAtFast } from './TerrainRenderer';
 import { addSphereCollider, addCylinderCollider } from '../collision';

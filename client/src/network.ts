@@ -279,7 +279,7 @@ function join(playerName: string) {
                 if (!mobModels[mobId]) {
                     spawnMob(mobId, mob.x, mob.z, mob.hp, mob.maxHp, mob.rotationY, mobType, mob.state);
                 } else {
-                    updateMobState(mobId, mob.x, mob.z, mob.hp, mob.maxHp, mob.state);
+                    updateMobState(mobId, mob.x, mob.z, mob.hp, mob.maxHp, mob.state, mob.rotationY);
                 }
                 if (mobId === getSelectedTarget()) {
                     const displayName = mobType === 'skeleton' ? 'Skeleton' : 'Wolf';
@@ -502,6 +502,10 @@ function join(playerName: string) {
 
         room.onMessage("positionCorrection", (message: { x: number; z: number }) => {
             if (localModel) {
+                const oldPos = { x: localModel.position.x, z: localModel.position.z };
+                const dx = message.x - oldPos.x;
+                const dz = message.z - oldPos.z;
+                console.warn(`[POS] positionCorrection: (${oldPos.x.toFixed(2)},${oldPos.z.toFixed(2)}) → (${message.x.toFixed(2)},${message.z.toFixed(2)}), delta=(${dx.toFixed(2)},${dz.toFixed(2)})`);
                 localModel.position.x = message.x;
                 localModel.position.z = message.z;
                 const terrainY = getTerrainHeightAtFast(message.x, message.z);

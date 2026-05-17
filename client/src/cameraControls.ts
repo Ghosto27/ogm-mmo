@@ -14,7 +14,7 @@ const MIN_DIST = 1.5;
 const MAX_DIST = 10;
 
 // Over-the-shoulder offset (camera positioned to right of player center)
-const SHOULDER_OFFSET_X = 0.5;   // right bias in world units
+const SHOULDER_OFFSET_X = 1.5;   // right bias in world units
 const SHOULDER_OFFSET_Y = 0.3;   // slight upward bias
 
 // Lerp smoothing speed
@@ -82,10 +82,12 @@ export function updateCamera(deltaTime: number) {
         pivot.z + distance * cosPitch * cosYaw
     );
 
-    // 2. Apply shoulder offset (to the right in camera-relative space)
+    // 2. Apply shoulder offset — full at close range, zero at max distance
+    const distT = (distance - MIN_DIST) / (MAX_DIST - MIN_DIST);
+    const shoulderScale = 1 - Math.min(1, Math.max(0, distT));
     const rightDir = new THREE.Vector3(cosYaw, 0, -sinYaw);
-    idealPos.addScaledVector(rightDir, SHOULDER_OFFSET_X);
-    idealPos.y += SHOULDER_OFFSET_Y;
+    idealPos.addScaledVector(rightDir, SHOULDER_OFFSET_X * shoulderScale);
+    idealPos.y += SHOULDER_OFFSET_Y * shoulderScale;
 
     // 3. Terrain collision — prevent camera from going below terrain
     const terrainHeight = getTerrainHeightAtFast(idealPos.x, idealPos.z);
