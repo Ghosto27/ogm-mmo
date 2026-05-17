@@ -58,6 +58,7 @@ export function updateLootMeshes(lootBags: any) {
  * Обновляет позиции моделей во время анимации.
  * Вызывается каждый кадр из main.ts.
  */
+const _bezierPoint = new THREE.Vector3(); // reusable, avoid per-frame allocation
 export function animateLootMeshes() {
     const now = performance.now();
     for (const bagId in lootAnimations) {
@@ -76,15 +77,14 @@ export function animateLootMeshes() {
         const midZ = (anim.startPos.z + anim.targetPos.z) / 2;
         const controlY = anim.startPos.y + 2.5; // высота дуги
 
-        // Квадратичная кривая Безье для плавного полёта по дуге
-        const curve = new THREE.QuadraticBezierCurve3(
-            anim.startPos,
-            new THREE.Vector3(midX, controlY, midZ),
-            anim.targetPos
-        );
-
-        const point = curve.getPoint(t);
-        mesh.position.copy(point);
+        // Inlined quadratic bezier — avoids allocating THREE.QuadraticBezierCurve3 and Vector3 per frame
+        // B(t) = (1-t)^2 * P0 + 2*(1-t)*t * P1 + t^2 * P2
+        const omt = 1 - t;
+        const px = omt * omt * anim.startPos.x + 2 * omt * t * midX + t * t * anim.targetPos.x;
+        const pz = omt * omt * anim.startPos.z + 2 * omt * t * midZ + t * t * anim.targetPos.z;
+        const py = omt * omt * anim.startPos.y + 2 * omt * t * controlY + t * t * anim.targetPos.y;
+        _bezierPoint.set(px, py, pz);
+        mesh.position.copy(_bezierPoint);
         const groundY = getTerrainHeightAt(mesh.position.x, mesh.position.z);
         mesh.position.y = Math.max(mesh.position.y, groundY + 0.1);
 

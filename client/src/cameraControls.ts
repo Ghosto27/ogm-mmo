@@ -66,17 +66,21 @@ export let uiWindowsOpen = 0;
 let altToggled = false;
 
 export function pushUIMode() {
-    console.trace('pushUIMode called');
+    //console.trace('pushUIMode called');
     uiWindowsOpen++;
     if (uiWindowsOpen > 0) disableActionMode();
 }
 
 export function popUIMode() {
-    console.trace('popUIMode called');
+    //console.trace('popUIMode called');
     uiWindowsOpen--;
     if (uiWindowsOpen <= 0) {
         uiWindowsOpen = 0;
-        if (!altToggled) enableActionMode();
+        // Always try to re-enable action mode when the last UI window closes.
+        // Do NOT check altToggled here — that check causes a race condition where
+        // pressing Alt while a UI window is open leaves the user stuck in cursor mode
+        // after the window closes (the pop already happened, Alt toggle can't re-trigger it).
+        enableActionMode();
     }
 }
 

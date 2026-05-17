@@ -287,7 +287,9 @@ window.addEventListener('mouseup', (event) => {
                 const mob = room.state?.mobs.get(mobId);
                 if (mob) {
                     setSelectedTarget(mobId);
-                    showTargetUI('Волк', mob.level, mob.hp, mob.maxHp);
+                    const mobType = mob.mobType || 'wolf';
+                    const displayName = mobType === 'skeleton' ? 'Skeleton' : 'Wolf';
+                    showTargetUI(displayName, mob.level, mob.hp, mob.maxHp);
                     console.log('[LCLICK] Выделен моб', mobId);
                 }
                 return;

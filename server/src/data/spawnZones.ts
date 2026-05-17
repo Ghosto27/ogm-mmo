@@ -20,10 +20,11 @@ export interface VegetationZone {
 
 export const wolfSpawnZones: SpawnZone[] = [
   { centerX: -180, centerZ: 0, radius: 100, count: 1 },
-  //{ centerX:  40, centerZ: -40, radius: 15, count: 3 },
-  //{ centerX: -40, centerZ:  40, radius: 15, count: 2 },
-  //{ centerX:  40, centerZ:  40, radius: 15, count: 3 },
-  //{ centerX:   0, centerZ:  50, radius: 20, count: 1 },
+];
+
+export const skeletonSpawnZones: SpawnZone[] = [
+  { centerX: 100, centerZ: 150, radius: 80, count: 3 },
+  { centerX: -50, centerZ: 200, radius: 60, count: 2 },
 ];
 
 export const forestZones: VegetationZone[] = [

@@ -35,6 +35,9 @@ import { scene } from './scene';
 export const client = new Client(SERVER_URL);
 export let room: any = null;
 export const interactionState = { currentInteractNpcId: '' };
+// Stores pending projectile target positions for skeleton ranged attacks
+// Key: mobId, Value: { x, z } — the actual player position when the throw was triggered
+export const pendingProjectileTargets: Record<string, { x: number, z: number }> = {};
 
 let reconnectTimer: any = null;
 let firstSync = true;
@@ -272,13 +275,15 @@ function join(playerName: string) {
 
             // ---------- Мобы ----------
             state.mobs.forEach((mob: any, mobId: string) => {
+                const mobType = mob.mobType || 'wolf';
                 if (!mobModels[mobId]) {
-                    spawnMob(mobId, mob.x, mob.z, mob.hp, mob.maxHp, mob.rotationY);
+                    spawnMob(mobId, mob.x, mob.z, mob.hp, mob.maxHp, mob.rotationY, mobType, mob.state);
                 } else {
                     updateMobState(mobId, mob.x, mob.z, mob.hp, mob.maxHp, mob.state);
                 }
                 if (mobId === getSelectedTarget()) {
-                    showTargetUI('Волк', mob.level, mob.hp, mob.maxHp);
+                    const displayName = mobType === 'skeleton' ? 'Skeleton' : 'Wolf';
+                    showTargetUI(displayName, mob.level, mob.hp, mob.maxHp);
                 }
             });
 
@@ -410,9 +415,20 @@ function join(playerName: string) {
             }
         });
 
-        room.onMessage("mobAttackAnim", (data: { mobId: string }) => {
+        room.onMessage("mobAttackAnim", (data: { mobId: string, targetX?: number, targetZ?: number }) => {
+            // For wolves: play 'attack' one-shot (handled via mobAttackAnim as immediate feedback)
+            // For skeletons: attack animations (slash01, slash02, stab, throw_projectiles) are
+            // handled via state sync → updateMobState, so we don't override with generic 'attack'
+            const model = mobModels[data.mobId];
+            if (model && (model as any)._falchion) {
+                // Skeleton - store target position for projectile aiming
+                if (typeof data.targetX === 'number' && typeof data.targetZ === 'number') {
+                    pendingProjectileTargets[data.mobId] = { x: data.targetX, z: data.targetZ };
+                }
+                return;
+            }
             const f = mobFSM[data.mobId];
-            f?.transitionTo('attack');
+            f?.playOneShot('attack');
         });
 
         room.onMessage("dialogueStart", (data: { npcName: string; text: string; choices: { text: string }[] }) => {

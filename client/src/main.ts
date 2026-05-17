@@ -6,13 +6,14 @@ import { localModel, otherPlayers, modelReady, fsm, deathAnimating } from './pla
 import { room, startConnection, lastMoveTimes } from './network';
 import { composer, outlinePass } from './postprocessing';
 import { updateAnimations } from './animationUtils';
-import { setCameraTarget, updateCamera, isRightDragging, 
-    enableActionMode, disableActionMode, actionMode, 
+import { setCameraTarget, updateCamera, isRightDragging,
+    enableActionMode, disableActionMode, actionMode,
     pushUIMode, popUIMode, uiWindowsOpen, toggleAltMode, isAltToggled } from './cameraControls';
 import { cleanUpScene } from './startupCleanup';
 import { createMinimap, updateMinimap } from './minimap';
 import { createWorldMap, updateWorldMap, toggleWorldMap } from './worldMap';
 import { createPlayerUI } from './playerUI';
+import { updateProjectiles, setProjectileScene } from './mobs/projectile';
 import { createTargetUI } from './targetUI';
 import { updateMobAnimations, interpolateMobPositions, mobModels } from './mobPlayer';
 import { renderLabels } from './renderers';
@@ -48,6 +49,7 @@ if (!playerName) {
 cleanUpScene();
 
 modelReady.then(() => {
+    setProjectileScene(scene);
     startConnection(playerName);
     setTimeout(() => {
         enableActionMode();
@@ -109,6 +111,10 @@ const _rawDelta = new THREE.Vector3();
 const _currentPos = new THREE.Vector3();
 const _forward = new THREE.Vector3();
 const _right = new THREE.Vector3();
+const _box = new THREE.Box3();
+const _center = new THREE.Vector3();
+const _cameraForward = new THREE.Vector3();
+const _tempVec = new THREE.Vector3(); // reusable temp for dynamic entity positions
 
 window.addEventListener('keydown', (e) => {
     // Блокируем горячие клавиши браузера при Alt+WASD (на всякий случай)
@@ -206,6 +212,18 @@ function loop() {
     const myPlayer = room.state?.players?.get(room.sessionId);
     const alive = myPlayer && myPlayer.hp > 0;
 
+    // Sync physical position with model position if there's a big discrepancy
+    // (e.g. after respawn at 0,0 or positionCorrection from server).
+    // Without this, playerPhysicalPos retains the old death location, causing
+    // movement to be computed from the wrong origin, which then triggers
+    // positionCorrection loops (teleporting back and forth).
+    if (localModel) {
+        const physToModelDist = playerPhysicalPos.distanceTo(localModel.position);
+        if (physToModelDist > 1.0) {
+            playerPhysicalPos.copy(localModel.position);
+        }
+    }
+
     if (alive) {
         if (actionMode) {
             // Action Mode: движение всегда относительно камеры
@@ -218,16 +236,14 @@ function loop() {
             } else {
                 const raw = getMovementInput();
                 if (raw.x !== 0 || raw.z !== 0) {
-                    const forward = new THREE.Vector3(0, 0, 1)
-                        .applyQuaternion(localModel!.quaternion);
-                    forward.y = 0; forward.normalize();
-                    const right = new THREE.Vector3(1, 0, 0)
-                        .applyQuaternion(localModel!.quaternion);
-                    right.y = 0; right.normalize();
+                    _forward.set(0, 0, 1).applyQuaternion(localModel!.quaternion);
+                    _forward.y = 0; _forward.normalize();
+                    _right.set(1, 0, 0).applyQuaternion(localModel!.quaternion);
+                    _right.y = 0; _right.normalize();
 
                     _moveVec.set(0, 0, 0)
-                        .addScaledVector(forward, -raw.z)
-                        .addScaledVector(right, raw.x)
+                        .addScaledVector(_forward, -raw.z)
+                        .addScaledVector(_right, raw.x)
                         .normalize();
                 } else {
                     _moveVec.set(0, 0, 0);
@@ -237,12 +253,11 @@ function loop() {
 
                 // В Action Mode персонаж всегда смотрит туда же, куда и камера
         if (actionMode && localModel && _moveVec.length() > 0) {
-            const cameraForward = new THREE.Vector3();
-            camera.getWorldDirection(cameraForward);
-            cameraForward.y = 0;
-            cameraForward.normalize();
-            if (cameraForward.length() > 0.01) {
-                const targetAngle = Math.atan2(cameraForward.x, cameraForward.z);
+            camera.getWorldDirection(_cameraForward);
+            _cameraForward.y = 0;
+            _cameraForward.normalize();
+            if (_cameraForward.length() > 0.01) {
+                const targetAngle = Math.atan2(_cameraForward.x, _cameraForward.z);
                 const currentAngle = localModel.rotation.y;
                 let diff = targetAngle - currentAngle;
                 while (diff > Math.PI) diff -= 2 * Math.PI;
@@ -253,12 +268,11 @@ function loop() {
 
         // При зажатой ПКМ в Cursor-режиме – поворот к камере ТОЛЬКО ВО ВРЕМЯ ДВИЖЕНИЯ
         if (isRightDragging && localModel && _moveVec.length() > 0) {
-            const cameraForward = new THREE.Vector3();
-            camera.getWorldDirection(cameraForward);
-            cameraForward.y = 0;
-            cameraForward.normalize();
-            if (cameraForward.length() > 0.01) {
-                const targetAngle = Math.atan2(cameraForward.x, cameraForward.z);
+            camera.getWorldDirection(_cameraForward);
+            _cameraForward.y = 0;
+            _cameraForward.normalize();
+            if (_cameraForward.length() > 0.01) {
+                const targetAngle = Math.atan2(_cameraForward.x, _cameraForward.z);
                 const currentAngle = localModel.rotation.y;
                 let diff = targetAngle - currentAngle;
                 while (diff > Math.PI) diff -= 2 * Math.PI;
@@ -334,11 +348,10 @@ function loop() {
 
     // Камера следует за игроком
     if (localModel) {
-        const box = new THREE.Box3().setFromObject(localModel);
-        const center = new THREE.Vector3();
-        box.getCenter(center);
-        center.y += 1.4;
-        setCameraTarget(center.x, center.y, center.z);
+        _box.setFromObject(localModel);
+        _box.getCenter(_center);
+        _center.y += 1.4;
+        setCameraTarget(_center.x, _center.y, _center.z);
     }
     updateCamera();
 
@@ -401,6 +414,7 @@ function loop() {
     updateAnimations(deltaTime);
     updateMobAnimations(deltaTime);
     interpolateMobPositions(deltaTime);
+    updateProjectiles(deltaTime);
     animateLootMeshes();
 
     // Отладка коллизий
@@ -410,7 +424,15 @@ function loop() {
         30
     );
 
-    // Запрос захвата при первом же клике/клавише в игре, если захват отсутствует
+    // Рендер
+    composer.render();
+    renderLabels(scene, camera);
+}
+
+// Add pointer lock request listeners ONCE at module level (not every frame!)
+// This was a critical memory leak — adding listeners inside loop() accumulated
+// ~36,000 listeners in 5 minutes, causing severe FPS degradation during movement.
+(function initPointerLockListeners() {
     renderer.domElement.addEventListener('click', () => {
         if (!document.pointerLockElement && uiWindowsOpen === 0 && !isAltToggled()) {
             enableActionMode();
@@ -421,10 +443,6 @@ function loop() {
             enableActionMode();
         }
     });
-
-    // Рендер
-    composer.render();
-    renderLabels(scene, camera);
-}
+})();
 
 loop();

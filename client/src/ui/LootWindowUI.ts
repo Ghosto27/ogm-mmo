@@ -93,8 +93,8 @@ function onSlotClick(slotIndex: number) {
 export function showLootUI(bagId: string, items: any[]) {
     currentBagId = bagId;
     container.style.display = 'block';
-    updateLootSlots(items);
     pushUIMode();
+    updateLootSlots(items);
 }
 
 export function hideLootUI() {
@@ -109,8 +109,10 @@ export function updateLootSlots(items: any[]) {
         const slot = slotElements[i];
         slot.innerHTML = '';
         if (i < items.length) {
-            const item = items[i].item;
-            const qty = items[i].quantity;
+            const slotData = items[i];
+            if (!slotData || !slotData.item) continue; // skip empty slots
+            const item = slotData.item;
+            const qty = slotData.quantity;
             const icon = document.createElement('div');
             icon.style.width = '30px';
             icon.style.height = '30px';

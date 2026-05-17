@@ -41,6 +41,8 @@ export class Player extends Schema {
     @type("string") currentDialogueNpcId: string = "";
     @type("string") currentDialogueNode: string = "";
     @type("string") sessionId: string = "";
+    // Admin/debug flag (not synced to client)
+    godMode: boolean = false;
 }
 
 class MyRoomState extends Schema {
@@ -432,6 +434,10 @@ export class MyRoom extends Room<MyRoomState> {
             console.error('[MOB] Ошибка загрузки mob_zones.json:', err);
         }
 
+        // Spawn initial skeletons from spawnZones
+        this.spawner.spawnInitialSkeletons();
+        console.log('[MOB] Скелеты загружены из skeletonSpawnZones');
+
         const terrain = new WorldTerrain();
         terrain.heightmapPath = "/textures/heightmap.png";
         terrain.width = 2048;
@@ -451,6 +457,15 @@ export class MyRoom extends Room<MyRoomState> {
         this.state.npcs.set(knight.id, knight);
         console.log(`[NPC] Рыцарь появился на (${knight.x}, ${knight.z})`);
 
+
+        // ===== DEBUG: God mode toggle =====
+        this.onMessage("setGodMode", (client, message: { enabled: boolean }) => {
+            const player = this.state.players.get(client.sessionId);
+            if (player) {
+                player.godMode = message.enabled;
+                console.log(`[GOD] ${player.name} godMode = ${message.enabled}`);
+            }
+        });
 
         this.onMessage("attackMob", (client, message) => {
             const attacker = this.state.players.get(client.sessionId);
@@ -494,8 +509,9 @@ export class MyRoom extends Room<MyRoomState> {
             console.log(`[ATTACK] ${attacker.name} ударил волка ${mobId} на ${damage} урона (${attackType}, AP: ${attacker.stats.attackPower})`);
 
             // Send damage feedback to the attacker
+            const mobDisplayName = mob.mobType === 'skeleton' ? 'Скелет' : 'Волк';
             client.send("attackResult", {
-                targetName: "Волк",
+                targetName: mobDisplayName,
                 damage: damage,
                 attackType: attackType,
                 isCrit: isCrit,
@@ -503,8 +519,13 @@ export class MyRoom extends Room<MyRoomState> {
                 targetZ: mob.z
             });
 
-            const hitAnim = Math.random() < 0.5 ? 'idle_hitreact1' : 'idle_hitreact2';
-            mob.state = hitAnim;   // клиент подхватит через updateMobState
+            // Skeleton uses its own take_damage animation
+            if (mob.mobType === 'skeleton') {
+                mob.state = 'take_damage';
+            } else {
+                const hitAnim = Math.random() < 0.5 ? 'idle_hitreact1' : 'idle_hitreact2';
+                mob.state = hitAnim;
+            }
             mob.targetId = client.sessionId;
 
             if (mob.hp <= 0) {
@@ -517,9 +538,28 @@ export class MyRoom extends Room<MyRoomState> {
             this.state.mobs.forEach((mob, mobId) => {
                 if (mob.hp <= 0) return;
 
-                // Ищем ближайшего живого игрока в радиусе 12
+                const isSkeleton = mob.mobType === 'skeleton';
+
+                // Skeleton-specific stats
+                const SKELETON_DETECT_RANGE = 18;
+                const SKELETON_MELEE_RANGE = 3.0;
+                const SKELETON_RANGED_RANGE = 10;
+                const SKELETON_RUN_SPEED = 4.0;
+                const SKELETON_ATTACK_DMG = 15;
+                const SKELETON_ATTACK_COOLDOWN = 4000;
+
+                const WOLF_DETECT_RANGE = 12;
+                const WOLF_ATTACK_RANGE = 3.0;
+                const WOLF_WALK_SPEED = 2.5;
+                const WOLF_RUN_SPEED = 4.0;
+                const WOLF_ATTACK_DMG = 10;
+                const WOLF_ATTACK_COOLDOWN = 1500;
+
+                const detectRange = isSkeleton ? SKELETON_DETECT_RANGE : WOLF_DETECT_RANGE;
+
+                // Find closest living player
                 let closestPlayer: Player | null = null;
-                let closestDist = 20;
+                let closestDist = detectRange;
                 this.state.players.forEach((player: Player) => {
                     if (player.hp <= 0) return;
                     const d = Math.sqrt((mob.x - player.x) ** 2 + (mob.z - player.z) ** 2);
@@ -535,87 +575,146 @@ export class MyRoom extends Room<MyRoomState> {
                     const dz = target.z - mob.z;
                     const dist = Math.sqrt(dx * dx + dz * dz);
 
-                    // Определяем тип движения в зависимости от расстояния
-                    if (dist > 4.0) {
-                        mob.state = 'gallop';   // 🐺 быстрый бег при большом расстоянии
-                    } else {
-                        mob.state = 'walk';     // обычное преследование
-                    }
+                    if (isSkeleton) {
+                        // === SKELETON AI ===
+                        const canAttack = target.hp > 0 && !target.godMode;
+                        // Was already in combat (has attacked before, within last 10s)
+                        const wasInCombat = !!mob.lastAttackTime && (Date.now() - mob.lastAttackTime < 10000);
 
-                    // Прыжок при резком сближении (gallop_jump)
-                    if (dist <= 5 && dist > 4 && mob.state !== 'gallop_jump') {
-                        mob.state = 'gallop_jump';
-                    }
-
-                    // Атака при достаточном приближении
-                    if (dist <= 3.0 && target.hp > 0) {
-                        mob.state = 'attack';
-                        if (!mob.lastAttackTime || Date.now() - mob.lastAttackTime > 1500) {
-                            target.hp -= 10;
-                            mob.lastAttackTime = Date.now();
-                            this.broadcast("mobAttackAnim", { mobId });
-
-                            // Проверка смерти игрока от моба
-                            if (target.hp <= 0) {
-                                console.log(`[DEATH] ${target.name} убит волком. Возрождение через 5 сек.`);
-                                let deadSessionId: string | null = null;
-                                this.state.players.forEach((player, sid) => {
-                                    if (player === target) deadSessionId = sid;
-                                });
-                                if (deadSessionId) {
-                                    const sid = deadSessionId;
-                                    setTimeout(() => {
-                                        const deadPlayer = this.state.players.get(sid);
-                                        if (deadPlayer && deadPlayer.hp <= 0) {
-                                            deadPlayer.hp = deadPlayer.maxHp;
-                                            deadPlayer.x = 0;
-                                            deadPlayer.z = 0;
-                                            PlayerPersistence.savePlayer(deadPlayer);
-                                            this.state.players.set(sid, deadPlayer);
-                                            console.log(`[RESPAWN] ${deadPlayer.name} возрождён в центре`);
-                                        }
-                                    }, 5000);
+                        // 1. MELEE - target within striking distance
+                        if (dist <= SKELETON_MELEE_RANGE && canAttack) {
+                            mob.state = 'idle';
+                            if (!mob.lastAttackTime || Date.now() - mob.lastAttackTime > SKELETON_ATTACK_COOLDOWN) {
+                                const attackVariant = Math.random();
+                                if (attackVariant < 0.4) {
+                                    mob.state = 'slash01';
+                                } else if (attackVariant < 0.7) {
+                                    mob.state = 'slash02';
+                                } else {
+                                    mob.state = 'stab';
                                 }
+                                target.hp -= SKELETON_ATTACK_DMG;
+                                mob.lastAttackTime = Date.now();
+                                this.broadcast("mobAttackAnim", { mobId });
                             }
                         }
+                        // 2. PURSUIT RANGED - was fighting in melee, now player is fleeing
+                        // Skeleton throws bone at the running player (pursuit scenario)
+                        else if (wasInCombat && dist > SKELETON_MELEE_RANGE && dist <= SKELETON_RANGED_RANGE && canAttack) {
+                            mob.state = 'idle';
+                            if (!mob.lastAttackTime || Date.now() - mob.lastAttackTime > SKELETON_ATTACK_COOLDOWN * 0.7) {
+                                mob.state = 'throw_projectiles';
+                                target.hp -= Math.floor(SKELETON_ATTACK_DMG * 0.7);
+                                mob.lastAttackTime = Date.now();
+                                // Broadcast target position so client can aim projectile at actual player location
+                                this.broadcast("mobAttackAnim", { mobId, targetX: target.x, targetZ: target.z });
+                            }
+                        }
+                        // 3. APPROACH - always RUN towards target
+                        else {
+                            mob.state = 'run_forward';
+                            const step = Math.min(SKELETON_RUN_SPEED * 0.25, dist);
+                            const desiredDX = (dx / dist) * step;
+                            const desiredDZ = (dz / dist) * step;
+
+                            const newPos = applyMobMovementWithCollisions(mob.x, mob.z, desiredDX, desiredDZ, 0.5);
+                            mob.x = newPos.x;
+                            mob.z = newPos.z;
+
+                            const targetAngle = Math.atan2(target.z - mob.z, target.x - mob.x);
+                            let diff = targetAngle - mob.rotationY;
+                            while (diff > Math.PI) diff -= 2 * Math.PI;
+                            while (diff < -Math.PI) diff += 2 * Math.PI;
+                            mob.rotationY += diff * 0.25;
+                        }
                     } else {
-                        // Движение к игроку со слайдингом
-                        const speed = mob.state === 'gallop' ? 4.0 : 2.5;
-                        const step = Math.min(speed * 0.25, dist);
-                        const desiredDX = (dx / dist) * step;
-                        const desiredDZ = (dz / dist) * step;
+                        // === WOLF AI (original) ===
+                        if (dist > 4.0) {
+                            mob.state = 'gallop';
+                        } else {
+                            mob.state = 'walk';
+                        }
 
-                        const newPos = applyMobMovementWithCollisions(mob.x, mob.z, desiredDX, desiredDZ, 0.6);
-                        mob.x = newPos.x;
-                        mob.z = newPos.z;
+                        if (dist <= 5 && dist > 4 && mob.state !== 'gallop_jump') {
+                            mob.state = 'gallop_jump';
+                        }
 
-                        // Поворот в сторону игрока (даже если упёрлись)
-                        const targetAngle = Math.atan2(target.z - mob.z, target.x - mob.x);
-                        let diff = targetAngle - mob.rotationY;
-                        while (diff > Math.PI) diff -= 2 * Math.PI;
-                        while (diff < -Math.PI) diff += 2 * Math.PI;
-                        mob.rotationY += diff * 0.3;
+                        if (dist <= WOLF_ATTACK_RANGE && target.hp > 0 && !target.godMode) {
+                            mob.state = 'attack';
+                            if (!mob.lastAttackTime || Date.now() - mob.lastAttackTime > WOLF_ATTACK_COOLDOWN) {
+                                target.hp -= WOLF_ATTACK_DMG;
+                                mob.lastAttackTime = Date.now();
+                                this.broadcast("mobAttackAnim", { mobId });
+                            }
+                        } else {
+                            const speed = mob.state === 'gallop' ? WOLF_RUN_SPEED : WOLF_WALK_SPEED;
+                            const step = Math.min(speed * 0.25, dist);
+                            const desiredDX = (dx / dist) * step;
+                            const desiredDZ = (dz / dist) * step;
+
+                            const newPos = applyMobMovementWithCollisions(mob.x, mob.z, desiredDX, desiredDZ, 0.6);
+                            mob.x = newPos.x;
+                            mob.z = newPos.z;
+
+                            const targetAngle = Math.atan2(target.z - mob.z, target.x - mob.x);
+                            let diff = targetAngle - mob.rotationY;
+                            while (diff > Math.PI) diff -= 2 * Math.PI;
+                            while (diff < -Math.PI) diff += 2 * Math.PI;
+                            mob.rotationY += diff * 0.3;
+                        }
+                    }
+
+                    // Check player death from mob attack
+                    if (target.hp <= 0) {
+                        const mobName = isSkeleton ? 'скелетом' : 'волком';
+                        console.log(`[DEATH] ${target.name} убит ${mobName}. Возрождение через 5 сек.`);
+                        let deadSessionId: string | null = null;
+                        this.state.players.forEach((player, sid) => {
+                            if (player === target) deadSessionId = sid;
+                        });
+                        if (deadSessionId) {
+                            const sid = deadSessionId;
+                            setTimeout(() => {
+                                const deadPlayer = this.state.players.get(sid);
+                                if (deadPlayer && deadPlayer.hp <= 0) {
+                                    deadPlayer.hp = deadPlayer.maxHp;
+                                    deadPlayer.x = 0;
+                                    deadPlayer.z = 0;
+                                    PlayerPersistence.savePlayer(deadPlayer);
+                                    this.state.players.set(sid, deadPlayer);
+                                    console.log(`[RESPAWN] ${deadPlayer.name} возрождён в центре`);
+                                }
+                            }, 5000);
+                        }
                     }
                 } else {
-                    // Случайное блуждание с паузами
+                    // No player detected — patrol
+                    // Patrol state machine using idleTimer as a countdown in ticks (250ms each)
+                    // Cycle: first IDLE phase (standing), then WALK phase (moving), then reset
+                    const PATROL_IDLE_DURATION = 16;  // ~4 seconds standing (16 * 250ms)
+                    const PATROL_WALK_DURATION = 8;   // ~2 seconds walking (8 * 250ms)
+                    const PATROL_CYCLE = PATROL_IDLE_DURATION + PATROL_WALK_DURATION; // 24 ticks = 6s total
+
                     mob.idleTimer -= 1;
                     if (mob.idleTimer <= 0) {
-                        // Выбираем новое направление и длительность движения (1.5–4 секунды)
+                        // Start a new patrol cycle
                         mob.patrolAngle = Math.random() * Math.PI * 2;
-                        mob.idleTimer = 1.5 + Math.random() * 2.5;
+                        mob.idleTimer = PATROL_CYCLE;
                     }
-                    if (mob.idleTimer > 0.6) {
-                        mob.state = 'walk';
-                        const desiredDX = Math.cos(mob.patrolAngle) * 1.2 * 0.5;
-                        const desiredDZ = Math.sin(mob.patrolAngle) * 1.2 * 0.5;
+
+                    if (mob.idleTimer > PATROL_IDLE_DURATION) {
+                        // WALK phase (last PATROL_WALK_DURATION ticks of the cycle)
+                        const patrolSpeed = isSkeleton ? 0.8 : 1.2;
+                        mob.state = isSkeleton ? 'walk_forward' : 'walk';
+                        const desiredDX = Math.cos(mob.patrolAngle) * patrolSpeed * 0.5;
+                        const desiredDZ = Math.sin(mob.patrolAngle) * patrolSpeed * 0.5;
 
                         const oldX = mob.x;
                         const oldZ = mob.z;
-                        const newPos = applyMobMovementWithCollisions(mob.x, mob.z, desiredDX, desiredDZ, 0.6);
+                        const newPos = applyMobMovementWithCollisions(mob.x, mob.z, desiredDX, desiredDZ, isSkeleton ? 0.5 : 0.6);
                         mob.x = newPos.x;
                         mob.z = newPos.z;
 
-                        // Поворот только если был сдвиг
                         const moved = (newPos.x !== oldX || newPos.z !== oldZ);
                         if (moved) {
                             let diff = mob.patrolAngle - mob.rotationY;
@@ -624,14 +723,18 @@ export class MyRoom extends Room<MyRoomState> {
                             mob.rotationY += diff * 0.2;
                         }
                     } else {
-                        // Разнообразный отдых: случайный выбор между idle, idle_2 и idle_2_headlow
-                        const r = Math.random();
-                        if (r < 0.3) {
-                            mob.state = 'idle_2';
-                        } else if (r < 0.6) {
-                            mob.state = 'idle_2_headlow';
-                        } else {
+                        // IDLE phase (first PATROL_IDLE_DURATION ticks of the cycle)
+                        if (isSkeleton) {
                             mob.state = 'idle';
+                        } else {
+                            const r = Math.random();
+                            if (r < 0.3) {
+                                mob.state = 'idle_2';
+                            } else if (r < 0.6) {
+                                mob.state = 'idle_2_headlow';
+                            } else {
+                                mob.state = 'idle';
+                            }
                         }
                         mob.rotationY += (Math.random() - 0.5) * 0.1;
                     }

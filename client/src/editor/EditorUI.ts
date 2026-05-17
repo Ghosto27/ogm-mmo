@@ -195,6 +195,7 @@ export function createEditorUI(
                 <option value="Plant_14">Plant_14</option>
                 <option value="Plant_15">Plant_15</option>
                 <option value="Plant_16">Plant_16</option>
+                <option value="skeleton">skeleton</option>
             </select>
             <button id="btn-place" style="margin:4px 0;padding:6px 12px;width:100%;">📌 Разместить объект</button>
             <button id="btn-delete" style="margin:4px 0;padding:6px 12px;width:100%;">🗑️ Удалить выбранный</button>

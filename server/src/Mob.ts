@@ -14,4 +14,5 @@ export class Mob extends Schema {
     @type("number") idleTimer: number = 0;
     @type("number") patrolAngle: number = Math.random() * Math.PI * 2;
     @type("number") spawnZoneIndex: number = 0;
+    @type("string") mobType: string = "wolf";     // "wolf" | "skeleton"
 }
