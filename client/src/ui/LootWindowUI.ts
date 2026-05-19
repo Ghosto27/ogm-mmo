@@ -94,6 +94,7 @@ function onSlotClick(slotIndex: number) {
 }
 
 export function showLootUI(bagId: string, items: any[]) {
+    if (container.style.display !== 'none') return;
     currentBagId = bagId;
     container.style.display = 'block';
     pushUIMode();

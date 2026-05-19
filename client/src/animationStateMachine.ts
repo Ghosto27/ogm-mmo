@@ -79,7 +79,7 @@ export class AnimationStateMachine {
 
         // Log transitions for the local player (to detect oscillation between walk states)
         if (this.id === 'local') {
-            console.log(`[FSM:local] transitionTo '${this.currentStateName}' → '${stateName}', currentActionTime=${currentAction?.time?.toFixed(3) ?? 'N/A'}`);
+            //console.log(`[FSM:local] transitionTo '${this.currentStateName}' → '${stateName}', currentActionTime=${currentAction?.time?.toFixed(3) ?? 'N/A'}`);
         }
 
         action.reset();

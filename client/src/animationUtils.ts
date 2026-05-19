@@ -28,7 +28,7 @@ export function updateAnimations(deltaTime: number) {
                 
                 // Log when animation loops (time wraps around)
                 if (lastAnimTime !== null && animTime < lastAnimTime - 0.01) {
-                    console.log(`[ANIM] ${stateName} LOOPED: time ${lastAnimTime.toFixed(3)} → ${animTime.toFixed(3)}, dur=${animDuration.toFixed(3)}, dt=${deltaTime.toFixed(4)}`);
+                    //console.log(`[ANIM] ${stateName} LOOPED: time ${lastAnimTime.toFixed(3)} → ${animTime.toFixed(3)}, dur=${animDuration.toFixed(3)}, dt=${deltaTime.toFixed(4)}`);
                 }
                 // Log large time jumps (>30ms worth of animation)
                 if (lastAnimTime !== null && (animTime - lastAnimTime) > deltaTime + 0.03) {
