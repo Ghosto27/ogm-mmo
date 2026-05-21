@@ -25,7 +25,7 @@ import { initServerColliders, applyMobMovementWithCollisions, isPlayerPositionBl
 import { ProfessionsData } from "./models/ProfessionsData";
 import { ResourceNode } from "./schemas/ResourceNode";
 import { ResourceSpawner } from "./systems/ResourceSpawner";
-import { recipes, Recipe } from "./data/recipes";
+import { recipes, Recipe, computeSuccessChance, computeBonusChance } from "./data/recipes";
 
 export class Player extends Schema {
     @type("number") x: number = 0;
@@ -543,7 +543,9 @@ export class MyRoom extends Room<MyRoomState> {
             const item = itemDatabase[node.type];
             if (!item) return;
 
-            const quantity = 1 + (miningLevel >= node.minMiningLevel + 5 ? 1 : 0) + (miningLevel >= node.minMiningLevel + 10 ? 1 : 0);
+            const bonusChance = Math.min(0.5, (miningLevel - node.minMiningLevel) * 0.03);
+            const bonus = Math.random() < bonusChance ? 1 : 0;
+            const quantity = 1 + bonus;
             const success = player.inventory.addItem(Object.assign(new Item(), item), quantity);
             if (!success) {
                 client.send("notification", { text: "Инвентарь полон!", color: "#ff4444" });
@@ -571,6 +573,49 @@ export class MyRoom extends Room<MyRoomState> {
             });
         });
 
+        // ---------- Admin handlers ----------
+
+        this.onMessage("adminAddXp", (client, message: { profession: string, amount: number }) => {
+            const player = this.state.players.get(client.sessionId);
+            if (!player || player.hp <= 0) return;
+
+            const prof = player.professions as any;
+            const entry = prof[message.profession];
+            if (!entry || typeof entry.addXp !== 'function') return;
+
+            entry.addXp(message.amount);
+            PlayerPersistence.savePlayer(player);
+
+            client.send("adminXpResult", {
+                profession: message.profession,
+                level: entry.level,
+                xp: entry.xp,
+                xpToNext: entry.xpToNext,
+            });
+        });
+
+        this.onMessage("adminAddItem", (client, message: { itemId: string, quantity: number }) => {
+            const player = this.state.players.get(client.sessionId);
+            if (!player || player.hp <= 0) return;
+
+            const template = itemDatabase[message.itemId];
+            if (!template) return;
+
+            const item = Object.assign(new Item(), template);
+            const success = player.inventory.addItem(item, message.quantity);
+            if (!success) {
+                client.send("notification", { text: "Инвентарь полон!", color: "#ff4444" });
+                return;
+            }
+
+            PlayerPersistence.savePlayer(player);
+            client.send("adminItemResult", {
+                itemId: message.itemId,
+                name: template.name,
+                quantity: message.quantity,
+            });
+        });
+
         // ---------- Crafting handlers ----------
 
         this.onMessage("getStationRecipes", (client, message: { stationType: string }) => {
@@ -581,8 +626,9 @@ export class MyRoom extends Room<MyRoomState> {
             const stationRecipes = recipes.filter(r => r.stationType === stationType);
 
             // Вычисляем доступность каждого рецепта
+            const bsLevel = player.professions.blacksmithing.level;
             const result = stationRecipes.map(r => {
-                const hasLevel = player.professions.blacksmithing.level >= r.requiredLevel;
+                const hasLevel = bsLevel >= r.requiredLevel;
                 const hasIngredients: Record<string, boolean> = {};
                 let allIngredientsMet = true;
 
@@ -597,6 +643,9 @@ export class MyRoom extends Room<MyRoomState> {
                     if (totalQty < inp.quantity) allIngredientsMet = false;
                 }
 
+                const actualSuccessChance = computeSuccessChance(r.baseSuccessChance, bsLevel, r.requiredLevel);
+                const actualBonusChance = computeBonusChance(r.bonusChance, bsLevel, r.requiredLevel);
+
                 return {
                     id: r.id,
                     name: r.name,
@@ -609,6 +658,8 @@ export class MyRoom extends Room<MyRoomState> {
                     hasLevel,
                     hasIngredients,
                     canCraft: hasLevel && allIngredientsMet,
+                    successChance: actualSuccessChance,
+                    bonusChanceActual: actualBonusChance,
                 };
             });
 
@@ -652,12 +703,33 @@ export class MyRoom extends Room<MyRoomState> {
                 if (remaining > 0) return; // не хватило — откат
             }
 
+            // Проверка успеха крафта
+            const bsLevel = player.professions.blacksmithing.level;
+            const successChance = computeSuccessChance(recipe.baseSuccessChance, bsLevel, recipe.requiredLevel);
+            const craftSucceeded = Math.random() < successChance;
+
+            if (!craftSucceeded) {
+                console.log(`[CRAFT] ${player.name} НЕУДАЧА: ${recipe.name} (шанс ${Math.round(successChance*100)}%)`);
+                PlayerPersistence.savePlayer(player);
+                client.send("craftResult", {
+                    recipeId: recipe.id,
+                    stationType: recipe.stationType,
+                    success: false,
+                    successChance,
+                    outputItem: null,
+                    quantity: 0,
+                    xpGained: 0,
+                });
+                return;
+            }
+
             // Создание результата
             const outputItem = itemDatabase[recipe.output.itemId];
             if (!outputItem) return;
 
             const baseQuantity = recipe.output.quantity;
-            const bonusRoll = Math.random() < recipe.bonusChance ? 1 : 0;
+            const actualBonusChance = computeBonusChance(recipe.bonusChance, bsLevel, recipe.requiredLevel);
+            const bonusRoll = Math.random() < actualBonusChance ? 1 : 0;
             const totalQuantity = baseQuantity + bonusRoll;
 
             const success = player.inventory.addItem(Object.assign(new Item(), outputItem), totalQuantity);
@@ -669,12 +741,14 @@ export class MyRoom extends Room<MyRoomState> {
             // XP
             player.professions.blacksmithing.addXp(recipe.xpReward);
 
-            console.log(`[CRAFT] ${player.name} создал ${outputItem.name} x${totalQuantity} (BS lvl ${player.professions.blacksmithing.level}, +${recipe.xpReward} XP)`);
+            console.log(`[CRAFT] ${player.name} создал ${outputItem.name} x${totalQuantity} (BS lvl ${bsLevel}, сшанс ${Math.round(successChance*100)}%, бонус ${Math.round(actualBonusChance*100)}%)`);
             PlayerPersistence.savePlayer(player);
 
             client.send("craftResult", {
                 recipeId: recipe.id,
                 stationType: recipe.stationType,
+                success: true,
+                successChance,
                 outputItem: outputItem.toJSON(),
                 quantity: totalQuantity,
                 xpGained: recipe.xpReward,

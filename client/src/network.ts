@@ -459,11 +459,29 @@ function join(playerName: string) {
             updateCraftingRecipes(data.recipes);
         });
 
-        room.onMessage("craftResult", (data: { recipeId: string, stationType: string, outputItem: any, quantity: number, xpGained: number }) => {
-            showNotification(`Создано: ${data.outputItem?.name || data.recipeId} x${data.quantity}`, 2000);
-            showNotification(`+${data.xpGained} Blacksmithing XP`, 2000);
+        room.onMessage("craftResult", (data: { recipeId: string, stationType: string, success: boolean, successChance: number, outputItem: any, quantity: number, xpGained: number }) => {
+            if (data.success) {
+                showNotification(`Создано: ${data.outputItem?.name || data.recipeId} x${data.quantity}`, 2000);
+                showNotification(`+${data.xpGained} Blacksmithing XP`, 2000);
+            } else {
+                showNotification(`Крафт не удался (шанс ${Math.round((data.successChance || 0) * 100)}%)`, 2000);
+            }
             if (data.stationType && room) {
                 room.send('getStationRecipes', { stationType: data.stationType });
+            }
+        });
+
+        room.onMessage("adminXpResult", (data: { profession: string, level: number, xp: number, xpToNext: number }) => {
+            const resultEl = document.getElementById('admin-xp-result');
+            if (resultEl) {
+                resultEl.textContent = `${data.profession}: Lvl ${data.level}, XP ${data.xp}/${data.xpToNext}`;
+            }
+        });
+
+        room.onMessage("adminItemResult", (data: { itemId: string, name: string, quantity: number }) => {
+            const resultEl = document.getElementById('admin-item-result');
+            if (resultEl) {
+                resultEl.textContent = `+${data.quantity} ${data.name}`;
             }
         });
 

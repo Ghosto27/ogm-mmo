@@ -15,8 +15,8 @@ export function createProfessionsUI() {
     container.id = 'professions-panel';
     container.style.position = 'absolute';
     container.style.top = '50%';
-    container.style.left = '50%';
-    container.style.transform = 'translate(-50%, -50%)';
+    container.style.right = '10%';
+    container.style.transform = 'translate(0%, -50%)';
     container.style.width = '320px';
     container.style.background = 'rgba(0, 0, 0, 0.85)';
     container.style.border = '2px solid #888';

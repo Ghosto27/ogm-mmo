@@ -31,6 +31,7 @@ import { createDialogUI } from './ui/DialogUI';
 import { createQuestJournal, toggleQuestJournal } from './quest/QuestJournalUI';
 import { createNotificationUI } from './ui/notificationUI';
 import { createProfessionsUI, toggleProfessions } from './ui/ProfessionsUI';
+import { createAdminPanel, toggleAdminPanel, isAdminVisible } from './ui/AdminPanel';
 import { updateFPS } from './utils/fpsCounter';
 import { updateInteractionLabels } from './render/InteractionLabels';
 import { applyMovementWithCollisions, updateDynamicColliders, getAllColliders, PLAYER_RADIUS, computeGroundHeight, MAX_STEP_HEIGHT } from './collision';
@@ -73,6 +74,7 @@ modelReady.then(() => {
     createBankUI();
     createCraftingUI();
     createProfessionsUI();
+    createAdminPanel();
     initEditor();
     initDragDrop();
     setTimeout(() => {
@@ -108,6 +110,7 @@ document.addEventListener('keydown', (e) => {
         }
     }
     if (key === 'k') { toggleProfessions(); }
+    if (key === 'o') { toggleAdminPanel(); }
 });
 
 setTimeout(() => renderer.domElement.focus({ preventScroll: true }), 100);

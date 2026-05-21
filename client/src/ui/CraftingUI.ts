@@ -12,7 +12,7 @@ export function createCraftingUI() {
     container = document.createElement('div');
     container.id = 'crafting-panel';
     container.style.position = 'absolute';
-    container.style.left = '50%';
+    container.style.left = '20%';
     container.style.top = '40%';
     container.style.transform = 'translate(-50%, -50%)';
     container.style.width = '480px';
@@ -114,6 +114,13 @@ export function updateCraftingRecipes(recipes: any[]) {
         details.textContent = `Lvl ${recipe.requiredLevel} `;
         details.textContent += levelOk ? '✅' : '🔒';
         details.textContent += ` | ${recipe.xpReward} XP`;
+
+        if (recipe.successChance != null && recipe.successChance < 1) {
+            details.textContent += ` | ${Math.round(recipe.successChance * 100)}%`;
+        }
+        if (recipe.bonusChanceActual != null && recipe.bonusChanceActual > 0) {
+            details.textContent += ` | бонус ${Math.round(recipe.bonusChanceActual * 100)}%`;
+        }
 
         if (recipe.inputs) {
             details.textContent += ' | ';
