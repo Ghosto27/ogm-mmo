@@ -9,7 +9,7 @@ import { updateAnimations } from './animationUtils';
 import { setCameraTarget, updateCamera, getCameraYaw, isRightDragging,
     enableActionMode, disableActionMode, actionMode,
     pushUIMode, popUIMode, uiWindowsOpen, toggleAltMode, isAltToggled,
-    toggleBlock, toggleAim, isBlocking, isAiming } from './cameraControls';
+    toggleAim, isAiming } from './cameraControls';
 import { cleanUpScene } from './startupCleanup';
 import { createMinimap, updateMinimap } from './minimap';
 import { createWorldMap, updateWorldMap, toggleWorldMap } from './worldMap';
@@ -99,9 +99,6 @@ document.addEventListener('keydown', (e) => {
         if (document.activeElement === document.body) {
             toggleQuestJournal();
         }
-    }
-    if (key === 'q' || key === 'й') {
-        toggleBlock();
     }
 });
 
