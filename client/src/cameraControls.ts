@@ -44,14 +44,17 @@ let _startShoulderY = 1.3;
 let _startPitch = -0.4;
 let _startFov = 50;
 
-// Look blend: 0 = lookAt(pivot) (default/block), 1 = forward-vector (aim)
+// Look blend: 0 = lookAt(pivot), 1 = forward-vector
 let _lookBlend = 0;
 let _lookBlendStart = 0;
 let _lookBlendEnd = 0;
-let _aimPitchOffset = 0;
 
-// Smooth zoom target (default mode only)
-let _targetScrollDist = 3.5;
+// Offset so forward-vector points at pivot at target config
+let _aimPitchOffset = 0;
+let _aimPitchOffsetStart = 0;
+let _aimPitchOffsetEnd = 0;
+
+
 
 export let actionMode = false;
 export let isRightDragging = false;
@@ -99,12 +102,17 @@ export function setCameraMode(mode: CameraMode) {
     // Don't transition pitch in aiming mode — keeps current vertical angle
     _startPitch = pitch;
 
-    if (mode === 'aiming') {
-        const dir = new THREE.Vector3().copy(cameraTarget).sub(camera.position).normalize();
-        _aimPitchOffset = -Math.asin(Math.max(-1, Math.min(1, dir.y))) - pitch;
-    }
+    _aimPitchOffsetStart = _aimPitchOffset;
     _lookBlendStart = _lookBlend;
     _lookBlendEnd = mode === 'aiming' ? 1 : 0;
+
+    // Compute offset so at the TARGET config, forward-vector points at pivot
+    // (for aim entry: preserves dir; for exit: smooth convergence with lookAt)
+    const targetConfig = MODE_CONFIGS[mode];
+    const targetPitch = targetConfig.pitch;
+    const endCamY = cameraTarget.y + targetConfig.distance * Math.sin(targetPitch) + targetConfig.shoulderOffsetY;
+    const dirY = (cameraTarget.y - endCamY) / Math.sqrt(targetConfig.distance * targetConfig.distance + (cameraTarget.y - endCamY) * (cameraTarget.y - endCamY));
+    _aimPitchOffsetEnd = -Math.asin(Math.max(-1, Math.min(1, dirY))) - targetPitch;
 
     _targetMode = mode;
     _transitionProgress = 0;
@@ -194,13 +202,9 @@ function updateTransition(dt: number) {
     distance = _startDist + (target.distance - _startDist) * t;
     shoulderOffsetX = _startShoulderX + (target.shoulderOffsetX - _startShoulderX) * t;
     shoulderOffsetY = _startShoulderY + (target.shoulderOffsetY - _startShoulderY) * t;
-
-    // Pitch doesn't transition in aim mode — keeps user's vertical angle
-    if (_targetMode !== 'aiming') {
-        pitch = _startPitch + (target.pitch - _startPitch) * t;
-    }
-
+    pitch = _startPitch + (target.pitch - _startPitch) * t;
     _lookBlend = _lookBlendStart + (_lookBlendEnd - _lookBlendStart) * t;
+    _aimPitchOffset = _aimPitchOffsetStart + (_aimPitchOffsetEnd - _aimPitchOffsetStart) * t;
 
     if (_transitionProgress >= 1) {
         _currentMode = _targetMode;
@@ -208,20 +212,16 @@ function updateTransition(dt: number) {
         distance = snap.distance;
         shoulderOffsetX = snap.shoulderOffsetX;
         shoulderOffsetY = snap.shoulderOffsetY;
+        pitch = snap.pitch;
         camFov = snap.fov;
-        if (_targetMode !== 'aiming') pitch = snap.pitch;
         _lookBlend = _lookBlendEnd;
+        _aimPitchOffset = _aimPitchOffsetEnd;
     }
 }
 
 // --- Main update ---
 export function updateCamera(deltaTime: number = 1 / 60) {
     updateTransition(deltaTime);
-
-    // Smooth scroll zoom in default mode
-    if (_currentMode === 'default' && _transitionProgress >= 1) {
-        distance += (_targetScrollDist - distance) * Math.min(1, deltaTime * 12);
-    }
 
     if (Math.abs(camera.fov - camFov) > 0.01) {
         camera.fov = camFov;
@@ -289,6 +289,6 @@ window.addEventListener('mousemove', (e) => {
 
 renderer.domElement.addEventListener('wheel', (e) => {
     if (_currentMode !== 'default') return;
-    _targetScrollDist += e.deltaY * 0.01;
-    _targetScrollDist = Math.max(MIN_DIST, Math.min(MAX_DIST, _targetScrollDist));
+    distance += e.deltaY * 0.01;
+    distance = Math.max(MIN_DIST, Math.min(MAX_DIST, distance));
 }, { passive: true });
