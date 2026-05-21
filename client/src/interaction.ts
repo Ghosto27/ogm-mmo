@@ -44,6 +44,8 @@ function tryAttack(
     const intersects = getIntersections(event, targets);
     if (intersects.length === 0) return false;
 
+    if (fsm['local']?.isPlayingOneShot) return false;
+
     const hitObj = intersects[0].object;
     const targetId = getTargetId(hitObj);
     if (!targetId || !room || !localModel) return false;
@@ -123,6 +125,7 @@ window.addEventListener('mouseup', (event) => {
     if (actionMode) {
         if (event.button === 0) {
             if (!room || !localModel) return;
+            if (fsm['local']?.isPlayingOneShot) return;
 
             const holdDuration = Date.now() - leftButtonDownTime;
 

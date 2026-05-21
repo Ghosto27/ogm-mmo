@@ -17,6 +17,7 @@ import {
     skeletonModelReady
 } from './mobs/skeleton';
 import { room } from './network';
+import { localModel } from './player';
 
 // ===== GLOBAL DEBUG FUNCTIONS (available immediately) =====
 (function registerDebugHelpers() {
@@ -140,6 +141,7 @@ export const mobDeathAnimating: { [mobId: string]: boolean } = {};
 const mobTargetPositions: { [mobId: string]: THREE.Vector3 } = {};
 const mobTargetRotations: { [mobId: string]: number } = {};
 const MOB_INTERPOLATION_SPEED = 10.0;
+const HP_BAR_DISTANCE = 30;
 
 // ---------- ФУНКЦИЯ СОЗДАНИЯ ЭКЗЕМПЛЯРА МОБА ----------
 function createWolfInstance(mobId: string): THREE.Group {
@@ -559,6 +561,18 @@ export function interpolateMobPositions(deltaTime: number) {
                     while (diff < -Math.PI) diff += 2 * Math.PI;
                     model.rotation.y += diff * Math.min(1, MOB_ANGLE_INTERPOLATION * deltaTime);
                 }
+            }
+        }
+
+        // Distance-based HP bar visibility
+        const hpBar = mobHpBars[mobId];
+        if (hpBar) {
+            if (localModel) {
+                const dx = localModel.position.x - model.position.x;
+                const dz = localModel.position.z - model.position.z;
+                hpBar.visible = dx * dx + dz * dz <= HP_BAR_DISTANCE * HP_BAR_DISTANCE;
+            } else {
+                hpBar.visible = true;
             }
         }
 

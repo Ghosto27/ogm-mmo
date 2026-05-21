@@ -71,6 +71,7 @@ export function createInventoryUI() {
                     room?.send('equipItem', { slotIndex: index });
                 } else if (item.id === 'potion_hp_01') {
                     // Зелье – использовать
+                    if (fsm['local']?.isPlayingOneShot) return;
                     room?.send('useItem', { slotIndex: index });
                     // Play consume animation
                     fsm['local']?.requestConsume();

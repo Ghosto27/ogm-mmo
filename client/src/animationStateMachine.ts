@@ -125,11 +125,11 @@ export class AnimationStateMachine {
     // ---------- Хелпер для one-shot действий (убирает дублирование guard-логики) ----------
     private _requestOneShot(actionName: string, timeScale: number = 1.0, force: boolean = false): boolean {
         if (this.isDead || this.isDying) {
-            console.warn(`[FSM:${this.id}] _requestOneShot('${actionName}') blocked: dead/dying`);
+            //console.warn(`[FSM:${this.id}] _requestOneShot('${actionName}') blocked: dead/dying`);
             return false;
         }
         if (!force && this.isPlayingOneShot) {
-            console.warn(`[FSM:${this.id}] _requestOneShot('${actionName}') blocked: isPlayingOneShot=true`);
+            //console.warn(`[FSM:${this.id}] _requestOneShot('${actionName}') blocked: isPlayingOneShot=true`);
             return false;
         }
         if (force) {
@@ -137,7 +137,7 @@ export class AnimationStateMachine {
         }
         const ok = this.playOneShot(actionName, timeScale);
         if (!ok) {
-            console.warn(`[FSM:${this.id}] _requestOneShot('${actionName}') failed: action not found`);
+            //console.warn(`[FSM:${this.id}] _requestOneShot('${actionName}') failed: action not found`);
         }
         return true;
     }
