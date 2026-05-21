@@ -1,24 +1,60 @@
 [
   {
-    "id": "test_ore_1",
+    "id": "test_ore_11",
     "type": "copper_ore",
     "x": 12,
     "z": -55
   },
   {
-    "id": "test_ore_2",
+    "id": "test_ore_12",
     "type": "copper_ore",
     "x": 18,
     "z": -60
   },
+   {
+    "id": "test_ore_13",
+    "type": "copper_ore",
+    "x": 20,
+    "z": -60
+  },
+   {
+    "id": "test_ore_14",
+    "type": "copper_ore",
+    "x": 22,
+    "z": -60
+  },
+   {
+    "id": "test_ore_15",
+    "type": "copper_ore",
+    "x": 18,
+    "z": -58
+  },
+   {
+    "id": "test_ore_16",
+    "type": "copper_ore",
+    "x": 18,
+    "z": -56
+  },
+   {
+    "id": "test_ore_17",
+    "type": "copper_ore",
+    "x": 18,
+    "z": -54
+  },
+   {
+    "id": "test_ore_18",
+    "type": "copper_ore",
+    "x": 16,
+    "z": -60
+  },
   {
-    "id": "test_ore_3",
+    "id": "test_ore_19",
     "type": "copper_ore",
     "x": 22,
     "z": -72
   },
   {
-    "id": "test_ore_4",
+    "id": "test_ore_20",
     "type": "tin_ore",
     "x": 30,
     "z": -45

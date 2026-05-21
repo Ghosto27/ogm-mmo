@@ -25,6 +25,7 @@ import { initServerColliders, applyMobMovementWithCollisions, isPlayerPositionBl
 import { ProfessionsData } from "./models/ProfessionsData";
 import { ResourceNode } from "./schemas/ResourceNode";
 import { ResourceSpawner } from "./systems/ResourceSpawner";
+import { recipes, Recipe } from "./data/recipes";
 
 export class Player extends Schema {
     @type("number") x: number = 0;
@@ -472,15 +473,42 @@ export class MyRoom extends Room<MyRoomState> {
         const chest = new WorldObject();
         chest.id = "chest_01";
         chest.modelName = "chest";
-        chest.x = 23;
+        chest.x = 20;
         chest.z = -35;
-        chest.y = 0.5;
+        chest.y = 0;
         chest.scaleX = 1.5;
         chest.scaleY = 1;
         chest.scaleZ = 1.5;
         chest.color = "#8B4513";
         this.state.worldObjects.set(chest.id, chest);
         console.log(`[CHEST] Сундук появился на (${chest.x}, ${chest.z})`);
+
+        // Создаём станции крафта
+        const furnace = new WorldObject();
+        furnace.id = "furnace_01";
+        furnace.modelName = "furnace";
+        furnace.x = 5;
+        furnace.z = -35;
+        furnace.y = 0;
+        furnace.scaleX = 2;
+        furnace.scaleY = 1.5;
+        furnace.scaleZ = 2;
+        furnace.color = "#8B0000";
+        this.state.worldObjects.set(furnace.id, furnace);
+        console.log(`[FURNACE] Печь появилась на (${furnace.x}, ${furnace.z})`);
+
+        const anvil = new WorldObject();
+        anvil.id = "anvil_01";
+        anvil.modelName = "anvil";
+        anvil.x = 10;
+        anvil.z = -35;
+        anvil.y = 0;
+        anvil.scaleX = 1;
+        anvil.scaleY = 0.8;
+        anvil.scaleZ = 1;
+        anvil.color = "#444444";
+        this.state.worldObjects.set(anvil.id, anvil);
+        console.log(`[ANVIL] Наковальня появилась на (${anvil.x}, ${anvil.z})`);
 
 
         // ===== DEBUG: God mode toggle =====
@@ -540,6 +568,116 @@ export class MyRoom extends Room<MyRoomState> {
                 quantity: quantity,
                 xpGained: totalXp,
                 profession: "mining",
+            });
+        });
+
+        // ---------- Crafting handlers ----------
+
+        this.onMessage("getStationRecipes", (client, message: { stationType: string }) => {
+            const player = this.state.players.get(client.sessionId);
+            if (!player) return;
+
+            const { stationType } = message;
+            const stationRecipes = recipes.filter(r => r.stationType === stationType);
+
+            // Вычисляем доступность каждого рецепта
+            const result = stationRecipes.map(r => {
+                const hasLevel = player.professions.blacksmithing.level >= r.requiredLevel;
+                const hasIngredients: Record<string, boolean> = {};
+                let allIngredientsMet = true;
+
+                for (const inp of r.inputs) {
+                    let totalQty = 0;
+                    for (const slot of player.inventory.slots) {
+                        if (slot.item && slot.item.id === inp.itemId) {
+                            totalQty += slot.quantity;
+                        }
+                    }
+                    hasIngredients[inp.itemId] = totalQty >= inp.quantity;
+                    if (totalQty < inp.quantity) allIngredientsMet = false;
+                }
+
+                return {
+                    id: r.id,
+                    name: r.name,
+                    stationType: r.stationType,
+                    requiredLevel: r.requiredLevel,
+                    xpReward: r.xpReward,
+                    inputs: r.inputs,
+                    output: r.output,
+                    bonusChance: r.bonusChance,
+                    hasLevel,
+                    hasIngredients,
+                    canCraft: hasLevel && allIngredientsMet,
+                };
+            });
+
+            client.send("stationRecipes", { stationType, recipes: result });
+        });
+
+        this.onMessage("craftRecipe", (client, message: { stationType: string, recipeId: string }) => {
+            const player = this.state.players.get(client.sessionId);
+            if (!player || player.hp <= 0) return;
+
+            const recipe = recipes.find(r => r.id === message.recipeId);
+            if (!recipe) return;
+
+            // Проверка дистанции до станции
+            let stationFound = false;
+            this.state.worldObjects.forEach((wo: any) => {
+                const isTarget = (recipe.stationType === 'furnace' && wo.modelName === 'furnace') ||
+                                 (recipe.stationType === 'anvil' && wo.modelName === 'anvil');
+                if (isTarget) {
+                    const dx = player.x - wo.x;
+                    const dz = player.z - wo.z;
+                    if (Math.sqrt(dx*dx + dz*dz) <= 4) stationFound = true;
+                }
+            });
+            if (!stationFound) return;
+
+            // Проверка уровня профессии
+            if (player.professions.blacksmithing.level < recipe.requiredLevel) return;
+
+            // Проверка и списание ингредиентов
+            for (const inp of recipe.inputs) {
+                let remaining = inp.quantity;
+                for (let i = 0; i < player.inventory.slots.length && remaining > 0; i++) {
+                    const slot = player.inventory.slots[i];
+                    if (slot.item && slot.item.id === inp.itemId) {
+                        const toRemove = Math.min(slot.quantity, remaining);
+                        player.inventory.removeItem(i, toRemove);
+                        remaining -= toRemove;
+                    }
+                }
+                if (remaining > 0) return; // не хватило — откат
+            }
+
+            // Создание результата
+            const outputItem = itemDatabase[recipe.output.itemId];
+            if (!outputItem) return;
+
+            const baseQuantity = recipe.output.quantity;
+            const bonusRoll = Math.random() < recipe.bonusChance ? 1 : 0;
+            const totalQuantity = baseQuantity + bonusRoll;
+
+            const success = player.inventory.addItem(Object.assign(new Item(), outputItem), totalQuantity);
+            if (!success) {
+                client.send("notification", { text: "Инвентарь полон!" });
+                return;
+            }
+
+            // XP
+            player.professions.blacksmithing.addXp(recipe.xpReward);
+
+            console.log(`[CRAFT] ${player.name} создал ${outputItem.name} x${totalQuantity} (BS lvl ${player.professions.blacksmithing.level}, +${recipe.xpReward} XP)`);
+            PlayerPersistence.savePlayer(player);
+
+            client.send("craftResult", {
+                recipeId: recipe.id,
+                stationType: recipe.stationType,
+                outputItem: outputItem.toJSON(),
+                quantity: totalQuantity,
+                xpGained: recipe.xpReward,
             });
         });
 

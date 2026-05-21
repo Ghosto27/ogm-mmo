@@ -16,6 +16,7 @@ import { isEditorActive } from './editor/EditorState';
 import { worldMeshes } from './render/WorldRenderer';
 import { resourceNodeMeshes } from './render/ResourceNodeRenderer';
 import { toggleBank, isBankVisible, hideBank } from './ui/BankUI';
+import { showCraftingUI, hideCraftingUI, isCraftingVisible } from './ui/CraftingUI';
 import { actionMode, toggleAim } from './cameraControls';
 import { sprintKey } from './input';
 
@@ -364,11 +365,26 @@ window.addEventListener('keydown', (e) => {
             }
         }
 
-        console.log('[INTERACTION] F pressed', { closestNpcId, closestBagId, closestNodeId, closestChestId });
+        // Ищем ближайшую станцию крафта (furnace/anvil)
+        let closestStationId: string | null = null;
+        let closestStationDist = Infinity;
+        let stationType: string | null = null;
+        for (const id in worldMeshes) {
+            const mesh = worldMeshes[id];
+            if (mesh.userData?.isFurnace || mesh.userData?.isAnvil) {
+                const dist = localModel.position.distanceTo(mesh.position);
+                if (dist < 3.0 && dist < closestStationDist) {
+                    closestStationDist = dist;
+                    closestStationId = id;
+                    stationType = mesh.userData.isFurnace ? 'furnace' : 'anvil';
+                }
+            }
+        }
+
+        console.log('[INTERACTION] F pressed', { closestNpcId, closestBagId, closestNodeId, closestChestId, closestStationId });
 
         if (closestNpcId) {
             interactionState.currentInteractNpcId = closestNpcId;
-            console.log('[INTERACTION] Set currentInteractNpcId =', closestNpcId);
             room.send('interactNpc', { npcId: closestNpcId });
         } else if (closestBagId) {
             const bag = room.state.lootBags.get(closestBagId);
@@ -383,10 +399,17 @@ window.addEventListener('keydown', (e) => {
             } else {
                 toggleBank();
             }
+        } else if (closestStationId && stationType) {
+            if (isCraftingVisible()) {
+                hideCraftingUI();
+            } else {
+                showCraftingUI(stationType);
+            }
         } else {
             hideLootUI();
             hideDialog();
             hideBank();
+            hideCraftingUI();
             interactionState.currentInteractNpcId = '';
         }
     }

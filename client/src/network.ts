@@ -27,7 +27,8 @@ import { showFloatingDamage } from './damageNumbers';
 import { setQuestDefs, getQuestName } from './quest/questData';
 import { updateWorldObjects, worldMeshes } from './render/WorldRenderer';
 import { updateResourceNodes } from './render/ResourceNodeRenderer';
-import { updateBankUI } from './ui/BankUI';
+import { updateBankUI, isBankVisible, hideBank } from './ui/BankUI';
+import { updateCraftingRecipes, hideCraftingUI, isCraftingVisible } from './ui/CraftingUI';
 import { updateTerrain, getTerrainHeightAt, terrainReady, getTerrainHeightAtFast } from './render/TerrainRenderer';
 import { addVegetationInstance, finalizeVegetation, isVegetationLoaded } from './render/VegetationRenderer';
 import { isEditorActive } from './editor/EditorState';
@@ -318,6 +319,35 @@ function join(playerName: string) {
                 }
             });
 
+            // Авто-закрытие банка при отдалении
+            if (isBankVisible()) {
+                const player = state.players.get(room.sessionId);
+                if (player) {
+                    const chestObj = state.worldObjects?.get('chest_01');
+                    if (chestObj) {
+                        const dist = Math.sqrt((player.x - chestObj.x)**2 + (player.z - chestObj.z)**2);
+                        if (dist > 4) hideBank();
+                    }
+                }
+            }
+
+            // Авто-закрытие крафта при отдалении от станции
+            if (isCraftingVisible()) {
+                const player = state.players.get(room.sessionId);
+                if (player) {
+                    const stationIds = ['furnace_01', 'anvil_01'];
+                    let tooFar = true;
+                    for (const sid of stationIds) {
+                        const obj = state.worldObjects?.get(sid);
+                        if (obj) {
+                            const dist = Math.sqrt((player.x - obj.x)**2 + (player.z - obj.z)**2);
+                            if (dist <= 4) { tooFar = false; break; }
+                        }
+                    }
+                    if (tooFar) hideCraftingUI();
+                }
+            }
+
             // ---------- Мешки с лутом ----------
             state.lootBags.forEach((bag: any, bagId: string) => {
                 if (!bag || !bag.items) return;
@@ -421,6 +451,18 @@ function join(playerName: string) {
             const name = itemNames[data.itemId] || data.itemId;
             showNotification(`+${data.quantity} ${name}`, 2000);
             showNotification(`+${data.xpGained} Mining XP`, 2000);
+        });
+
+        room.onMessage("stationRecipes", (data: { stationType: string, recipes: any[] }) => {
+            updateCraftingRecipes(data.recipes);
+        });
+
+        room.onMessage("craftResult", (data: { recipeId: string, stationType: string, outputItem: any, quantity: number, xpGained: number }) => {
+            showNotification(`Создано: ${data.outputItem?.name || data.recipeId} x${data.quantity}`, 2000);
+            showNotification(`+${data.xpGained} Blacksmithing XP`, 2000);
+            if (data.stationType && room) {
+                room.send('getStationRecipes', { stationType: data.stationType });
+            }
         });
 
         room.onMessage("notification", (data: { text: string, color?: string }) => {

@@ -22,6 +22,7 @@ import './interaction';
 import { createInventoryUI, toggleInventory } from './inventoryUI';
 import { createLootUI } from './ui/LootWindowUI';
 import { createBankUI } from './ui/BankUI';
+import { createCraftingUI } from './ui/CraftingUI';
 import { animateLootMeshes } from './render/LootRenderer';
 import {createCharacterPanel, toggleCharacterPanel} from './characterPanel';
 import { createChatInput, isChatActive } from './chat/chatInput';
@@ -30,6 +31,7 @@ import { createDialogUI } from './ui/DialogUI';
 import { createQuestJournal, toggleQuestJournal } from './quest/QuestJournalUI';
 import { createNotificationUI } from './ui/notificationUI';
 import { updateFPS } from './utils/fpsCounter';
+import { updateInteractionLabels } from './render/InteractionLabels';
 import { applyMovementWithCollisions, updateDynamicColliders, getAllColliders, PLAYER_RADIUS, computeGroundHeight, MAX_STEP_HEIGHT } from './collision';
 import { updateCollisionDebug } from './debug/collisionDebug';
 import { isCollisionDebugVisible } from './debug/debugState';
@@ -68,6 +70,7 @@ modelReady.then(() => {
     createQuestJournal();
     createNotificationUI();
     createBankUI();
+    createCraftingUI();
     initEditor();
     initDragDrop();
     setTimeout(() => {
@@ -411,6 +414,8 @@ function loop() {
             }
         }
         _wasFalling = isFalling;
+
+        updateInteractionLabels(playerPhysicalPos);
     }
 
     // Камера следует за игроком

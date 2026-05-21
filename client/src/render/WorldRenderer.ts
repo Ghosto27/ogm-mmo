@@ -7,6 +7,7 @@ import { addCylinderCollider, addOBBCollider, addSphereCollider } from '../colli
 import { isEditorActive } from '../editor/EditorState';
 import { getColliderConfig } from '../collisionConfig';
 import { createModelClone } from '../utils/modelLoader';
+import { addInteractionLabel } from './InteractionLabels';
 
 // Теперь храним любые объекты (Mesh или Group)
 export const worldMeshes: { [id: string]: THREE.Object3D } = {};
@@ -45,6 +46,22 @@ export async function createMesh(obj: any): Promise<THREE.Object3D | null> {
         mesh.userData.editorMode = true;
         mesh.userData.editorType = 'chest';
         mesh.userData.isChest = true;
+        return mesh;
+    } else if (modelName === 'furnace') {
+        const geometry = new THREE.CylinderGeometry(1.2, 1, 1.5, 12);
+        const material = new THREE.MeshStandardMaterial({ color: obj.color || '#8B0000' });
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.userData.editorMode = true;
+        mesh.userData.editorType = 'furnace';
+        mesh.userData.isFurnace = true;
+        return mesh;
+    } else if (modelName === 'anvil') {
+        const geometry = new THREE.CylinderGeometry(0.8, 1.2, 0.6, 8);
+        const material = new THREE.MeshStandardMaterial({ color: obj.color || '#444444' });
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.userData.editorMode = true;
+        mesh.userData.editorType = 'anvil';
+        mesh.userData.isAnvil = true;
         return mesh;
     } else if (!modelName || modelName === '') {
         console.warn(`[WORLD] Объект без modelName, создаю куб`);
@@ -159,6 +176,15 @@ export async function updateWorldObjects(worldObjects: any) {
                 // Для моделей (не примитивов) создаём коллизию
         if (obj.modelName !== 'cube' && obj.modelName !== 'cylinder' && obj.modelName !== 'plane') {
             createCollisionForModel(obj3D, obj);
+        }
+
+        // Интерактивные метки
+        if (obj.modelName === 'chest') {
+            addInteractionLabel(id, obj3D, '[F] Банк');
+        } else if (obj.modelName === 'furnace') {
+            addInteractionLabel(id, obj3D, '[F] Плавильня');
+        } else if (obj.modelName === 'anvil') {
+            addInteractionLabel(id, obj3D, '[F] Кузница');
         }
 
         worldMeshes[id] = obj3D;
