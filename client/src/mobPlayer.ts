@@ -143,6 +143,16 @@ const mobTargetRotations: { [mobId: string]: number } = {};
 const MOB_INTERPOLATION_SPEED = 10.0;
 const HP_BAR_DISTANCE = 30;
 
+// Reusable temp objects for falchion bone tracking (avoids per-frame GC pressure)
+const _v1 = new THREE.Vector3();
+const _v2 = new THREE.Vector3();
+const _v3 = new THREE.Vector3();
+const _q1 = new THREE.Quaternion();
+const _q2 = new THREE.Quaternion();
+const _q3 = new THREE.Quaternion();
+const _q4 = new THREE.Quaternion();
+const _m1 = new THREE.Matrix4();
+
 // ---------- ФУНКЦИЯ СОЗДАНИЯ ЭКЗЕМПЛЯРА МОБА ----------
 function createWolfInstance(mobId: string): THREE.Group {
     if (!wolfTemplate) throw new Error('Шаблон волка ещё не загружен');
@@ -580,45 +590,31 @@ export function interpolateMobPositions(deltaTime: number) {
         const falchion = (model as any)._falchion;
         const handBone = (model as any)._handBone;
         if (falchion && handBone) {
-            // Force bone matrix update from GPU skinning domain
             model.updateWorldMatrix(true, false);
             handBone.updateWorldMatrix(true, false);
-            
-            // Get animated world position/rotation of the hand bone
-            const boneWorldPos = new THREE.Vector3();
-            const boneWorldQuat = new THREE.Quaternion();
-            const boneWorldScale = new THREE.Vector3();
-            handBone.matrixWorld.decompose(boneWorldPos, boneWorldQuat, boneWorldScale);
-            
-            // Apply to falchion in local space of the model
-            // Convert world position to model-local position
-            const modelWorldPos = new THREE.Vector3();
-            const modelWorldQuat = new THREE.Quaternion();
-            const modelWorldScale = new THREE.Vector3();
-            model.matrixWorld.decompose(modelWorldPos, modelWorldQuat, modelWorldScale);
-            
-            // Invert model world transform to get local bone position
-            const modelWorldMatrixInv = new THREE.Matrix4().copy(model.matrixWorld).invert();
-            const localPos = boneWorldPos.clone().applyMatrix4(modelWorldMatrixInv);
-            const localQuat = modelWorldQuat.clone().invert().multiply(boneWorldQuat);
-            
-            // Apply local rotation offset to align falchion blade with hand orientation
-            // Falchion GLB model's default blade direction differs from bone's forward axis
+
+            handBone.matrixWorld.decompose(_v1, _q1, _v3);
+            model.matrixWorld.decompose(_v2, _q2, _v3);
+
+            _m1.copy(model.matrixWorld).invert();
+            _v1.applyMatrix4(_m1);
+
+            _q3.copy(_q2).invert().multiply(_q1);
+
             const offsetQuat = (model as any)._falchionOffset;
             if (offsetQuat) {
-                localQuat.multiply(offsetQuat);
+                _q3.multiply(offsetQuat);
             }
-            
-            // Apply position offset in bone-local space (e.g., move from wrist to palm)
-            // Convert bone-local offset to model-local space via bone-to-model quaternion
+
             const posOffset = (model as any)._falchionPosOffset;
             if (posOffset) {
-                const boneToModelQuat = modelWorldQuat.clone().invert().multiply(boneWorldQuat);
-                localPos.add(posOffset.clone().applyQuaternion(boneToModelQuat));
+                _q4.copy(_q2).invert().multiply(_q1);
+                _v3.copy(posOffset).applyQuaternion(_q4);
+                _v1.add(_v3);
             }
-            
-            falchion.position.copy(localPos);
-            falchion.quaternion.copy(localQuat);
+
+            falchion.position.copy(_v1);
+            falchion.quaternion.copy(_q3);
         }
     }
 }
