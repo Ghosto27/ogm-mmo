@@ -251,6 +251,11 @@ function updateTransition(dt: number) {
     }
 }
 
+// Reusable temp vectors for updateCamera (one-time allocation, no GC pressure)
+const _fwd = new THREE.Vector3();
+const _lookTarget = new THREE.Vector3();
+const _lookFrom = new THREE.Vector3();
+
 // --- Main update ---
 export function updateCamera(deltaTime: number = 1 / 60) {
     updateTransition(deltaTime);
@@ -280,8 +285,10 @@ export function updateCamera(deltaTime: number = 1 / 60) {
     );
 
     const effPitch = pitch + pitchOff;
-    const fwd = new THREE.Vector3(-Math.sin(yaw), -Math.sin(effPitch), -Math.cos(yaw)).normalize();
-    camera.lookAt(pivot.clone().lerp(camera.position.clone().add(fwd.multiplyScalar(50)), lookBlend));
+    _fwd.set(-Math.sin(yaw), -Math.sin(effPitch), -Math.cos(yaw)).normalize();
+    _lookTarget.copy(camera.position).addScaledVector(_fwd, 50);
+    _lookFrom.copy(pivot).lerp(_lookTarget, lookBlend);
+    camera.lookAt(_lookFrom);
 }
 
 // --- Mouse events ---
