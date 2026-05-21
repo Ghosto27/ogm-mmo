@@ -119,9 +119,16 @@ const _tempVec = new THREE.Vector3(); // reusable temp for dynamic entity positi
 
 // Reusable arrays (cleared and repopulated each frame, avoids per-frame GC pressure)
 const _dynamicEntities: { position: THREE.Vector3; radius: number }[] = [];
+const _dynamicEntityObjs: { position: THREE.Vector3; radius: number }[] = [];
+let _dynamicEntityCount = 0;
 const _mapOthers: { x: number; z: number; rotationY: number; visible: boolean }[] = [];
 const _mapMobs: { x: number; z: number; visible: boolean }[] = [];
 const _mapNpcs: { x: number; z: number; visible: boolean }[] = [];
+let _mapOthersCount = 0;
+let _mapMobsCount = 0;
+let _mapNpcsCount = 0;
+const _selectedObjects: THREE.Object3D[] = [];
+const _emptyColliders: any[] = [];
 
 window.addEventListener('keydown', (e) => {
     // Блокируем горячие клавиши браузера при Alt+WASD (на всякий случай)
@@ -306,18 +313,39 @@ function loop() {
 
             // Динамические коллайдеры (другие игроки и мобы)
             _dynamicEntities.length = 0;
+            _dynamicEntityCount = 0;
 
             for (const id in otherPlayers) {
                 const model = otherPlayers[id];
                 if (model && model.visible && id !== room.sessionId) {
-                    _dynamicEntities.push({ position: model.position, radius: 0.5 });
+                    let ent: { position: THREE.Vector3; radius: number };
+                    if (_dynamicEntityCount < _dynamicEntityObjs.length) {
+                        ent = _dynamicEntityObjs[_dynamicEntityCount];
+                        ent.position = model.position;
+                        ent.radius = 0.5;
+                    } else {
+                        ent = { position: model.position, radius: 0.5 };
+                        _dynamicEntityObjs.push(ent);
+                    }
+                    _dynamicEntities.push(ent);
+                    _dynamicEntityCount++;
                 }
             }
 
             for (const mobId in mobModels) {
                 const mob = mobModels[mobId];
                 if (mob && mob.visible) {
-                    _dynamicEntities.push({ position: mob.position, radius: 0.6 });
+                    let ent: { position: THREE.Vector3; radius: number };
+                    if (_dynamicEntityCount < _dynamicEntityObjs.length) {
+                        ent = _dynamicEntityObjs[_dynamicEntityCount];
+                        ent.position = mob.position;
+                        ent.radius = 0.6;
+                    } else {
+                        ent = { position: mob.position, radius: 0.6 };
+                        _dynamicEntityObjs.push(ent);
+                    }
+                    _dynamicEntities.push(ent);
+                    _dynamicEntityCount++;
                 }
             }
 
@@ -368,38 +396,62 @@ function loop() {
 
     // Миникарта и большая карта
     if (localModel) {
-        _mapOthers.length = 0;
-        _mapMobs.length = 0;
-        _mapNpcs.length = 0;
+        _mapOthersCount = 0;
+        _mapMobsCount = 0;
+        _mapNpcsCount = 0;
 
         for (const id in otherPlayers) {
             const model = otherPlayers[id];
             if (model) {
-                _mapOthers.push({
-                    x: model.position.x,
-                    z: model.position.z,
-                    rotationY: model.rotation.y,
-                    visible: model.visible,
-                });
+                let entry: { x: number; z: number; rotationY: number; visible: boolean };
+                if (_mapOthersCount < _mapOthers.length) {
+                    entry = _mapOthers[_mapOthersCount];
+                } else {
+                    entry = { x: 0, z: 0, rotationY: 0, visible: false };
+                    _mapOthers.push(entry);
+                }
+                entry.x = model.position.x;
+                entry.z = model.position.z;
+                entry.rotationY = model.rotation.y;
+                entry.visible = model.visible;
+                _mapOthersCount++;
             }
         }
+        _mapOthers.length = _mapOthersCount;
 
         for (const mobId in mobModels) {
             const mobModel = mobModels[mobId];
             if (mobModel) {
-                _mapMobs.push({
-                    x: mobModel.position.x,
-                    z: mobModel.position.z,
-                    visible: mobModel.visible,
-                });
+                let entry: { x: number; z: number; visible: boolean };
+                if (_mapMobsCount < _mapMobs.length) {
+                    entry = _mapMobs[_mapMobsCount];
+                } else {
+                    entry = { x: 0, z: 0, visible: false };
+                    _mapMobs.push(entry);
+                }
+                entry.x = mobModel.position.x;
+                entry.z = mobModel.position.z;
+                entry.visible = mobModel.visible;
+                _mapMobsCount++;
             }
         }
+        _mapMobs.length = _mapMobsCount;
 
         if (room.state.npcs) {
             room.state.npcs.forEach((npc: { x: number; z: number }) => {
-                _mapNpcs.push({ x: npc.x, z: npc.z, visible: true });
+                let entry: { x: number; z: number; visible: boolean };
+                if (_mapNpcsCount < _mapNpcs.length) {
+                    entry = _mapNpcs[_mapNpcsCount];
+                } else {
+                    entry = { x: 0, z: 0, visible: false };
+                    _mapNpcs.push(entry);
+                }
+                entry.x = npc.x;
+                entry.z = npc.z;
+                _mapNpcsCount++;
             });
         }
+        _mapNpcs.length = _mapNpcsCount;
 
         updateMinimap(localModel.position.x, localModel.position.z, localModel.rotation.y, _mapOthers, _mapMobs, _mapNpcs);
         updateWorldMap(localModel.position.x, localModel.position.z, localModel.rotation.y, _mapOthers, _mapMobs, _mapNpcs);
@@ -415,12 +467,13 @@ function loop() {
     }
 
     // Outline выбранных объектов
-    const selectedObjects: THREE.Object3D[] = [localModel];
+    _selectedObjects.length = 0;
+    _selectedObjects.push(localModel);
     for (const id in otherPlayers) {
         const model = otherPlayers[id];
-        if (model && model.visible) selectedObjects.push(model);
+        if (model && model.visible) _selectedObjects.push(model);
     }
-    outlinePass.selectedObjects = selectedObjects;
+    outlinePass.selectedObjects = _selectedObjects;
 
     // Обновление анимаций и позиций
     updateAnimations(deltaTime);
@@ -431,7 +484,7 @@ function loop() {
 
     // Отладка коллизий
     updateCollisionDebug(
-        isCollisionDebugVisible() ? getAllColliders() : [],
+        isCollisionDebugVisible() ? getAllColliders() : _emptyColliders,
         localModel.position,
         30
     );
@@ -456,5 +509,16 @@ function loop() {
         }
     });
 })();
+
+// Periodic heap usage logging (every 2 minutes)
+setInterval(() => {
+    const mem = (performance as any).memory;
+    if (mem) {
+        const usedMB = Math.round(mem.usedJSHeapSize / 1048576);
+        const totalMB = Math.round(mem.jsHeapSizeLimit / 1048576);
+        if (usedMB > 1000) console.warn(`[MEM] ${usedMB}MB / ${totalMB}MB`);
+        else console.log(`[MEM] ${usedMB}MB / ${totalMB}MB`);
+    }
+}, 120000);
 
 loop();

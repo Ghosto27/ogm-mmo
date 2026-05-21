@@ -1,149 +1,77 @@
 # Memory Leak / GC Pressure Audit — May 2026
 
-Спустя 10-15 минут игры FPS сильно падает. Причина — избыточные per-frame аллокации, нагружающие GC.
+Спустя 10-15 минут игры FPS сильно падает. Причина — избыточные per-frame аллокации и прогрессивный рост кучи из-за утечки в `AnimationStateMachine`.
 
 ---
 
-## Critical (каждый кадр, много аллокаций)
+## ✅ Исправлено: Per-frame аллокации (Round 1)
 
-### 1. `client/src/mobPlayer.ts:574-603` — `interpolateMobPositions()`
+### 1. `client/src/mobPlayer.ts` — `interpolateMobPositions()`
 
-~12 новых THREE объектов (Vector3, Quaternion, Matrix4) на каждый скелет, каждый кадр.
-10 скелетов → 120 объектов/кадр. Это главный источник GC-давления.
+~12 new THREE. объектов (Vector3/Quaternion/Matrix4) на скелет/кадр → 8 module-level temps.
 
-```ts
-// строки 574-589: на каждый bone каждого skeleton
-new THREE.Vector3()           // 574
-new THREE.Quaternion()        // 575
-new THREE.Vector3()           // 576
-new THREE.Vector3()           // 581
-new THREE.Quaternion()        // 582
-new THREE.Vector3()           // 583
-new THREE.Matrix4().copy()    // 587
-.clone()                      // 588
-.clone().invert().multiply()  // 589
-.clone().applyQuaternion()    // 602
-.clone().invert().multiply()  // 603
-```
+### 2. `client/src/collision.ts` — вся система коллизий
 
-Fix: переиспользовать temp Vector3/Quaternion/Matrix4 на уровне модуля.
+~50 new/clone + spread массива на кадр движения → 12 module temps. Заменены `{normal, pushTo}` объекты-литералы, добавлен пул для динамических коллайдеров.
 
-### 2. `client/src/collision.ts:84-86, 100-220` — коллизия
+### 3. `client/src/input.ts` — `getCameraRelativeMovement()`
 
-Каждый кадр движения — десятки `.clone()` + `new Vector3/Matrix4`.
-Цикл до 3 итераций.
+4 new THREE.Vector3/кадр → 3 module temps.
 
-```ts
-// applyMovementWithCollisions (84-86)
-rawDelta.clone().divideScalar(steps)  // 84
-currentPos.clone()                    // 86
+### 4. `client/src/main.ts` — карта, dynamicEntities, selectedObjects, debug
 
-// applySingleStep (102-216) — множится на iterations × steps
-currentPos.clone().add(delta)         // 102
-delta.clone()                         // 103
-[...colliders, ...dynamicColliders]   // 109 — spread нового массива
-new THREE.Vector3().subVectors(...)   // 118
-col.center.clone()                    // 119
-new THREE.Vector3(1, 0, 0)           // 135
-new THREE.Matrix4().copy()...        // 153
-и т.д.
-```
+Объекты-литералы для миникарты (~35/кадр), `push({position, radius})` для коллайдеров, `[localModel]` массив, `[]` пустой массив — всё заменено на пулы мутабельных объектов и переиспользуемые массивы.
 
-Fix: переиспользовать temp Vector3/Matrix4, избегать spread массивов.
+### 5. `client/src/cameraControls.ts` — `updateCamera()`
+
+new THREE.Vector3 + 2 .clone() → 3 module temps.
+
+### 6. `client/src/animationUtils.ts` — `updateAnimations()`
+
+`Object.keys(mixers)` → `for (const id in mixers)`.
+
+### 7. `client/src/render/TerrainRenderer.ts` — `getTerrainHeightAt()`
+
+`new THREE.Vector3(x, 500, z)` → `_rayOrigin.set(x, 500, z)`.
 
 ---
 
-## Medium (каждый кадр)
+## ✅ Исправлено: Прогрессивная утечка кучи (Round 2)
 
-### 3. `client/src/input.ts:61-73` — `getCameraRelativeMovement()`
+### 8. `client/src/animationStateMachine.ts` — `_initSmoothLoop()`
 
-3-4 `new THREE.Vector3` каждый кадр при движении.
+**Первичная причина падения FPS до 0 после 5-7 минут.**
 
-```ts
-new THREE.Vector3(0, 0, 0)          // 61 — idle
-new THREE.Vector3(-sinYaw, 0, ...)  // 69 — forward
-new THREE.Vector3(cosYaw, 0, ...)   // 71 — right
-new THREE.Vector3()                  // 73 — moveResult
-```
+Каждый `transitionTo()` → `_initSmoothLoop()`:
+- `primary.getClip()` берёт оригинальный `AnimationClip`
+- `clip.clone()` создаёт глубокую копию с **новым UUID**
+- `mixer.clipAction(clone)` ищет action по `clipUuid` (UUID объекта, строка 525 Three.js)
 
-Fix: pre-allocated temp vectors.
+Поскольку UUID каждый раз новый, существующий action **никогда не находится**, и каждый вызов создаёт **новый AnimationAction** в `AnimationMixer._actionsByClip` / `_actions`. После ~100 переходов на моба × ~15 мобов → **300MB роста кучи за 30 секунд**, хиты 4GB за ~7 минут, FPS → 0.
 
-### 4. `client/src/main.ts:302-322` — `dynamicEntities` массив
-
-Создаётся каждый кадр при движении:
-
-```ts
-const dynamicEntities: {position: Vector3, radius: number}[] = []
-```
-
-Потом заполняется `.clone()` позиций других игроков и мобов.
-Можно переиспользовать массив.
-
-### 5. `client/src/main.ts:371-401` — массивы для карты
-
-`othersForMap`, `mobsForMap`, `npcsForMap` создаются каждый кадр безусловно, даже когда карта скрыта.
-
-```ts
-const othersForMap = Object.values(otherPlayers)...  // 371
-const mobsForMap = Object.values(mobModels)...        // 384
-const npcsForMap = Object.values(npcMeshes)...        // 396
-```
-
-Fix: создавать массивы только когда карта/миникарта открыты, или переиспользовать.
-
-### 6. `client/src/cameraControls.ts:283-284` — `updateCamera()`
-
-```ts
-new THREE.Vector3(...)              // 283
-pivot.clone().lerp(camera.position.clone().add(...))  // 284 — 2 клона
-```
-
-Fix: pre-allocated temp vectors.
+**Fix:** добавлен `_smoothClips` кеш `Map<stateName, {clip, action}>`. При повторном `transitionTo` для того же состояния — существующий action переиспользуется. `clip.clone()` вызывается ровно один раз на состояние за всё время жизни FSM.
 
 ---
 
-## Medium (редкие, но накапливаются)
+## ⚠️ Остаётся открытым
 
 ### 7. `client/src/network.ts:488-500` — реконнект
 
-`room.onLeave` чистит `otherPlayers` audio, но **НЕ чистит**:
-- `mobModels`
-- `lootMeshes`
-- `worldMeshes`
-- `terrainMesh`
-- `npcMeshes`
-- `vegetation instanceMeshes`
+`room.onLeave` **НЕ чистит**:
+- `mobModels`, `lootMeshes`, `worldMeshes`, `terrainMesh`, `npcMeshes`, `vegetation instanceMeshes`
 
 При реконнекте `onStateChange` создаёт дубликаты в сцене.
 
-### 8. `client/src/animationStateMachine.ts:113-114` — `clip.clone()` без кэша
-
-При каждом `transitionTo()` с именем состояния — новый `AnimationClip`. Можно закэшировать.
-
----
-
-## Low (малые)
-
 ### 9. `client/src/animationStateMachine.ts:200, 287` — `mixer.addEventListener('finished')`
 
-Если one-shot анимация прервана (другая анимация, удаление модели), слушатель не вызывается и не удаляется.
+Если one-shot анимация прервана (другая анимация, удаление модели), слушатель не вызывается и не удаляется. Небольшая утечка слушателей на время жизни FSM.
 
 ### 10. `client/src/debug/collisionDebug.ts:16-21` — материал на каждый вызов
 
-Создаёт/диспоузит материал каждый кадр (но не накапливается — диспоузит старый).
+Создаёт/диспоузит материал каждый кадр при включённом дебаге коллизий. Не накапливается, но создаёт лишнюю работу.
 
 ---
 
 ## Ранее исправленная критическая утечка
 
 `main.ts:443-457` — в прошлом `addEventListener` на `renderer.domElement` и `window` были **внутри `loop()`**, что добавляло ~36000 слушателей за 5 минут. Сейчас вынесены в IIFE.
-
----
-
-## Приоритет исправления
-
-1. mobPlayer.ts (critical — самое дорогое)
-2. collision.ts (critical — много аллокаций при движении)
-3. input.ts (medium — каждый кадр)
-4. cameraControls.ts / main.ts arrays (medium)
-5. network.ts cleanup (medium — редкий сценарий, но потеря объектов)

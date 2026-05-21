@@ -70,6 +70,10 @@ export function addOBBCollider(center: THREE.Vector3, halfExtents: THREE.Vector3
 }
 
 
+// Reusable pool for dynamic collider entries (avoids per-frame object literals)
+const _dynColPool: Collider[] = [];
+let _dynColCount = 0;
+
 /**
  * Обновить список динамических коллайдеров (другие игроки, мобы).
  * Вызывается из игрового цикла каждый кадр перед проверкой движения.
@@ -78,8 +82,18 @@ export function updateDynamicColliders(
     entities: { position: THREE.Vector3; radius: number }[]
 ) {
     dynamicColliders.length = 0;
+    _dynColCount = 0;
     for (const e of entities) {
-        dynamicColliders.push({ type: 'sphere', center: e.position, radius: e.radius });
+        if (_dynColCount < _dynColPool.length) {
+            const entry = _dynColPool[_dynColCount];
+            (entry as any).center = e.position;
+            (entry as any).radius = e.radius;
+            dynamicColliders.push(entry);
+        } else {
+            dynamicColliders.push({ type: 'sphere', center: e.position, radius: e.radius });
+            _dynColPool.push(dynamicColliders[dynamicColliders.length - 1]);
+        }
+        _dynColCount++;
     }
 }
 
@@ -113,7 +127,6 @@ function applySingleStep(currentPos: THREE.Vector3, delta: THREE.Vector3): THREE
 
     for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
         let collided = false;
-        let closestInfo: { normal: THREE.Vector3; pushTo: THREE.Vector3 } | null = null;
         let minDistSq = Infinity;
 
         for (let pass = 0; pass < 2; pass++) {
@@ -131,7 +144,6 @@ function applySingleStep(currentPos: THREE.Vector3, delta: THREE.Vector3): THREE
                             _pushTo.copy(col.center).addScaledVector(_normal, col.radius + PLAYER_RADIUS);
                             _bestNormal.copy(_normal);
                             _bestPushTo.copy(_pushTo);
-                            closestInfo = { normal: _bestNormal, pushTo: _bestPushTo };
                             collided = true;
                         }
                     }
@@ -155,7 +167,6 @@ function applySingleStep(currentPos: THREE.Vector3, delta: THREE.Vector3): THREE
                             }
                             _bestNormal.copy(_normal);
                             _bestPushTo.copy(_pushTo);
-                            closestInfo = { normal: _bestNormal, pushTo: _bestPushTo };
                             collided = true;
                             minDistSq = 0;
                         }
@@ -197,7 +208,6 @@ function applySingleStep(currentPos: THREE.Vector3, delta: THREE.Vector3): THREE
                             minDistSq = distSq;
                             _bestNormal.copy(_normal);
                             _bestPushTo.copy(_pushTo);
-                            closestInfo = { normal: _bestNormal, pushTo: _bestPushTo };
                             collided = true;
                         }
                     }
@@ -207,9 +217,8 @@ function applySingleStep(currentPos: THREE.Vector3, delta: THREE.Vector3): THREE
 
         if (!collided) break;
 
-        const info = closestInfo!;
-        _applyResultPos.copy(info.pushTo);
-        _normal.copy(info.normal).multiplyScalar(_applyOriginalDelta.dot(info.normal));
+        _applyResultPos.copy(_bestPushTo);
+        _normal.copy(_bestNormal).multiplyScalar(_applyOriginalDelta.dot(_bestNormal));
         _tempVec.copy(_applyOriginalDelta).sub(_normal);
         _applyOriginalDelta.copy(_tempVec);
         _applyResultPos.add(_tempVec);

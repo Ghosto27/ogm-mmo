@@ -100,25 +100,45 @@ export class AnimationStateMachine {
         this.currentStateName = stateName;
     }
 
+    // Cache for smooth loop clones: one clip+action per state to prevent mixer action leak
+    private _smoothClips = new Map<string, { clip: THREE.AnimationClip; action: THREE.AnimationAction }>();
+
     // Create a secondary (clone) action for smooth looping
     private _initSmoothLoop(stateName: string, primary: THREE.AnimationAction): void {
-        // Clean up old loop entry if any
-        const oldEntry = this._loopClones.get(stateName);
-        if (oldEntry) {
-            oldEntry.secondary.stop();
-            oldEntry.secondary.weight = 0;
+
+        // Reuse existing smooth clip + action — fixed UUID, no leak
+        const cached = this._smoothClips.get(stateName);
+        if (cached) {
+            const secondary = cached.action;
+            secondary.stop();
+            secondary.setLoop(THREE.LoopRepeat, Infinity);
+            secondary.clampWhenFinished = false;
+            secondary.weight = 0;
+            this._loopClones.set(stateName, { primary, secondary, fading: false });
+            return;
         }
 
-        // Clone the clip with a unique name so mixer.clipAction creates a new action
         const clip = primary.getClip();
+        if (!clip) {
+            console.error(`[FSM:${this.id}] clip is NULL: stateName='${stateName}'`);
+            return;
+        }
         const clone = clip.clone();
         clone.name = clip.name + '__smooth';
-        const secondary = this.mixer.clipAction(clone, undefined);
+
+        let secondary: THREE.AnimationAction;
+        try {
+            secondary = this.mixer.clipAction(clone, undefined);
+        } catch (e) {
+            console.error(`[FSM:${this.id}] mixer.clipAction() FAILED:`, e, 'clone.name:', clone?.name);
+            return;
+        }
         secondary.setLoop(THREE.LoopRepeat, Infinity);
         secondary.clampWhenFinished = false;
         secondary.weight = 0;
         secondary.stop();
 
+        this._smoothClips.set(stateName, { clip: clone, action: secondary });
         this._loopClones.set(stateName, { primary, secondary, fading: false });
     }
 

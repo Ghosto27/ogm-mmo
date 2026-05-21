@@ -64,7 +64,7 @@ export function updateAnimations(deltaTime: number) {
     }
 
     // Перемещаем HP-бары за моделями
-    for (const id of Object.keys(mixers)) {
+    for (const id in mixers) {
         const model = id === 'local' ? localModel : otherPlayers[id];
         if (!model) continue;
         const bar = id === 'local' ? localHpBar : hpBars[id];

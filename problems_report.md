@@ -4,14 +4,44 @@ Based on the provided Technical Design Document (tdd.md), the current codebase s
 
 ## 1. Overall Architecture & WebGL Performance (TDD vs Best Practices)
 
-The architecture is soundly divided into client-side rendering/input and server-side authoritative state management, which aligns with modern MMORPG design principles. However, several areas require optimization for scalability and performance:
+The architecture is soundly divided into client-side rendering/input and server-side authoritative state management, which aligns with modern MMORPG design principles.
 
-*   **Client-Side Rendering Loop:** The current use of `renderer.setAnimationLoop` (as recommended by the skill) is correct. However, the rendering loop (`client/src/main.ts`) performs multiple expensive operations every frame:
-    1.  Updating all player positions via interpolation (`animationUtils.ts`).
-    2.  Rendering name tags and HP bars for *all* players/mobs (potentially hundreds).
-    3.  Running the `OutlinePass` on potentially dozens of objects.
-    4.  Calling `renderLabels()` (CSS2DRenderer) which is a separate rendering pass.
-    **Recommendation:** Implement **Frustum Culling and LOD (Level of Detail)**. Only render/update name tags, HP bars, and complex meshes for entities visible to the camera or within a defined proximity radius.
+### Fixed: Memory Leaks (Two Rounds)
+
+**Round 1 — Per-frame GC pressure:** rendering loop had severe per-frame allocations. Fixed across 7 modules:
+
+| File | Fix |
+|---|---|
+| `mobPlayer.ts` | ~12 new/clone per skeleton/frame → 8 module temps |
+| `collision.ts` | ~50 new/clone + spread array per movement frame → 12 temps + pools |
+| `input.ts` | 4 new Vector3/frame → 3 temps |
+| `main.ts` | map objects (~35/frame), dynamic entities, selectedObjects, debug array — all pooled |
+| `cameraControls.ts` | new Vector3 + 2 clone → 3 temps |
+| `animationUtils.ts` | `Object.keys(mixers)` → `for...in` |
+| `TerrainRenderer.ts` | `new Vector3` → `_rayOrigin.set()` |
+
+**Round 2 — Progressive heap leak (AnimationStateMachine):** each `transitionTo()` → `_initSmoothLoop()` cloned the clip, but Three.js `clipAction()` looks up by UUID, not name. Each clone had a new UUID → a **new AnimationAction** accumulated in the mixer every time. After ~100 transitions/mob × 15 mobs, heap grew **300MB/30s**, hitting 4GB limit in ~7 minutes. Fixed with `_smoothClips` cache — one `{clip, action}` per state per FSM lifetime.
+
+All details in `memory-leak-audit.md`.
+
+### Fixed: Mob HP Bar Distance Culling
+
+Mob HP bars (`THREE.Sprite`) now only render within 30 units of the local player (`mobPlayer.ts`).
+
+### Fixed: Animation-Blocking for Actions
+
+- Item usage (right-click potion): blocked during one-shot animation via `isPlayingOneShot` check (`inventoryUI.ts`)
+- Attacks: blocked during one-shot animation in both cursor mode (`tryAttack()`) and action mode (`interaction.ts`)
+
+### Fixed: Loot Bag Schema Race
+
+`network.ts` and `LootRenderer.ts` now guard against undefined `bag.items` from Colyseus MapSchema during sync.
+
+### Remaining Client Issues
+
+*   **Frustum Culling & LOD:** Name tags, HP bars, and complex meshes still render for all entities regardless of camera visibility. Implement proximity radius or frustum checks.
+*   **Name Tags:** `client/src/nameTags.ts` via CSS2DRenderer — ensure text updates don't trigger DOM recalculations.
+*   **Animation Completion:** `animationUtils.ts` uses manual time checks (`elapsed >= duration`) instead of `AnimationMixer` event listeners — brittle for variable-length animations.
 
 *   **Network Synchronization Overhead:** The current system relies on sending `move` messages frequently (`client/src/main.ts`, lines 153-160). While necessary, continuous updates for all players can saturate bandwidth and server resources.
     **Recommendation:** Implement **Dead Reckoning with Interpolation**. Instead of constantly sending absolute positions, the client should predict movement based on velocity vectors received from the server. The server should only send corrections or state changes (e.g., "Player X changed direction," "Player Y hit obstacle").
@@ -22,9 +52,8 @@ The implementation shows a strong grasp of Three.js fundamentals, especially reg
 
 *   **Coordinate System Handling:** The `input.ts` file correctly implements camera-relative movement (`getCameraRelativeMovement`), which is critical for a good game feel and adheres to the principles outlined in `skills/threejs-builder/SKILL.md`.
 *   **Animation State Machine (FSM):** The use of `AnimationStateMachine` is excellent practice, ensuring controlled transitions between states like 'idle', 'walk', and 'attack'.
-    *   **Potential Bug:** In `client/src/animationUtils.ts`, the logic for checking if a one-shot animation has finished (`elapsed >= duration`) relies on manual state management (`fsmObj.isPlayingOneShot`). This is brittle. A better pattern would be to use an event listener or callback provided by the AnimationMixer when the clip finishes, rather than relying on time checks in the main loop.
+    *   **Known Issue:** `requestConsume()`, `requestChestOpen()`, `requestLand()` use `force=true`, which ignores `isPlayingOneShot` guard. Consider switching to `force=false` for consistency.
 *   **Rendering Passes:** The separation of rendering concerns (WorldRenderer, NPCRenderer, etc.) and the use of `CSS2DRenderer` for UI elements is clean.
-    *   **Potential Inefficiency:** Name tags (`client/src/nameTags.ts`) are attached to 3D objects but rendered via a separate DOM renderer. Ensure that name tag updates (e.g., changing text) do not trigger expensive recalculations or re-attachments in the main loop.
 
 ## 3. Server Implementation Review (Colyseus/Backend)
 
@@ -41,12 +70,24 @@ The server logic is robust and handles core MMORPG features like persistence, co
 
 ## 4. Game Mechanics & Logic Gaps
 
-*   **Combat Flow:** The combat sequence is solid: Client sends `attack` -> Server validates range/target -> Server calculates damage and updates state -> Server broadcasts animation event (`mobAttackAnim`). This flow is correct for an authoritative server model.
+*   **Combat Flow:** The combat sequence is solid: Client sends `attack` → Server validates range/target → Server calculates damage and updates state → Server broadcasts animation event (`mobAttackAnim`). This flow is correct for an authoritative server model.
 *   **Inventory/Equipment:** The separation of concerns between `Inventory`, `ItemSlot`, and `EquipmentSystem` is excellent. The logic for equipping items and recalculating stats upon change is correctly placed in the server's message handlers, ensuring data integrity.
 *   **Dialogue System:** The dynamic dialogue system (`interactNpc`/`dialogueChoice`) handles quest progression well by linking actions to state changes (e.g., `giveQuest`, `completeQuest`).
 
 ## Summary of Key Action Items (Prioritized)
 
-1.  **Server Performance (Critical):** Replace the global iteration over all mobs in `MyRoom.ts` with a spatial partitioning system (Quadtree).
-2.  **Client Performance (High):** Implement Frustum Culling and proximity checks for rendering/updating non-local entities (name tags, HP bars) to reduce draw calls and CPU load.
-3.  **Animation Reliability (Medium):** Refactor the one-shot animation completion check in `animationUtils.ts` to use AnimationMixer callbacks instead of time comparisons.
+### Fixed (May 2026)
+1. **Per-frame GC pressure** — eliminated all allocations/frame across 7 modules
+2. **AnimationStateMachine heap leak** — `clip.clone()` UUID mismatch → `_smoothClips` cache
+3. **HP bar distance culling** — mob HP bars hidden beyond 30 units
+4. **Animation-blocking** — attacks and item usage blocked during one-shot animations
+5. **Loot bag crash** — guarded against undefined `bag.items` during Colyseus sync
+6. **Camera mode switching** — smooth transition fixes (pitch offset, jerky entry)
+7. **Second round GC fixes** — map pools, collider pools, `Object.keys`, `{normal,pushTo}` literals, terrain Vector3
+
+### Remaining
+1. **Server Performance (Critical):** Replace global mob iteration in `MyRoom.ts` with spatial partitioning (Quadtree).
+2. **Client Performance (High):** Implement Frustum Culling and proximity checks for name tags, HP bars, and entity updates.
+3. **Reconnect cleanup (Medium):** `network.ts:onLeave` doesn't clear mobs/world meshes/vegetation — duplicates on reconnect.
+4. **Animation Reliability (Medium):** Refactor one-shot completion in `animationUtils.ts` to use `AnimationMixer` callbacks instead of time comparisons.
+5. **Animation Consistency (Low):** Change `requestConsume()`/`requestChestOpen()`/`requestLand()` to use `force=false` for consistent one-shot blocking.

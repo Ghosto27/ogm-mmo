@@ -164,11 +164,12 @@ export function updateTerrain(terrain: any) {
 
 const raycaster = new THREE.Raycaster();
 const down = new THREE.Vector3(0, -1, 0);
+const _rayOrigin = new THREE.Vector3();
 
 export function getTerrainHeightAt(x: number, z: number): number {
     if (!terrainMesh) return 0;
-    const origin = new THREE.Vector3(x, 500, z);
-    raycaster.set(origin, down);
+    _rayOrigin.set(x, 500, z);
+    raycaster.set(_rayOrigin, down);
     const intersects = raycaster.intersectObject(terrainMesh);
     if (intersects.length > 0) return intersects[0].point.y;
     return 0;
