@@ -333,16 +333,19 @@ function join(playerName: string) {
             // Обновление визуала всех мешков (удаление пустых/неактуальных)
             updateLootMeshes(state.lootBags);
 
-            // Закрываем окно лута, если отошли от мешка
+            // Закрываем окно лута, если отошли от мешка или он опустел
             const lootBagId = getCurrentBagId();
             if (lootBagId) {
                 const bag = state.lootBags.get(lootBagId);
                 const player = state.players.get(room.sessionId);
                 if (bag && player && bag.items) {
-                    const dist = Math.sqrt((player.x - bag.x) ** 2 + (player.z - bag.z) ** 2);
-                    //console.log('[LOOT] distance to bag', dist); // временный лог
-                    if (dist > 3.0) {
+                    if (bag.items.length === 0) {
                         hideLootUI();
+                    } else {
+                        const dist = Math.sqrt((player.x - bag.x) ** 2 + (player.z - bag.z) ** 2);
+                        if (dist > 3.0) {
+                            hideLootUI();
+                        }
                     }
                 } else {
                     hideLootUI();
