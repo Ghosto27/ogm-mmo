@@ -6,6 +6,11 @@ import { normalizeKey } from './keyboard';
 
 export let sprintKey = false;
 
+// Temp vectors for getCameraRelativeMovement (one-time allocation, no GC pressure)
+const _forward = new THREE.Vector3();
+const _right = new THREE.Vector3();
+const _move = new THREE.Vector3();
+
 // Состояние осей движения (для редактора и других потребителей)
 export const inputState = {
     forward: false,
@@ -58,22 +63,20 @@ export function getMovementInput(): { x: number; z: number } {
 export function getCameraRelativeMovement(camera: THREE.Camera): THREE.Vector3 {
     const rawInput = getMovementInput();
     if (rawInput.x === 0 && rawInput.z === 0) {
-        return new THREE.Vector3(0, 0, 0);
+        return _move.set(0, 0, 0);
     }
 
     const yaw = getCameraYaw();
     const sinYaw = Math.sin(yaw);
     const cosYaw = Math.cos(yaw);
 
-    // forward = направление от камеры к игроку (XZ)
-    const forward = new THREE.Vector3(-sinYaw, 0, -cosYaw).normalize();
-    // right = перпендикуляр к forward
-    const right = new THREE.Vector3(cosYaw, 0, -sinYaw).normalize();
+    _forward.set(-sinYaw, 0, -cosYaw).normalize();
+    _right.set(cosYaw, 0, -sinYaw).normalize();
 
-    const move = new THREE.Vector3();
-    move.add(forward.multiplyScalar(-rawInput.z));
-    move.add(right.multiplyScalar(-rawInput.x));
-    move.normalize();
+    _move.set(0, 0, 0);
+    _move.add(_forward.multiplyScalar(-rawInput.z));
+    _move.add(_right.multiplyScalar(-rawInput.x));
+    _move.normalize();
 
-    return move;
+    return _move;
 }
