@@ -11,71 +11,79 @@ interface CameraConfig {
     fov: number;
 }
 
-const MODE_CONFIGS: Record<CameraMode, CameraConfig> = {
+const CONFIGS: Record<CameraMode, CameraConfig> = {
     default:  { distance: 3.5, shoulderOffsetX: 0.0, shoulderOffsetY: 1.3, pitch: -0.4, fov: 50 },
-    aiming:   { distance: 2.5, shoulderOffsetX: 0.5, shoulderOffsetY: 0.9, pitch: -0.2, fov: 40 },
+    aiming:   { distance: 2.5, shoulderOffsetX: 0.5, shoulderOffsetY: 0.9, pitch: -0.4, fov: 50 },
     blocking: { distance: 3.5, shoulderOffsetX: 0.0, shoulderOffsetY: 0.5, pitch: -0.2, fov: 50 },
 };
 
 const TRANSITION_SPEED = 5;
-const MIN_PITCH = -0.8;
-const MAX_PITCH = 0.8;
-const MIN_DIST = 1.5;
-const MAX_DIST = 10;
+const PITCH_MIN = -0.8;
+const PITCH_MAX = 0.8;
+const DIST_MIN = 1.5;
+const DIST_MAX = 10;
 
-// Current camera parameters
-let cameraTarget = new THREE.Vector3(0, 0, 0);
+// --- Live camera parameters ---
+let camTarget = new THREE.Vector3();
 let yaw = 0;
 let pitch = -0.4;
 let distance = 3.5;
-let shoulderOffsetX = 0.0;
-let shoulderOffsetY = 1.3;
-let camFov = 50;
+let shoulderX = 0.0;
+let shoulderY = 1.3;
+let fov = 50;
 
-// Mode state
-let _currentMode: CameraMode = 'default';
-let _targetMode: CameraMode = 'default';
-let _transitionProgress = 1;
+// --- Mode & transition state ---
+let curMode: CameraMode = 'default';
+let tgtMode: CameraMode = 'default';
+let transT = 1;
 
-// Transition start capture
-let _startDist = 3.5;
-let _startShoulderX = 0.0;
-let _startShoulderY = 1.3;
-let _startPitch = -0.4;
-let _startFov = 50;
+// Transition start snapshot
+let sDist = 3.5;
+let sShX = 0.0;
+let sShY = 1.3;
+let sPitch = -0.4;
+let sFov = 50;
 
-// Look blend: 0 = lookAt(pivot), 1 = forward-vector
-let _lookBlend = 0;
-let _lookBlendStart = 0;
-let _lookBlendEnd = 0;
+// Look blend 0 = lookAt(pivot), 1 = forward-vector
+let lookBlend = 0;
+let lookBlendA = 0;
+let lookBlendB = 0;
 
-// Offset so forward-vector points at pivot at target config
-let _aimPitchOffset = 0;
-let _aimPitchOffsetStart = 0;
-let _aimPitchOffsetEnd = 0;
+// Pitch offset — forward-vector -> player aim direction
+let pitchOff = 0;
+let pitchOffA = 0;
+let pitchOffB = 0;
 
+// Smooth scroll zoom
+let scrollTarget = 3.5;
 
+// Pre-aim saved state (restored on exit)
+let savedPitch = -0.4;
+let savedShX = 0.0;
+let savedShY = 1.3;
+let savedScroll = 3.5;
+
+// --- Exports ---
 export let actionMode = false;
 export let isRightDragging = false;
 let prevMouse = new THREE.Vector2();
-
 export let uiWindowsOpen = 0;
 let altToggled = false;
-
 export let isBlocking = false;
 export let isAiming = false;
-
-// Smooth zoom
-let _targetScrollDist = 3.5;
-
-// Save pre-aim state for restore on exit
-let _savedDist = 3.5;
-let _savedPitch = -0.4;
-let _savedShoulderX = 0.0;
-let _savedShoulderY = 1.3;
-let _savedScrollDist = 3.5;
-
 let reticleEl: HTMLElement | null = null;
+
+// --- Utility ---
+function smoothstep(v: number): number {
+    return v * v * (3 - 2 * v);
+}
+
+/** Compute pitch offset so forward-vector points at pivot from (dist, pitch, shY) */
+function calcPitchOffset(dist: number, p: number, shY: number): number {
+    const dy = -(dist * Math.sin(p) + shY);
+    const dirY = dy / Math.hypot(dist, dy);
+    return -Math.asin(Math.max(-1, Math.min(1, dirY))) - p;
+}
 
 // --- Reticle ---
 function createReticle(): HTMLElement {
@@ -99,47 +107,36 @@ function createReticle(): HTMLElement {
     return el;
 }
 
-// --- Public API ---
+// --- Mode switching ---
 export function setCameraMode(mode: CameraMode) {
-    if (mode === _targetMode && _transitionProgress >= 1) return;
+    if (mode === tgtMode && transT >= 1) return;
 
-    _startDist = distance;
-    _startShoulderX = shoulderOffsetX;
-    _startShoulderY = shoulderOffsetY;
-    _startFov = camFov;
-
-    _startPitch = pitch;
-
-    _aimPitchOffsetStart = _aimPitchOffset;
-    _lookBlendStart = _lookBlend;
-    _lookBlendEnd = mode === 'aiming' ? 1 : 0;
+    sDist = distance;
+    sShX = shoulderX;
+    sShY = shoulderY;
+    sFov = fov;
+    sPitch = pitch;
+    pitchOffA = calcPitchOffset(sDist, sPitch, sShY);
+    lookBlendA = lookBlend;
+    lookBlendB = mode === 'aiming' ? 1 : 0;
 
     if (mode === 'aiming') {
-        // Save current state for restore when returning to default
-        _savedDist = distance;
-        _savedPitch = pitch;
-        _savedShoulderX = shoulderOffsetX;
-        _savedShoulderY = shoulderOffsetY;
-        _savedScrollDist = _targetScrollDist;
+        savedPitch = pitch;
+        savedShX = shoulderX;
+        savedShY = shoulderY;
+        savedScroll = scrollTarget;
 
-        const aimCfg = MODE_CONFIGS['aiming'];
-        const dy = -(aimCfg.distance * Math.sin(aimCfg.pitch) + aimCfg.shoulderOffsetY);
-        const dirY = dy / Math.hypot(aimCfg.distance, dy);
-        _aimPitchOffsetEnd = -Math.asin(Math.max(-1, Math.min(1, dirY))) - aimCfg.pitch;
-    } else if (_targetMode === 'aiming' && mode === 'default') {
-        // Returning to default — restore pre-aim state
-        const dy = -(_savedScrollDist * Math.sin(_savedPitch) + _savedShoulderY);
-        const dirY = dy / Math.hypot(_savedScrollDist, dy);
-        _aimPitchOffsetEnd = -Math.asin(Math.max(-1, Math.min(1, dirY))) - _savedPitch;
+        const c = CONFIGS.aiming;
+        pitchOffB = calcPitchOffset(c.distance, sPitch, c.shoulderOffsetY);
+    } else if (tgtMode === 'aiming' && mode === 'default') {
+        pitchOffB = calcPitchOffset(savedScroll, savedPitch, savedShY);
     } else {
-        const cfg = MODE_CONFIGS[mode];
-        const dy = -(cfg.distance * Math.sin(cfg.pitch) + cfg.shoulderOffsetY);
-        const dirY = dy / Math.hypot(cfg.distance, dy);
-        _aimPitchOffsetEnd = -Math.asin(Math.max(-1, Math.min(1, dirY))) - cfg.pitch;
+        const c = CONFIGS[mode];
+        pitchOffB = calcPitchOffset(c.distance, c.pitch, c.shoulderOffsetY);
     }
 
-    _targetMode = mode;
-    _transitionProgress = 0;
+    tgtMode = mode;
+    transT = 0;
 
     isBlocking = mode === 'blocking';
     isAiming = mode === 'aiming';
@@ -153,17 +150,18 @@ export function setCameraMode(mode: CameraMode) {
 }
 
 export function getCameraMode(): CameraMode {
-    return _currentMode;
+    return curMode;
 }
 
 export function toggleBlock() {
-    setCameraMode(_currentMode === 'blocking' ? 'default' : 'blocking');
+    setCameraMode(curMode === 'blocking' ? 'default' : 'blocking');
 }
 
 export function toggleAim() {
-    setCameraMode(_currentMode === 'aiming' ? 'default' : 'aiming');
+    setCameraMode(curMode === 'aiming' ? 'default' : 'aiming');
 }
 
+// --- Pointer lock ---
 export function enableActionMode() {
     if (!document.pointerLockElement) renderer.domElement.requestPointerLock();
 }
@@ -175,21 +173,19 @@ export function disableActionMode() {
 document.addEventListener('pointerlockchange', () => {
     const isLocked = document.pointerLockElement === renderer.domElement;
     actionMode = isLocked;
-    if (!isLocked) {
-        document.body.style.cursor = 'default';
-    } else {
-        document.body.style.cursor = 'none';
-    }
+    document.body.style.cursor = isLocked ? 'none' : 'default';
 });
 
+// --- Camera target ---
 export function setCameraTarget(x: number, y: number, z: number) {
-    cameraTarget.set(x, y, z);
+    camTarget.set(x, y, z);
 }
 
 export function getCameraYaw(): number {
     return yaw;
 }
 
+// --- UI mode stack ---
 export function pushUIMode() {
     uiWindowsOpen++;
     if (uiWindowsOpen > 0) disableActionMode();
@@ -211,49 +207,44 @@ export function isAltToggled(): boolean {
     return altToggled;
 }
 
-// --- Helpers ---
-function smoothstep(t: number): number {
-    return t * t * (3 - 2 * t);
-}
-
+// --- Transition update ---
 function updateTransition(dt: number) {
-    if (_transitionProgress >= 1) return;
+    if (transT >= 1) return;
 
-    _transitionProgress = Math.min(1, _transitionProgress + dt * TRANSITION_SPEED);
-    const t = smoothstep(_transitionProgress);
+    transT = Math.min(1, transT + dt * TRANSITION_SPEED);
+    const u = smoothstep(transT);
 
-    // Restore saved pre-aim state when returning to default
-    const restoringSaved = _targetMode === 'default' && _currentMode === 'aiming';
-    const target = restoringSaved
-        ? { distance: _savedScrollDist, shoulderOffsetX: _savedShoulderX, shoulderOffsetY: _savedShoulderY, pitch: _savedPitch, fov: 50 }
-        : MODE_CONFIGS[_targetMode];
+    const restoreSaved = tgtMode === 'default' && curMode === 'aiming';
+    const cfg = restoreSaved
+        ? { distance: savedScroll, shoulderOffsetX: savedShX, shoulderOffsetY: savedShY, pitch: savedPitch, fov: 50 }
+        : CONFIGS[tgtMode];
 
-    distance = _startDist + (target.distance - _startDist) * t;
-    shoulderOffsetX = _startShoulderX + (target.shoulderOffsetX - _startShoulderX) * t;
-    shoulderOffsetY = _startShoulderY + (target.shoulderOffsetY - _startShoulderY) * t;
-    pitch = _startPitch + (target.pitch - _startPitch) * t;
-    camFov = _startFov + (target.fov - _startFov) * t;
-    _lookBlend = _lookBlendStart + (_lookBlendEnd - _lookBlendStart) * t;
-    _aimPitchOffset = _aimPitchOffsetStart + (_aimPitchOffsetEnd - _aimPitchOffsetStart) * t;
+    distance = sDist + (cfg.distance - sDist) * u;
+    shoulderX = sShX + (cfg.shoulderOffsetX - sShX) * u;
+    shoulderY = sShY + (cfg.shoulderOffsetY - sShY) * u;
+    if (tgtMode !== 'aiming') pitch = sPitch + (cfg.pitch - sPitch) * u;
+    fov = sFov + (cfg.fov - sFov) * u;
+    lookBlend = lookBlendA + (lookBlendB - lookBlendA) * u;
+    pitchOff = pitchOffA + (pitchOffB - pitchOffA) * u;
 
-    if (_transitionProgress >= 1) {
-        _currentMode = _targetMode;
-        if (restoringSaved) {
-            distance = _savedScrollDist;
-            _targetScrollDist = _savedScrollDist;
-            shoulderOffsetX = _savedShoulderX;
-            shoulderOffsetY = _savedShoulderY;
-            pitch = _savedPitch;
+    if (transT >= 1) {
+        curMode = tgtMode;
+        if (restoreSaved) {
+            distance = savedScroll;
+            scrollTarget = savedScroll;
+            shoulderX = savedShX;
+            shoulderY = savedShY;
+            pitch = savedPitch;
         } else {
-            const snap = MODE_CONFIGS[_targetMode];
+            const snap = CONFIGS[tgtMode];
             distance = snap.distance;
-            shoulderOffsetX = snap.shoulderOffsetX;
-            shoulderOffsetY = snap.shoulderOffsetY;
-            pitch = snap.pitch;
+            shoulderX = snap.shoulderOffsetX;
+            shoulderY = snap.shoulderOffsetY;
+            if (tgtMode !== 'aiming') pitch = snap.pitch;
         }
-        camFov = target.fov;
-        _lookBlend = _lookBlendEnd;
-        _aimPitchOffset = _aimPitchOffsetEnd;
+        fov = cfg.fov;
+        lookBlend = lookBlendB;
+        pitchOff = pitchOffB;
     }
 }
 
@@ -261,40 +252,33 @@ function updateTransition(dt: number) {
 export function updateCamera(deltaTime: number = 1 / 60) {
     updateTransition(deltaTime);
 
-    // Smooth zoom in default mode
-    if (_currentMode === 'default' && _transitionProgress >= 1) {
-        distance += (_targetScrollDist - distance) * Math.min(1, deltaTime * 10);
+    if (curMode === 'default' && transT >= 1) {
+        distance += (scrollTarget - distance) * Math.min(1, deltaTime * 10);
     }
 
-    if (camera.fov !== camFov) {
-        camera.fov = camFov;
+    if (camera.fov !== fov) {
+        camera.fov = fov;
         camera.updateProjectionMatrix();
     }
 
-    const pivot = cameraTarget;
+    const pivot = camTarget;
     const sinYaw = Math.sin(yaw);
     const cosYaw = Math.cos(yaw);
-    const cosPitch = Math.cos(pitch);
     const sinPitch = Math.sin(pitch);
+    const cosPitch = Math.cos(pitch);
 
-    const rightX = cosYaw * shoulderOffsetX;
-    const rightZ = -sinYaw * shoulderOffsetX;
+    const rx = cosYaw * shoulderX;
+    const rz = -sinYaw * shoulderX;
 
-    // Camera always orbits around the player
     camera.position.set(
-        pivot.x + distance * cosPitch * sinYaw + rightX,
-        pivot.y + distance * sinPitch + shoulderOffsetY,
-        pivot.z + distance * cosPitch * cosYaw + rightZ
+        pivot.x + distance * cosPitch * sinYaw + rx,
+        pivot.y + distance * sinPitch + shoulderY,
+        pivot.z + distance * cosPitch * cosYaw + rz
     );
 
-    // Blend: lookAt(pivot) → forward-vector
-    const effectivePitch = pitch + _aimPitchOffset;
-    const forwardDir = new THREE.Vector3(-Math.sin(yaw), -Math.sin(effectivePitch), -Math.cos(yaw)).normalize();
-    const lookTarget = pivot.clone().lerp(
-        camera.position.clone().add(forwardDir.multiplyScalar(50)),
-        _lookBlend
-    );
-    camera.lookAt(lookTarget);
+    const effPitch = pitch + pitchOff;
+    const fwd = new THREE.Vector3(-Math.sin(yaw), -Math.sin(effPitch), -Math.cos(yaw)).normalize();
+    camera.lookAt(pivot.clone().lerp(camera.position.clone().add(fwd.multiplyScalar(50)), lookBlend));
 }
 
 // --- Mouse events ---
@@ -306,32 +290,27 @@ window.addEventListener('mousedown', (e) => {
 });
 
 window.addEventListener('mouseup', (e) => {
-    if (e.button === 2) {
-        isRightDragging = false;
-    }
+    if (e.button === 2) isRightDragging = false;
 });
 
 window.addEventListener('mousemove', (e) => {
     if (actionMode) {
-        const sensitivity = 0.002;
-        yaw -= e.movementX * sensitivity;
-        pitch += e.movementY * sensitivity;
-        pitch = Math.max(MIN_PITCH, Math.min(MAX_PITCH, pitch));
+        yaw -= e.movementX * 0.002;
+        pitch += e.movementY * 0.002;
+        pitch = Math.max(PITCH_MIN, Math.min(PITCH_MAX, pitch));
         return;
     }
-
     if (!isRightDragging) return;
     const dx = e.clientX - prevMouse.x;
     const dy = e.clientY - prevMouse.y;
     prevMouse.set(e.clientX, e.clientY);
-    const sensitivity = 0.01;
-    yaw -= dx * sensitivity;
-    pitch += dy * sensitivity;
-    pitch = Math.max(MIN_PITCH, Math.min(MAX_PITCH, pitch));
+    yaw -= dx * 0.01;
+    pitch += dy * 0.01;
+    pitch = Math.max(PITCH_MIN, Math.min(PITCH_MAX, pitch));
 });
 
 renderer.domElement.addEventListener('wheel', (e) => {
-    if (_currentMode !== 'default') return;
-    _targetScrollDist += e.deltaY * 0.01;
-    _targetScrollDist = Math.max(MIN_DIST, Math.min(MAX_DIST, _targetScrollDist));
+    if (curMode !== 'default') return;
+    scrollTarget += e.deltaY * 0.01;
+    scrollTarget = Math.max(DIST_MIN, Math.min(DIST_MAX, scrollTarget));
 }, { passive: true });
