@@ -46,7 +46,7 @@ export function updateLootMeshes(lootBags: any) {
     // Удаляем неактуальные
     for (const bagId in lootMeshes) {
         const bag = lootBags.get(bagId);
-        if (!bag || bag.items.length === 0) {
+        if (!bag || !bag.items || bag.items.length === 0) {
             scene.remove(lootMeshes[bagId]);
             delete lootMeshes[bagId];
             delete lootAnimations[bagId];

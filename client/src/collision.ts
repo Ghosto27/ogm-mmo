@@ -37,6 +37,20 @@ let dynamicColliders: Collider[] = [];
 export const PLAYER_RADIUS = 0.4;
 const MAX_STEP_HEIGHT = 0.4;   // высота, на которую игрок может "запрыгнуть"
 
+// Reusable temp objects for collision functions (avoids per-frame GC pressure)
+const _stepDelta = new THREE.Vector3();
+const _moveResultPos = new THREE.Vector3();
+const _applyResultPos = new THREE.Vector3();
+const _applyOriginalDelta = new THREE.Vector3();
+const _normal = new THREE.Vector3();
+const _pushTo = new THREE.Vector3();
+const _bestNormal = new THREE.Vector3();
+const _bestPushTo = new THREE.Vector3();
+const _tempVec = new THREE.Vector3();
+const _closest = new THREE.Vector3();
+const _invRotation = new THREE.Matrix4();
+const _extractRotation = new THREE.Matrix4();
+
 // Для отладки (временный массив сфер, больше не используется, оставлен для совместимости)
 export const allColliders = colliders;
 
@@ -63,11 +77,10 @@ export function addOBBCollider(center: THREE.Vector3, halfExtents: THREE.Vector3
 export function updateDynamicColliders(
     entities: { position: THREE.Vector3; radius: number }[]
 ) {
-    dynamicColliders = entities.map(e => ({
-        type: 'sphere',
-        center: e.position.clone(),
-        radius: e.radius,
-    } as SphereCollider));
+    dynamicColliders.length = 0;
+    for (const e of entities) {
+        dynamicColliders.push({ type: 'sphere', center: e.position, radius: e.radius });
+    }
 }
 
 // ---------- Основной метод движения со слайдингом ----------
@@ -78,118 +91,115 @@ export function applyMovementWithCollisions(
     maxStep: number = 0.2
 ): THREE.Vector3 {
     const totalDist = rawDelta.length();
-    if (totalDist === 0) return currentPos.clone();
+    if (totalDist === 0) return _moveResultPos.copy(currentPos);
 
     const steps = Math.max(1, Math.ceil(totalDist / maxStep));
-    const stepDelta = rawDelta.clone().divideScalar(steps);
+    _stepDelta.copy(rawDelta).divideScalar(steps);
 
-    let resultPos = currentPos.clone();
+    _moveResultPos.copy(currentPos);
 
     for (let s = 0; s < steps; s++) {
-        // Выполняем один суб-шаг с существующей логикой коллизий, но ограниченный stepDelta
-        // Используем отдельную функцию, чтобы не дублировать код. Просто вызываем applyMovementOnce?
-        // Мы не можем рекурсивно вызвать, создадим внутренний цикл итераций как раньше, но для stepDelta.
-        const subResult = applySingleStep(resultPos, stepDelta);
-        resultPos.copy(subResult);
+        _moveResultPos.copy(applySingleStep(_moveResultPos, _stepDelta));
     }
 
-    return resultPos;
+    return _moveResultPos;
 }
 
 // Вспомогательная функция одного шага (копия оригинального кода без изменений)
 function applySingleStep(currentPos: THREE.Vector3, delta: THREE.Vector3): THREE.Vector3 {
     const MAX_ITERATIONS = 3;
-    let resultPos = currentPos.clone().add(delta);
-    let originalDelta = delta.clone();
+    _applyResultPos.copy(currentPos).add(delta);
+    _applyOriginalDelta.copy(delta);
 
     for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
         let collided = false;
         let closestInfo: { normal: THREE.Vector3; pushTo: THREE.Vector3 } | null = null;
         let minDistSq = Infinity;
-        const all = [...colliders, ...dynamicColliders];
 
-        for (const col of all) {
-            if (col.type === 'sphere') {
-                const distSq = resultPos.distanceToSquared(col.center);
-                const touchDist = col.radius + PLAYER_RADIUS;
-                if (distSq < touchDist * touchDist) {
-                    if (distSq < minDistSq) {
-                        minDistSq = distSq;
-                        const normal = new THREE.Vector3().subVectors(resultPos, col.center).normalize();
-                        const pushTo = col.center.clone().addScaledVector(normal, col.radius + PLAYER_RADIUS);
-                        closestInfo = { normal, pushTo };
-                        collided = true;
-                    }
-                }
-            } else if (col.type === 'cylinder') {
-                const playerBottom = resultPos.y;
-                const playerTop = resultPos.y + PLAYER_RADIUS * 2;
-                if (playerTop > col.center.y && playerBottom < col.center.y + col.height) {
-                    const dx = resultPos.x - col.center.x;
-                    const dz = resultPos.z - col.center.z;
-                    const distXZ = Math.sqrt(dx * dx + dz * dz);
+        for (let pass = 0; pass < 2; pass++) {
+            const cols = pass === 0 ? colliders : dynamicColliders;
+            if (pass === 1 && dynamicColliders.length === 0) continue;
+
+            for (const col of cols) {
+                if (col.type === 'sphere') {
+                    const distSq = _applyResultPos.distanceToSquared(col.center);
                     const touchDist = col.radius + PLAYER_RADIUS;
-                    if (distXZ < touchDist) {
-                        if (distXZ < 0.001) {
-                            const arbitrary = new THREE.Vector3(1, 0, 0);
-                            const pushTo = new THREE.Vector3(col.center.x + arbitrary.x * touchDist, resultPos.y, col.center.z);
-                            closestInfo = { normal: arbitrary, pushTo };
-                        } else {
-                            const normX = dx / distXZ;
-                            const normZ = dz / distXZ;
-                            const pushTo = new THREE.Vector3(
-                                col.center.x + normX * touchDist,
-                                resultPos.y,
-                                col.center.z + normZ * touchDist
-                            );
-                            closestInfo = { normal: new THREE.Vector3(normX, 0, normZ), pushTo };
-                        }
-                        collided = true;
-                        minDistSq = 0;
-                    }
-                }
-            } else if (col.type === 'obb') {
-                const obb = col as OBBCollider;
-                const invRotation = new THREE.Matrix4().copy(obb.rotation).invert();
-                const localPlayerPos = resultPos.clone().sub(obb.center).applyMatrix4(invRotation);
-
-                const half = obb.halfExtents;
-                const closest = new THREE.Vector3(
-                    Math.max(-half.x, Math.min(localPlayerPos.x, half.x)),
-                    Math.max(-half.y, Math.min(localPlayerPos.y, half.y)),
-                    Math.max(-half.z, Math.min(localPlayerPos.z, half.z))
-                );
-                const distSq = localPlayerPos.distanceToSquared(closest);
-
-                if (distSq < PLAYER_RADIUS * PLAYER_RADIUS) {
-                    const localNormal = localPlayerPos.clone().sub(closest).normalize();
-                    const worldNormal = localNormal.clone()
-                        .applyMatrix4(new THREE.Matrix4().extractRotation(obb.rotation))
-                        .normalize();
-
-                    // Определяем, пол (верхняя грань) или стена/наклон
-                    const isTopSurface = worldNormal.y > 0.7;
-
-                    if (!isTopSurface) {
-                        // Стена или наклонная грань – проверяем, можно ли "зашагнуть"
-                        const topLocalY = half.y;
-                        const topWorldY = new THREE.Vector3(closest.x, topLocalY, closest.z)
-                            .applyMatrix4(obb.rotation)
-                            .add(obb.center).y;
-                        if (topWorldY <= resultPos.y + MAX_STEP_HEIGHT) {
-                            // Зашагиваем: поднимаем игрока на верхнюю грань
-                            resultPos.y = topWorldY + PLAYER_RADIUS;
-                            continue; // не выталкиваем
+                    if (distSq < touchDist * touchDist) {
+                        if (distSq < minDistSq) {
+                            minDistSq = distSq;
+                            _normal.subVectors(_applyResultPos, col.center).normalize();
+                            _pushTo.copy(col.center).addScaledVector(_normal, col.radius + PLAYER_RADIUS);
+                            _bestNormal.copy(_normal);
+                            _bestPushTo.copy(_pushTo);
+                            closestInfo = { normal: _bestNormal, pushTo: _bestPushTo };
+                            collided = true;
                         }
                     }
+                } else if (col.type === 'cylinder') {
+                    const playerBottom = _applyResultPos.y;
+                    const playerTop = _applyResultPos.y + PLAYER_RADIUS * 2;
+                    if (playerTop > col.center.y && playerBottom < col.center.y + col.height) {
+                        const dx = _applyResultPos.x - col.center.x;
+                        const dz = _applyResultPos.z - col.center.z;
+                        const distXZ = Math.sqrt(dx * dx + dz * dz);
+                        const touchDist = col.radius + PLAYER_RADIUS;
+                        if (distXZ < touchDist) {
+                            if (distXZ < 0.001) {
+                                _normal.set(1, 0, 0);
+                                _pushTo.set(col.center.x + 1 * touchDist, _applyResultPos.y, col.center.z);
+                            } else {
+                                const normX = dx / distXZ;
+                                const normZ = dz / distXZ;
+                                _normal.set(normX, 0, normZ);
+                                _pushTo.set(col.center.x + normX * touchDist, _applyResultPos.y, col.center.z + normZ * touchDist);
+                            }
+                            _bestNormal.copy(_normal);
+                            _bestPushTo.copy(_pushTo);
+                            closestInfo = { normal: _bestNormal, pushTo: _bestPushTo };
+                            collided = true;
+                            minDistSq = 0;
+                        }
+                    }
+                } else if (col.type === 'obb') {
+                    const obb = col as OBBCollider;
+                    _invRotation.copy(obb.rotation).invert();
+                    _tempVec.copy(_applyResultPos).sub(obb.center).applyMatrix4(_invRotation);
 
-                    // Обычное выталкивание (включая пол, если isTopSurface)
-                    const penetration = PLAYER_RADIUS - Math.sqrt(distSq);
-                    const pushTo = resultPos.clone().addScaledVector(worldNormal, penetration);
-                    if (distSq < minDistSq) {
-                        minDistSq = distSq;
-                        closestInfo = { normal: worldNormal, pushTo };
-                        collided = true;
+                    const half = obb.halfExtents;
+                    _closest.set(
+                        Math.max(-half.x, Math.min(_tempVec.x, half.x)),
+                        Math.max(-half.y, Math.min(_tempVec.y, half.y)),
+                        Math.max(-half.z, Math.min(_tempVec.z, half.z))
+                    );
+                    const distSq = _tempVec.distanceToSquared(_closest);
+
+                    if (distSq < PLAYER_RADIUS * PLAYER_RADIUS) {
+                        _normal.copy(_tempVec).sub(_closest).normalize();
+                        _extractRotation.extractRotation(obb.rotation);
+                        _normal.applyMatrix4(_extractRotation).normalize();
+
+                        const isTopSurface = _normal.y > 0.7;
+
+                        if (!isTopSurface) {
+                            const topLocalY = half.y;
+                            _tempVec.set(_closest.x, topLocalY, _closest.z)
+                                .applyMatrix4(obb.rotation)
+                                .add(obb.center);
+                            if (_tempVec.y <= _applyResultPos.y + MAX_STEP_HEIGHT) {
+                                _applyResultPos.y = _tempVec.y + PLAYER_RADIUS;
+                                continue;
+                            }
+                        }
+
+                        const penetration = PLAYER_RADIUS - Math.sqrt(distSq);
+                        _pushTo.copy(_applyResultPos).addScaledVector(_normal, penetration);
+                        if (distSq < minDistSq) {
+                            minDistSq = distSq;
+                            _bestNormal.copy(_normal);
+                            _bestPushTo.copy(_pushTo);
+                            closestInfo = { normal: _bestNormal, pushTo: _bestPushTo };
+                            collided = true;
+                        }
                     }
                 }
             }
@@ -198,25 +208,23 @@ function applySingleStep(currentPos: THREE.Vector3, delta: THREE.Vector3): THREE
         if (!collided) break;
 
         const info = closestInfo!;
-        resultPos.copy(info.pushTo);
-        const normalComponent = info.normal.clone().multiplyScalar(originalDelta.dot(info.normal));
-        const tangentDelta = originalDelta.clone().sub(normalComponent);
-        originalDelta.copy(tangentDelta);
-        resultPos.add(tangentDelta);
+        _applyResultPos.copy(info.pushTo);
+        _normal.copy(info.normal).multiplyScalar(_applyOriginalDelta.dot(info.normal));
+        _tempVec.copy(_applyOriginalDelta).sub(_normal);
+        _applyOriginalDelta.copy(_tempVec);
+        _applyResultPos.add(_tempVec);
     }
 
-    // Находим опору под ногами и ставим игрока так, чтобы его низ касался поверхности
-    const groundY = computeGroundHeight(resultPos);
-    resultPos.y = groundY + PLAYER_RADIUS;
+    const groundY = computeGroundHeight(_applyResultPos);
+    _applyResultPos.y = groundY + PLAYER_RADIUS;
 
-    // Ограничение длины шага исходной дельтой, чтобы не ускорило
-    const actualDelta = new THREE.Vector3().subVectors(resultPos, currentPos);
-    if (actualDelta.length() > delta.length()) {
-        actualDelta.normalize().multiplyScalar(delta.length());
-        resultPos.copy(currentPos).add(actualDelta);
+    _tempVec.subVectors(_applyResultPos, currentPos);
+    if (_tempVec.length() > delta.length()) {
+        _tempVec.normalize().multiplyScalar(delta.length());
+        _applyResultPos.copy(currentPos).add(_tempVec);
     }
 
-    return resultPos;
+    return _applyResultPos;
 }
 
 /** Вычисляет высоту опоры (пола) под текущей позицией игрока (XZ) */
@@ -226,32 +234,26 @@ function computeGroundHeight(pos: THREE.Vector3): number {
     for (const col of colliders) {
         if (col.type === 'obb') {
             const obb = col as OBBCollider;
-            // Переводим точку под ногами в локальную систему OBB
-            const localPoint = pos.clone().sub(obb.center).applyMatrix4(
-                new THREE.Matrix4().copy(obb.rotation).invert()
-            );
+            _invRotation.copy(obb.rotation).invert();
+            _tempVec.copy(pos).sub(obb.center).applyMatrix4(_invRotation);
+
             const half = obb.halfExtents;
-            const hTolerance = 0.25; // дополнительный допуск, чтобы "нащупать" ступеньку перед игроком
-            if (Math.abs(localPoint.x) <= half.x + PLAYER_RADIUS + hTolerance &&
-                Math.abs(localPoint.z) <= half.z + PLAYER_RADIUS + hTolerance) {
-                // Верхняя грань OBB в локальных координатах
+            const hTolerance = 0.25;
+            if (Math.abs(_tempVec.x) <= half.x + PLAYER_RADIUS + hTolerance &&
+                Math.abs(_tempVec.z) <= half.z + PLAYER_RADIUS + hTolerance) {
                 const topLocalY = half.y;
-                // Преобразуем точку на верхней грани обратно в мировые
-                const topWorldPoint = new THREE.Vector3(localPoint.x, topLocalY, localPoint.z)
+                _tempVec.set(_tempVec.x, topLocalY, _tempVec.z)
                     .applyMatrix4(obb.rotation)
                     .add(obb.center);
-                const groundY = topWorldPoint.y;
-                // Опора не должна быть выше, чем разрешённый шаг
+                const groundY = _tempVec.y;
                 if (groundY <= pos.y + MAX_STEP_HEIGHT && groundY > bestY) {
                     bestY = groundY;
                 }
             }
         }
-        // другие типы коллизий (сферы, цилиндры) можно добавить позже
     }
 
-    // Если OBB-опора не найдена или она ниже террейна, использовать террейн
-    const terrainY = getTerrainHeightAt(pos.x, pos.z); // +0.2 (половина радиуса, чтобы не тонуть)
+    const terrainY = getTerrainHeightAt(pos.x, pos.z);
     if (bestY < terrainY) {
         bestY = terrainY;
     }

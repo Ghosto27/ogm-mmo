@@ -317,6 +317,7 @@ function join(playerName: string) {
 
             // ---------- Мешки с лутом ----------
             state.lootBags.forEach((bag: any, bagId: string) => {
+                if (!bag || !bag.items) return;
                 if (!lootMeshes[bagId] && bag.items.length > 0) {
                     spawnLootMesh(bagId, bag.mobX, bag.mobZ, bag.x, bag.z);
                 }
