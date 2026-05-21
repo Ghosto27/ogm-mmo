@@ -117,6 +117,12 @@ const _center = new THREE.Vector3();
 const _cameraForward = new THREE.Vector3();
 const _tempVec = new THREE.Vector3(); // reusable temp for dynamic entity positions
 
+// Reusable arrays (cleared and repopulated each frame, avoids per-frame GC pressure)
+const _dynamicEntities: { position: THREE.Vector3; radius: number }[] = [];
+const _mapOthers: { x: number; z: number; rotationY: number; visible: boolean }[] = [];
+const _mapMobs: { x: number; z: number; visible: boolean }[] = [];
+const _mapNpcs: { x: number; z: number; visible: boolean }[] = [];
+
 window.addEventListener('keydown', (e) => {
     // Блокируем горячие клавиши браузера при Alt+WASD (на всякий случай)
     if (e.altKey && (e.key === 'w' || e.key === 'a' || e.key === 's' || e.key === 'd')) {
@@ -299,29 +305,23 @@ function loop() {
             const delta = PLAYER_SPEED * 0.016 * speedMultiplier;
 
             // Динамические коллайдеры (другие игроки и мобы)
-            const dynamicEntities: { position: THREE.Vector3; radius: number }[] = [];
+            _dynamicEntities.length = 0;
 
             for (const id in otherPlayers) {
                 const model = otherPlayers[id];
                 if (model && model.visible && id !== room.sessionId) {
-                    dynamicEntities.push({
-                        position: model.position.clone(),
-                        radius: 0.5,
-                    });
+                    _dynamicEntities.push({ position: model.position, radius: 0.5 });
                 }
             }
 
             for (const mobId in mobModels) {
                 const mob = mobModels[mobId];
                 if (mob && mob.visible) {
-                    dynamicEntities.push({
-                        position: mob.position.clone(),
-                        radius: 0.6,
-                    });
+                    _dynamicEntities.push({ position: mob.position, radius: 0.6 });
                 }
             }
 
-            updateDynamicColliders(dynamicEntities);
+            updateDynamicColliders(_dynamicEntities);
 
             _rawDelta.set(_moveVec.x * delta, 0, _moveVec.z * delta);
             _currentPos.copy(playerPhysicalPos);
@@ -368,11 +368,14 @@ function loop() {
 
     // Миникарта и большая карта
     if (localModel) {
-        const othersForMap: { x: number; z: number; rotationY: number; visible: boolean }[] = [];
+        _mapOthers.length = 0;
+        _mapMobs.length = 0;
+        _mapNpcs.length = 0;
+
         for (const id in otherPlayers) {
             const model = otherPlayers[id];
             if (model) {
-                othersForMap.push({
+                _mapOthers.push({
                     x: model.position.x,
                     z: model.position.z,
                     rotationY: model.rotation.y,
@@ -381,11 +384,10 @@ function loop() {
             }
         }
 
-        const mobsForMap: { x: number; z: number; visible: boolean }[] = [];
         for (const mobId in mobModels) {
             const mobModel = mobModels[mobId];
             if (mobModel) {
-                mobsForMap.push({
+                _mapMobs.push({
                     x: mobModel.position.x,
                     z: mobModel.position.z,
                     visible: mobModel.visible,
@@ -393,15 +395,14 @@ function loop() {
             }
         }
 
-        const npcsForMap: { x: number; z: number; visible: boolean }[] = [];
         if (room.state.npcs) {
             room.state.npcs.forEach((npc: { x: number; z: number }) => {
-                npcsForMap.push({ x: npc.x, z: npc.z, visible: true });
+                _mapNpcs.push({ x: npc.x, z: npc.z, visible: true });
             });
         }
 
-        updateMinimap(localModel.position.x, localModel.position.z, localModel.rotation.y, othersForMap, mobsForMap, npcsForMap);
-        updateWorldMap(localModel.position.x, localModel.position.z, localModel.rotation.y, othersForMap, mobsForMap, npcsForMap);
+        updateMinimap(localModel.position.x, localModel.position.z, localModel.rotation.y, _mapOthers, _mapMobs, _mapNpcs);
+        updateWorldMap(localModel.position.x, localModel.position.z, localModel.rotation.y, _mapOthers, _mapMobs, _mapNpcs);
     }
 
     // Idle-анимация для других игроков
