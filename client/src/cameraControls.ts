@@ -45,6 +45,9 @@ let sPitch = -0.4;
 let sFov = 50;
 
 // Look blend 0 = lookAt(pivot), 1 = forward-vector
+// NOTE: with shoulderX != 0 in aim config, forward-vector cannot point at player.
+// Horizontal error ~12° at yaw=0 (acos(dist*cosPitch / hypot(dist*cosPitch, shX))).
+// Fixes: use lookAt(pivot) instead, or set shoulderX=0 in aiming config.
 let lookBlend = 0;
 let lookBlendA = 0;
 let lookBlendB = 0;
@@ -80,9 +83,9 @@ function smoothstep(v: number): number {
 
 /** Compute pitch offset so forward-vector points at pivot from (dist, pitch, shY) */
 function calcPitchOffset(dist: number, p: number, shY: number): number {
-    const dy = -(dist * Math.sin(p) + shY);
-    const dirY = dy / Math.hypot(dist, dy);
-    return -Math.asin(Math.max(-1, Math.min(1, dirY))) - p;
+    const num = dist * Math.sin(p) + shY;
+    const denom = dist * Math.cos(p);
+    return Math.asin(Math.max(-1, Math.min(1, num / denom))) - p;
 }
 
 // --- Reticle ---
