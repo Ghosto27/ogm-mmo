@@ -29,7 +29,7 @@ import { createDialogUI } from './ui/DialogUI';
 import { createQuestJournal, toggleQuestJournal } from './quest/QuestJournalUI';
 import { createNotificationUI } from './ui/notificationUI';
 import { updateFPS } from './utils/fpsCounter';
-import { applyMovementWithCollisions, updateDynamicColliders, getAllColliders, PLAYER_RADIUS } from './collision';
+import { applyMovementWithCollisions, updateDynamicColliders, getAllColliders, PLAYER_RADIUS, computeGroundHeight, MAX_STEP_HEIGHT } from './collision';
 import { updateCollisionDebug } from './debug/collisionDebug';
 import { isCollisionDebugVisible } from './debug/debugState';
 import { initEditor, updateEditor } from './editor/Editor';
@@ -129,6 +129,10 @@ let _mapMobsCount = 0;
 let _mapNpcsCount = 0;
 const _selectedObjects: THREE.Object3D[] = [];
 const _emptyColliders: any[] = [];
+const GRAVITY = -15;
+let verticalVelocity = 0;
+let isFalling = false;
+let _wasFalling = false;
 
 window.addEventListener('keydown', (e) => {
     // Блокируем горячие клавиши браузера при Alt+WASD (на всякий случай)
@@ -306,11 +310,10 @@ function loop() {
         }
 
         const isMoving = _moveVec.lengthSq() > 0;
+        const speedMultiplier = sprintKey ? SPRINT_MULTIPLIER : 1.0;
+        const delta = PLAYER_SPEED * 0.016 * speedMultiplier;
 
         if (isMoving) {
-            const speedMultiplier = sprintKey ? SPRINT_MULTIPLIER : 1.0;
-            const delta = PLAYER_SPEED * 0.016 * speedMultiplier;
-
             // Динамические коллайдеры (другие игроки и мобы)
             _dynamicEntities.length = 0;
             _dynamicEntityCount = 0;
@@ -350,39 +353,62 @@ function loop() {
             }
 
             updateDynamicColliders(_dynamicEntities);
+        }
 
-            _rawDelta.set(_moveVec.x * delta, 0, _moveVec.z * delta);
-            _currentPos.copy(playerPhysicalPos);
-            const newPos = applyMovementWithCollisions(_currentPos, _rawDelta);
-            playerPhysicalPos.copy(newPos);
-            localModel.position.copy(newPos).y -= PLAYER_RADIUS - 0.15;   // визуальное опускание
+        // ---- Movement + gravity (всегда, чтобы падение работало и без ходьбы) ----
+        _rawDelta.set(_moveVec.x * delta, 0, _moveVec.z * delta);
+        _currentPos.copy(playerPhysicalPos);
+        const newPos = applyMovementWithCollisions(_currentPos, _rawDelta, 0.2, false);
+        playerPhysicalPos.copy(newPos);
 
-            const nowSend = Date.now();
-            if (nowSend - lastSend > 50) {
-                try {
-                    room.send("move", {
-                        x: localModel.position.x,
-                        z: localModel.position.z,
-                        y: localModel.position.y,
-                        r: localModel.rotation.y
-                    });
-                    lastSend = nowSend;
-                } catch (e) {}
-            }
+        const groundY = computeGroundHeight(playerPhysicalPos);
+        const feetY = playerPhysicalPos.y - PLAYER_RADIUS;
 
-            if (!deathAnimating['local']) {
-                const newState = getMovementAnimationName(_moveVec, localModel!, sprintKey);
-                if (newState !== 'idle') {
-                    fsm['local']?.transitionTo(newState);
-                } else {
-                    fsm['local']?.transitionTo('idle');
-                }
-            }
+        if (feetY <= groundY + MAX_STEP_HEIGHT) {
+            playerPhysicalPos.y = groundY + PLAYER_RADIUS;
+            verticalVelocity = 0;
+            isFalling = false;
         } else {
-            if (!deathAnimating['local']) {
+            isFalling = true;
+            verticalVelocity += GRAVITY * deltaTime;
+            playerPhysicalPos.y += verticalVelocity * deltaTime;
+
+            const landingGroundY = computeGroundHeight(playerPhysicalPos);
+            if (landingGroundY > -Infinity && playerPhysicalPos.y - PLAYER_RADIUS <= landingGroundY) {
+                playerPhysicalPos.y = landingGroundY + PLAYER_RADIUS;
+                verticalVelocity = 0;
+                isFalling = false;
+            }
+        }
+
+        localModel.position.copy(playerPhysicalPos).y -= PLAYER_RADIUS - 0.15;
+
+        const nowSend = Date.now();
+        if (nowSend - lastSend > 50) {
+            try {
+                room.send("move", {
+                    x: localModel.position.x,
+                    z: localModel.position.z,
+                    y: localModel.position.y,
+                    r: localModel.rotation.y
+                });
+                lastSend = nowSend;
+            } catch (e) {}
+        }
+
+        if (!deathAnimating['local']) {
+            if (isFalling) {
+                fsm['local']?.transitionToFallLoop();
+            } else if (_wasFalling && !isFalling) {
+                fsm['local']?.requestLand();
+            } else if (isMoving) {
+                const newState = getMovementAnimationName(_moveVec, localModel!, sprintKey);
+                fsm['local']?.transitionTo(newState);
+            } else {
                 fsm['local']?.transitionTo('idle');
             }
         }
+        _wasFalling = isFalling;
     }
 
     // Камера следует за игроком

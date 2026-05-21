@@ -18,6 +18,6 @@ export const itemDatabase: { [id: string]: Item } = {
     icon: "icons/sword.png",
     slot: "weapon",
     requiredLevel: 1,
-    bonuses: new MapSchema<number>({ strength: 5 })
+    bonuses: new MapSchema<number>({ strength: 20 })
   })
 };

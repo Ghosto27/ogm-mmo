@@ -35,7 +35,7 @@ const colliders: Collider[] = [];
 // Динамические коллайдеры (другие игроки, мобы) – обновляются каждый кадр
 let dynamicColliders: Collider[] = [];
 export const PLAYER_RADIUS = 0.4;
-const MAX_STEP_HEIGHT = 0.4;   // высота, на которую игрок может "запрыгнуть"
+export const MAX_STEP_HEIGHT = 0.4;   // высота, на которую игрок может "запрыгнуть"
 
 // Reusable temp objects for collision functions (avoids per-frame GC pressure)
 const _stepDelta = new THREE.Vector3();
@@ -102,7 +102,8 @@ export function updateDynamicColliders(
 export function applyMovementWithCollisions(
     currentPos: THREE.Vector3,
     rawDelta: THREE.Vector3,
-    maxStep: number = 0.2
+    maxStep: number = 0.2,
+    snapToGround: boolean = true
 ): THREE.Vector3 {
     const totalDist = rawDelta.length();
     if (totalDist === 0) return _moveResultPos.copy(currentPos);
@@ -113,14 +114,14 @@ export function applyMovementWithCollisions(
     _moveResultPos.copy(currentPos);
 
     for (let s = 0; s < steps; s++) {
-        _moveResultPos.copy(applySingleStep(_moveResultPos, _stepDelta));
+        _moveResultPos.copy(applySingleStep(_moveResultPos, _stepDelta, snapToGround));
     }
 
     return _moveResultPos;
 }
 
-// Вспомогательная функция одного шага (копия оригинального кода без изменений)
-function applySingleStep(currentPos: THREE.Vector3, delta: THREE.Vector3): THREE.Vector3 {
+// Вспомогательная функция одного шага
+function applySingleStep(currentPos: THREE.Vector3, delta: THREE.Vector3, snapToGround: boolean = true): THREE.Vector3 {
     const MAX_ITERATIONS = 3;
     _applyResultPos.copy(currentPos).add(delta);
     _applyOriginalDelta.copy(delta);
@@ -224,8 +225,10 @@ function applySingleStep(currentPos: THREE.Vector3, delta: THREE.Vector3): THREE
         _applyResultPos.add(_tempVec);
     }
 
-    const groundY = computeGroundHeight(_applyResultPos);
-    _applyResultPos.y = groundY + PLAYER_RADIUS;
+    if (snapToGround) {
+        const groundY = computeGroundHeight(_applyResultPos);
+        _applyResultPos.y = groundY + PLAYER_RADIUS;
+    }
 
     _tempVec.subVectors(_applyResultPos, currentPos);
     if (_tempVec.length() > delta.length()) {
@@ -237,7 +240,7 @@ function applySingleStep(currentPos: THREE.Vector3, delta: THREE.Vector3): THREE
 }
 
 /** Вычисляет высоту опоры (пола) под текущей позицией игрока (XZ) */
-function computeGroundHeight(pos: THREE.Vector3): number {
+export function computeGroundHeight(pos: THREE.Vector3): number {
     let bestY = -Infinity;
 
     for (const col of colliders) {
