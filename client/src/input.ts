@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { getCameraYaw } from './cameraControls';
+
 import { isChatActive } from './chat/chatInput';
 import { normalizeKey } from './keyboard';
 
@@ -52,26 +54,25 @@ export function getMovementInput(): { x: number; z: number } {
     return { x, z };
 }
 
-// Новая функция: движение относительно камеры
+// Движение относительно камеры (по yaw, чтобы не зависеть от lerp-позиции)
 export function getCameraRelativeMovement(camera: THREE.Camera): THREE.Vector3 {
     const rawInput = getMovementInput();
     if (rawInput.x === 0 && rawInput.z === 0) {
         return new THREE.Vector3(0, 0, 0);
     }
 
-    // Получаем чистые направления камеры
-    const forward = new THREE.Vector3();
-    camera.getWorldDirection(forward);
-    forward.y = 0; // Движение только по горизонтали
-    forward.normalize();
+    const yaw = getCameraYaw();
+    const sinYaw = Math.sin(yaw);
+    const cosYaw = Math.cos(yaw);
 
-    const right = new THREE.Vector3();
-    right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+    // forward = направление от камеры к игроку (XZ)
+    const forward = new THREE.Vector3(-sinYaw, 0, -cosYaw).normalize();
+    // right = перпендикуляр к forward
+    const right = new THREE.Vector3(cosYaw, 0, -sinYaw).normalize();
 
-    // Вычисляем итоговый вектор движения
     const move = new THREE.Vector3();
-    move.add(forward.multiplyScalar(-rawInput.z)); // Вперёд/назад
-    move.add(right.multiplyScalar(-rawInput.x));    // Влево/вправо
+    move.add(forward.multiplyScalar(-rawInput.z));
+    move.add(right.multiplyScalar(-rawInput.x));
     move.normalize();
 
     return move;

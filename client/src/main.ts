@@ -6,9 +6,10 @@ import { localModel, otherPlayers, modelReady, fsm, deathAnimating } from './pla
 import { room, startConnection, lastMoveTimes } from './network';
 import { composer, outlinePass } from './postprocessing';
 import { updateAnimations } from './animationUtils';
-import { setCameraTarget, updateCamera, isRightDragging,
+import { setCameraTarget, updateCamera, getCameraYaw, isRightDragging,
     enableActionMode, disableActionMode, actionMode,
-    pushUIMode, popUIMode, uiWindowsOpen, toggleAltMode, isAltToggled } from './cameraControls';
+    pushUIMode, popUIMode, uiWindowsOpen, toggleAltMode, isAltToggled,
+    toggleBlock, toggleAim, isBlocking, isAiming } from './cameraControls';
 import { cleanUpScene } from './startupCleanup';
 import { createMinimap, updateMinimap } from './minimap';
 import { createWorldMap, updateWorldMap, toggleWorldMap } from './worldMap';
@@ -98,6 +99,9 @@ document.addEventListener('keydown', (e) => {
         if (document.activeElement === document.body) {
             toggleQuestJournal();
         }
+    }
+    if (key === 'q' || key === 'й') {
+        toggleBlock();
     }
 });
 
@@ -265,9 +269,8 @@ function loop() {
 
                 // В Action Mode персонаж всегда смотрит туда же, куда и камера
         if (actionMode && localModel && _moveVec.length() > 0) {
-            camera.getWorldDirection(_cameraForward);
-            _cameraForward.y = 0;
-            _cameraForward.normalize();
+            const yaw = getCameraYaw();
+            _cameraForward.set(-Math.sin(yaw), 0, -Math.cos(yaw)).normalize();
             if (_cameraForward.length() > 0.01) {
                 const targetAngle = Math.atan2(_cameraForward.x, _cameraForward.z);
                 const currentAngle = localModel.rotation.y;
@@ -280,9 +283,8 @@ function loop() {
 
         // При зажатой ПКМ в Cursor-режиме – поворот к камере ТОЛЬКО ВО ВРЕМЯ ДВИЖЕНИЯ
         if (isRightDragging && localModel && _moveVec.length() > 0) {
-            camera.getWorldDirection(_cameraForward);
-            _cameraForward.y = 0;
-            _cameraForward.normalize();
+            const yaw = getCameraYaw();
+            _cameraForward.set(-Math.sin(yaw), 0, -Math.cos(yaw)).normalize();
             if (_cameraForward.length() > 0.01) {
                 const targetAngle = Math.atan2(_cameraForward.x, _cameraForward.z);
                 const currentAngle = localModel.rotation.y;
@@ -358,10 +360,11 @@ function loop() {
         }
     }
 
-    // Камера следует за игроком (over-the-shoulder)
+    // Камера следует за игроком
     if (localModel) {
-        _center.copy(localModel.position);
-        _center.y += 1.2;
+        _box.setFromObject(localModel);
+        _box.getCenter(_center);
+        _center.y += 1.4;
         setCameraTarget(_center.x, _center.y, _center.z);
     }
     updateCamera(deltaTime);

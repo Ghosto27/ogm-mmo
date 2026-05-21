@@ -14,7 +14,7 @@ import { getTerrainHeightAtFast } from './render/TerrainRenderer';
 import { toggleCollisionDebug } from './debug/debugState';
 import { isEditorActive } from './editor/EditorState';
 import { worldMeshes } from './render/WorldRenderer';
-import { actionMode } from './cameraControls';
+import { actionMode, toggleAim } from './cameraControls';
 import { sprintKey } from './input';
 
 console.log('[INTERACTION] Module loaded');
@@ -173,9 +173,9 @@ window.addEventListener('mouseup', (event) => {
             //console.log(`[ACTION ATTACK] normal swing (no target)`);
             return;
         }
-        // ПКМ в action‑режиме – будет использована для блока / сильной атаки, пока оставляем заготовку
+        // ПКМ в action‑режиме – прицеливание (aim) / блок
         if (event.button === 2) {
-            // TODO: блок или заряженная атака
+            toggleAim();
             return;
         }
     }
