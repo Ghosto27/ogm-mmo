@@ -32,11 +32,11 @@ export function updateAnimations(deltaTime: number) {
                 }
                 // Log large time jumps (>30ms worth of animation)
                 if (lastAnimTime !== null && (animTime - lastAnimTime) > deltaTime + 0.03) {
-                    console.warn(`[ANIM] ${stateName} TIME JUMP: ${lastAnimTime.toFixed(3)} → ${animTime.toFixed(3)} (expected +${deltaTime.toFixed(4)}), dur=${animDuration.toFixed(3)}`);
+                    //console.warn(`[ANIM] ${stateName} TIME JUMP: ${lastAnimTime.toFixed(3)} → ${animTime.toFixed(3)} (expected +${deltaTime.toFixed(4)}), dur=${animDuration.toFixed(3)}`);
                 }
                 // Log long frames
                 if (deltaTime > 0.05) {
-                    console.warn(`[ANIM] Long frame: dt=${(deltaTime*1000).toFixed(1)}ms, state=${stateName}, animTime=${animTime.toFixed(3)}/${animDuration.toFixed(3)}`);
+                    //console.warn(`[ANIM] Long frame: dt=${(deltaTime*1000).toFixed(1)}ms, state=${stateName}, animTime=${animTime.toFixed(3)}/${animDuration.toFixed(3)}`);
                 }
                 lastAnimTime = animTime;
             } else {

@@ -128,8 +128,8 @@ export function setCameraMode(mode: CameraMode) {
         _aimPitchOffsetEnd = -Math.asin(Math.max(-1, Math.min(1, dirY))) - aimCfg.pitch;
     } else if (_targetMode === 'aiming' && mode === 'default') {
         // Returning to default — restore pre-aim state
-        const dy = -(_savedDist * Math.sin(_savedPitch) + _savedShoulderY);
-        const dirY = dy / Math.hypot(_savedDist, dy);
+        const dy = -(_savedScrollDist * Math.sin(_savedPitch) + _savedShoulderY);
+        const dirY = dy / Math.hypot(_savedScrollDist, dy);
         _aimPitchOffsetEnd = -Math.asin(Math.max(-1, Math.min(1, dirY))) - _savedPitch;
     } else {
         const cfg = MODE_CONFIGS[mode];
@@ -225,24 +225,25 @@ function updateTransition(dt: number) {
     // Restore saved pre-aim state when returning to default
     const restoringSaved = _targetMode === 'default' && _currentMode === 'aiming';
     const target = restoringSaved
-        ? { distance: _savedDist, shoulderOffsetX: _savedShoulderX, shoulderOffsetY: _savedShoulderY, pitch: _savedPitch, fov: 50 }
+        ? { distance: _savedScrollDist, shoulderOffsetX: _savedShoulderX, shoulderOffsetY: _savedShoulderY, pitch: _savedPitch, fov: 50 }
         : MODE_CONFIGS[_targetMode];
 
     distance = _startDist + (target.distance - _startDist) * t;
     shoulderOffsetX = _startShoulderX + (target.shoulderOffsetX - _startShoulderX) * t;
     shoulderOffsetY = _startShoulderY + (target.shoulderOffsetY - _startShoulderY) * t;
     pitch = _startPitch + (target.pitch - _startPitch) * t;
+    camFov = _startFov + (target.fov - _startFov) * t;
     _lookBlend = _lookBlendStart + (_lookBlendEnd - _lookBlendStart) * t;
     _aimPitchOffset = _aimPitchOffsetStart + (_aimPitchOffsetEnd - _aimPitchOffsetStart) * t;
 
     if (_transitionProgress >= 1) {
         _currentMode = _targetMode;
         if (restoringSaved) {
-            distance = _savedDist;
+            distance = _savedScrollDist;
+            _targetScrollDist = _savedScrollDist;
             shoulderOffsetX = _savedShoulderX;
             shoulderOffsetY = _savedShoulderY;
             pitch = _savedPitch;
-            _targetScrollDist = _savedScrollDist;
         } else {
             const snap = MODE_CONFIGS[_targetMode];
             distance = snap.distance;

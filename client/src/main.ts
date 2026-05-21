@@ -185,7 +185,7 @@ function loop() {
 
     // Log long frames (>50ms) which may cause stutter
     if (frameDuration > 50) {
-        console.warn(`[PERF] Long frame: ${frameDuration.toFixed(1)}ms, alive=${!!(room?.state?.players?.get(room.sessionId)?.hp > 0)}`);
+        //console.warn(`[PERF] Long frame: ${frameDuration.toFixed(1)}ms, alive=${!!(room?.state?.players?.get(room.sessionId)?.hp > 0)}`);
     }
 
     let lastDebugVisible = false;
