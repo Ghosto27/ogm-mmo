@@ -14,6 +14,7 @@ import { getTerrainHeightAtFast } from './render/TerrainRenderer';
 import { toggleCollisionDebug } from './debug/debugState';
 import { isEditorActive } from './editor/EditorState';
 import { worldMeshes } from './render/WorldRenderer';
+import { resourceNodeMeshes } from './render/ResourceNodeRenderer';
 import { actionMode, toggleAim } from './cameraControls';
 import { sprintKey } from './input';
 
@@ -335,7 +336,20 @@ window.addEventListener('keydown', (e) => {
             }
         }
 
-        console.log('[INTERACTION] F pressed', { closestNpcId, closestBagId });
+        // Ищем ближайшую рудную жилу
+        let closestNodeId: string | null = null;
+        let closestNodeDist = Infinity;
+        for (const nodeId in resourceNodeMeshes) {
+            const mesh = resourceNodeMeshes[nodeId];
+            if (!mesh.visible) continue;
+            const dist = localModel.position.distanceTo(mesh.position);
+            if (dist < 3.0 && dist < closestNodeDist) {
+                closestNodeDist = dist;
+                closestNodeId = nodeId;
+            }
+        }
+
+        console.log('[INTERACTION] F pressed', { closestNpcId, closestBagId, closestNodeId });
 
         if (closestNpcId) {
             interactionState.currentInteractNpcId = closestNpcId;
@@ -346,6 +360,8 @@ window.addEventListener('keydown', (e) => {
             if (bag && bag.items.length > 0) {
                 showLootUI(closestBagId, bag.items);
             }
+        } else if (closestNodeId) {
+            room.send('gatherResource', { nodeId: closestNodeId });
         } else {
             hideLootUI();
             hideDialog();

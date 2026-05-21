@@ -1,0 +1,50 @@
+[
+  {
+    "id": "test_ore_1",
+    "type": "copper_ore",
+    "x": 12,
+    "z": -55
+  },
+  {
+    "id": "test_ore_2",
+    "type": "copper_ore",
+    "x": 18,
+    "z": -60
+  },
+  {
+    "id": "test_ore_3",
+    "type": "copper_ore",
+    "x": 22,
+    "z": -72
+  },
+  {
+    "id": "test_ore_4",
+    "type": "tin_ore",
+    "x": 30,
+    "z": -45
+  },
+  {
+    "id": "test_ore_5",
+    "type": "tin_ore",
+    "x": 35,
+    "z": -55
+  },
+  {
+    "id": "test_ore_6",
+    "type": "coal",
+    "x": 28,
+    "z": -70
+  },
+  {
+    "id": "test_ore_7",
+    "type": "iron_ore",
+    "x": 50,
+    "z": -49
+  },
+  {
+    "id": "test_ore_8",
+    "type": "iron_ore",
+    "x": 55,
+    "z": -62
+  }
+]

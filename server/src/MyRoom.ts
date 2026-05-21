@@ -22,6 +22,9 @@ import { LocationLoader } from "./systems/LocationLoader";
 import { WorldTerrain } from "./schemas/WorldTerrain";
 import { VegetationSpawner } from "./systems/VegetationSpawner";
 import { initServerColliders, applyMobMovementWithCollisions, isPlayerPositionBlocked } from './collision/ServerCollision';
+import { ProfessionsData } from "./models/ProfessionsData";
+import { ResourceNode } from "./schemas/ResourceNode";
+import { ResourceSpawner } from "./systems/ResourceSpawner";
 
 export class Player extends Schema {
     @type("number") x: number = 0;
@@ -38,6 +41,8 @@ export class Player extends Schema {
     @type(PlayerStats) stats: PlayerStats = new PlayerStats();
     @type({ map: Item }) equipment = new MapSchema<Item>();
     @type({ map: "number" }) questProgress = new MapSchema<number>();
+    @type(ProfessionsData) professions: ProfessionsData = new ProfessionsData();
+    @type(Inventory) bank: Inventory = new Inventory(40);
     @type("string") currentDialogueNpcId: string = "";
     @type("string") currentDialogueNode: string = "";
     @type("string") sessionId: string = "";
@@ -51,6 +56,7 @@ class MyRoomState extends Schema {
     @type({ map: LootBag }) lootBags = new MapSchema<LootBag>();
     @type({ map: NPC }) npcs = new MapSchema<NPC>();
     @type({ map: WorldObject }) worldObjects = new MapSchema<WorldObject>();
+    @type({ map: ResourceNode }) resourceNodes = new MapSchema<ResourceNode>();
     @type(WorldTerrain) terrain: WorldTerrain = new WorldTerrain();
 }
 
@@ -60,6 +66,7 @@ export class MyRoom extends Room<MyRoomState> {
     spawner!: MobSpawner;
     private timers: NodeJS.Timeout[] = [];
     vegetationSpawner!: VegetationSpawner;
+    resourceSpawner!: ResourceSpawner;
     private chunkBuffer = new Map<string, { totalChunks: number; chunks: any[][] }>();
 
     public addTimer(timer: NodeJS.Timeout) {
@@ -393,6 +400,10 @@ export class MyRoom extends Room<MyRoomState> {
         vegetationSpawner.initialize();
         this.vegetationSpawner = vegetationSpawner;
 
+        const resourceSpawner = new ResourceSpawner(this);
+        resourceSpawner.initialize();
+        this.resourceSpawner = resourceSpawner;
+
         try {
             const fs = require('fs');
             const path = require('path');
@@ -465,6 +476,57 @@ export class MyRoom extends Room<MyRoomState> {
                 player.godMode = message.enabled;
                 console.log(`[GOD] ${player.name} godMode = ${message.enabled}`);
             }
+        });
+
+        this.onMessage("gatherResource", (client, message: { nodeId: string }) => {
+            const player = this.state.players.get(client.sessionId);
+            if (!player || player.hp <= 0) return;
+
+            const node = this.state.resourceNodes.get(message.nodeId);
+            if (!node) return;
+
+            // Проверка дистанции
+            const dx = player.x - node.x;
+            const dz = player.z - node.z;
+            if (Math.sqrt(dx*dx + dz*dz) > 4) return;
+
+            // Проверка состояния
+            if (node.state !== "active") return;
+
+            // Проверка уровня профессии
+            const miningLevel = player.professions.mining.level;
+            if (miningLevel < node.minMiningLevel) return;
+
+            // Генерируем предмет
+            const item = itemDatabase[node.type];
+            if (!item) return;
+
+            const quantity = 1 + (miningLevel >= node.minMiningLevel + 5 ? 1 : 0) + (miningLevel >= node.minMiningLevel + 10 ? 1 : 0);
+            const success = player.inventory.addItem(Object.assign(new Item(), item), quantity);
+            if (!success) {
+                client.send("notification", { text: "Инвентарь полон!", color: "#ff4444" });
+                return;
+            }
+
+            // XP
+            const baseXp = node.baseXpReward;
+            const levelBonus = Math.floor(baseXp * 0.1 * Math.max(0, miningLevel - node.minMiningLevel));
+            const totalXp = baseXp + levelBonus;
+            player.professions.mining.addXp(totalXp);
+
+            // Деактивируем ноду
+            this.resourceSpawner.markNodeDepleted(node);
+
+            console.log(`[GATHER] ${player.name} добыл ${item.name} x${quantity} (Mining lvl ${miningLevel}, +${totalXp} XP)`);
+            PlayerPersistence.savePlayer(player);
+
+            client.send("gatherResult", {
+                nodeId: node.id,
+                itemId: node.type,
+                quantity: quantity,
+                xpGained: totalXp,
+                profession: "mining",
+            });
         });
 
         this.onMessage("attackMob", (client, message) => {
@@ -1142,6 +1204,19 @@ export class MyRoom extends Room<MyRoomState> {
                     for (const [questId, progress] of Object.entries(savedData.quests)) {
                         player.questProgress.set(questId, progress as number);
                     }
+                }
+
+                // Восстанавливаем профессии
+                if (savedData && savedData.professions) {
+                    player.professions = ProfessionsData.fromJSON(savedData.professions);
+                }
+
+                // Восстанавливаем банк
+                if (savedData && savedData.bank) {
+                    player.bank.slots.clear();
+                    savedData.bank.forEach(slot => {
+                        player.bank.slots.push(slot.cloneSlot());
+                    });
                 }
 
                 EquipmentSystem.recalculateStats(player);

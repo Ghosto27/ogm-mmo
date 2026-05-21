@@ -26,6 +26,7 @@ import { showNotification } from './ui/notificationUI';
 import { showFloatingDamage } from './damageNumbers';
 import { setQuestDefs, getQuestName } from './quest/questData';
 import { updateWorldObjects, worldMeshes } from './render/WorldRenderer';
+import { updateResourceNodes } from './render/ResourceNodeRenderer';
 import { updateTerrain, getTerrainHeightAt, terrainReady, getTerrainHeightAtFast } from './render/TerrainRenderer';
 import { addVegetationInstance, finalizeVegetation, isVegetationLoaded } from './render/VegetationRenderer';
 import { isEditorActive } from './editor/EditorState';
@@ -369,7 +370,11 @@ function join(playerName: string) {
         }
             // 2. Всегда обновляем мир – и editor_, и vegezone_, и всё остальное
             updateWorldObjects(state.worldObjects);
-            
+
+            // ------ Resource Nodes (рудные жилы) ------
+            if (state.resourceNodes) {
+                updateResourceNodes(state.resourceNodes);
+            }
 
             // ------ Ландшафт ------
             if (state.terrain) updateTerrain(state.terrain);
@@ -402,6 +407,22 @@ function join(playerName: string) {
 
             const critText = data.isCrit ? ' CRIT!' : '';
             showNotification(`${data.targetName}: -${data.damage}${critText} (${attackLabel})`, 2000);
+        });
+
+        room.onMessage("gatherResult", (data: { nodeId: string, itemId: string, quantity: number, xpGained: number, profession: string }) => {
+            const itemNames: Record<string, string> = {
+                "copper_ore": "Медная руда",
+                "tin_ore": "Оловянная руда",
+                "iron_ore": "Железная руда",
+                "coal": "Уголь",
+            };
+            const name = itemNames[data.itemId] || data.itemId;
+            showNotification(`+${data.quantity} ${name}`, 2000);
+            showNotification(`+${data.xpGained} Mining XP`, 2000);
+        });
+
+        room.onMessage("notification", (data: { text: string, color?: string }) => {
+            showNotification(data.text, 3000);
         });
 
         room.onMessage("initialPosition", (data: { sessionId: string, x: number, z: number, rotationY?: number }) => {

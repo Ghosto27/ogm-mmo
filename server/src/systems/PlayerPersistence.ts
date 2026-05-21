@@ -2,7 +2,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ItemSlot } from '../models/ItemSlot';
 import { Item } from '../models/Item';
-import { Player } from '../MyRoom'; // импортируем класс Player
+import { Player } from '../MyRoom';
+import { ProfessionsData } from '../models/ProfessionsData';
 
 const DATA_DIR = path.join(__dirname, '../../data/players');
 
@@ -11,7 +12,6 @@ if (!fs.existsSync(DATA_DIR)) {
 }
 
 export class PlayerPersistence {
-    // Сохраняем ВСЕ важные параметры игрока
     static savePlayer(player: Player) {
         const data = {
             hp: player.hp,
@@ -33,13 +33,14 @@ export class PlayerPersistence {
             equipment: Object.fromEntries(
                 Array.from(player.equipment.entries()).map(([key, item]) => [key, item.toJSON()])
             ),
-            quests: Object.fromEntries(player.questProgress.entries())
+            quests: Object.fromEntries(player.questProgress.entries()),
+            professions: player.professions.toJSON(),
+            bank: player.bank.slots.map(slot => slot.toJSON()),
         };
         const filePath = path.join(DATA_DIR, `${player.name}.json`);
         fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
     }
 
-    // Загружаем все сохранённые параметры
     static loadPlayer(playerName: string): {
         hp: number;
         maxHp: number;
@@ -59,6 +60,8 @@ export class PlayerPersistence {
         inventory: ItemSlot[];
         equipment: Map<string, Item>;
         quests?: Record<string, number>;
+        professions?: any;
+        bank?: ItemSlot[];
     } | null {
         const filePath = path.join(DATA_DIR, `${playerName}.json`);
         if (!fs.existsSync(filePath)) return null;
@@ -78,6 +81,10 @@ export class PlayerPersistence {
             }
         }
 
+        const bank = data.bank
+            ? data.bank.map((slotData: any) => ItemSlot.fromJSON(slotData))
+            : undefined;
+
         return {
             hp: data.hp,
             maxHp: data.maxHp,
@@ -88,6 +95,8 @@ export class PlayerPersistence {
             inventory,
             equipment,
             quests,
+            professions: data.professions,
+            bank,
         };
     }
 }

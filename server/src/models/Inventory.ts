@@ -6,8 +6,9 @@ export class Inventory extends Schema {
   @type([ ItemSlot ]) slots = new ArraySchema<ItemSlot>();
   @type("number") maxSlots: number = 20;
 
-  constructor() {
+  constructor(maxSlots?: number) {
     super();
+    if (maxSlots !== undefined) this.maxSlots = maxSlots;
     for (let i = 0; i < this.maxSlots; i++) {
       this.slots.push(new ItemSlot());
     }
