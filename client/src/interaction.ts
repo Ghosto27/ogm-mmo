@@ -15,6 +15,7 @@ import { toggleCollisionDebug } from './debug/debugState';
 import { isEditorActive } from './editor/EditorState';
 import { worldMeshes } from './render/WorldRenderer';
 import { resourceNodeMeshes } from './render/ResourceNodeRenderer';
+import { toggleBank, isBankVisible, hideBank } from './ui/BankUI';
 import { actionMode, toggleAim } from './cameraControls';
 import { sprintKey } from './input';
 
@@ -349,7 +350,21 @@ window.addEventListener('keydown', (e) => {
             }
         }
 
-        console.log('[INTERACTION] F pressed', { closestNpcId, closestBagId, closestNodeId });
+        // Ищем ближайший сундук
+        let closestChestId: string | null = null;
+        let closestChestDist = Infinity;
+        for (const id in worldMeshes) {
+            const mesh = worldMeshes[id];
+            if (mesh.userData?.isChest) {
+                const dist = localModel.position.distanceTo(mesh.position);
+                if (dist < 3.0 && dist < closestChestDist) {
+                    closestChestDist = dist;
+                    closestChestId = id;
+                }
+            }
+        }
+
+        console.log('[INTERACTION] F pressed', { closestNpcId, closestBagId, closestNodeId, closestChestId });
 
         if (closestNpcId) {
             interactionState.currentInteractNpcId = closestNpcId;
@@ -362,9 +377,16 @@ window.addEventListener('keydown', (e) => {
             }
         } else if (closestNodeId) {
             room.send('gatherResource', { nodeId: closestNodeId });
+        } else if (closestChestId) {
+            if (isBankVisible()) {
+                hideBank();
+            } else {
+                toggleBank();
+            }
         } else {
             hideLootUI();
             hideDialog();
+            hideBank();
             interactionState.currentInteractNpcId = '';
         }
     }

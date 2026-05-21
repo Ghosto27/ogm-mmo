@@ -38,6 +38,14 @@ export async function createMesh(obj: any): Promise<THREE.Object3D | null> {
         const mesh = new THREE.Mesh(geometry, material);
         mesh.userData.editorMode = true;
         return mesh;
+    } else if (modelName === 'chest') {
+        const geometry = new THREE.BoxGeometry(1, 0.8, 0.8);
+        const material = new THREE.MeshStandardMaterial({ color: obj.color || '#8B4513' });
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.userData.editorMode = true;
+        mesh.userData.editorType = 'chest';
+        mesh.userData.isChest = true;
+        return mesh;
     } else if (!modelName || modelName === '') {
         console.warn(`[WORLD] Объект без modelName, создаю куб`);
         const geometry = new THREE.BoxGeometry(1, 1, 1);

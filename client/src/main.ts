@@ -21,6 +21,7 @@ import { renderLabels } from './renderers';
 import './interaction';
 import { createInventoryUI, toggleInventory } from './inventoryUI';
 import { createLootUI } from './ui/LootWindowUI';
+import { createBankUI } from './ui/BankUI';
 import { animateLootMeshes } from './render/LootRenderer';
 import {createCharacterPanel, toggleCharacterPanel} from './characterPanel';
 import { createChatInput, isChatActive } from './chat/chatInput';
@@ -66,6 +67,7 @@ modelReady.then(() => {
     createDialogUI();
     createQuestJournal();
     createNotificationUI();
+    createBankUI();
     initEditor();
     initDragDrop();
     setTimeout(() => {

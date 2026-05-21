@@ -27,6 +27,7 @@ import { showFloatingDamage } from './damageNumbers';
 import { setQuestDefs, getQuestName } from './quest/questData';
 import { updateWorldObjects, worldMeshes } from './render/WorldRenderer';
 import { updateResourceNodes } from './render/ResourceNodeRenderer';
+import { updateBankUI } from './ui/BankUI';
 import { updateTerrain, getTerrainHeightAt, terrainReady, getTerrainHeightAtFast } from './render/TerrainRenderer';
 import { addVegetationInstance, finalizeVegetation, isVegetationLoaded } from './render/VegetationRenderer';
 import { isEditorActive } from './editor/EditorState';
@@ -179,6 +180,7 @@ function join(playerName: string) {
                         updatePlayerUI(local.hp, local.maxHp, myPlayer.level, myPlayer.exp, myPlayer.expToLevel);
                         updateCharacterPanel(myPlayer);
                         updateInventoryUI(myPlayer.inventory);
+                        updateBankUI(myPlayer.bank);
                         // Квесты
                         const questEntries = Array.from(myPlayer.questProgress.entries()) as [string, number][];
                         const questsObj = Object.fromEntries(questEntries);

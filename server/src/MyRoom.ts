@@ -468,6 +468,20 @@ export class MyRoom extends Room<MyRoomState> {
         this.state.npcs.set(knight.id, knight);
         console.log(`[NPC] Рыцарь появился на (${knight.x}, ${knight.z})`);
 
+        // Создаём банковский сундук
+        const chest = new WorldObject();
+        chest.id = "chest_01";
+        chest.modelName = "chest";
+        chest.x = 23;
+        chest.z = -35;
+        chest.y = 0.5;
+        chest.scaleX = 1.5;
+        chest.scaleY = 1;
+        chest.scaleZ = 1.5;
+        chest.color = "#8B4513";
+        this.state.worldObjects.set(chest.id, chest);
+        console.log(`[CHEST] Сундук появился на (${chest.x}, ${chest.z})`);
+
 
         // ===== DEBUG: God mode toggle =====
         this.onMessage("setGodMode", (client, message: { enabled: boolean }) => {
@@ -1028,6 +1042,152 @@ export class MyRoom extends Room<MyRoomState> {
                     return;
                 }
             }
+        });
+
+        this.onMessage("splitBankItem", (client, message: { fromBankSlotIndex: number, quantity: number }) => {
+            const player = this.state.players.get(client.sessionId);
+            if (!player || player.hp <= 0) return;
+            const { fromBankSlotIndex, quantity } = message;
+            if (fromBankSlotIndex < 0 || fromBankSlotIndex >= player.bank.slots.length) return;
+            const fromSlot = player.bank.slots[fromBankSlotIndex];
+            if (!fromSlot || !fromSlot.item) return;
+            if (fromSlot.quantity <= quantity || quantity <= 0) return;
+            for (let i = 0; i < player.bank.slots.length; i++) {
+                if (i === fromBankSlotIndex) continue;
+                const slot = player.bank.slots[i];
+                if (!slot.item) {
+                    slot.item = fromSlot.item.cloneItem();
+                    slot.quantity = quantity;
+                    fromSlot.quantity -= quantity;
+                    PlayerPersistence.savePlayer(player);
+                    return;
+                }
+            }
+        });
+
+        // ---------- Bank handlers ----------
+
+        this.onMessage("depositItem", (client, message: { fromSlotIndex: number, toBankSlotIndex: number }) => {
+            const player = this.state.players.get(client.sessionId);
+            if (!player || player.hp <= 0) return;
+            const { fromSlotIndex, toBankSlotIndex } = message;
+            if (fromSlotIndex < 0 || fromSlotIndex >= player.inventory.slots.length) return;
+            if (toBankSlotIndex < 0 || toBankSlotIndex >= player.bank.slots.length) return;
+
+            const fromSlot = player.inventory.slots[fromSlotIndex];
+            if (!fromSlot || !fromSlot.item) return;
+
+            const toSlot = player.bank.slots[toBankSlotIndex];
+
+            // Если в банке тот же предмет — стакаем
+            if (toSlot.item && toSlot.item.id === fromSlot.item.id) {
+                const canAdd = toSlot.item.maxStack - toSlot.quantity;
+                if (canAdd > 0) {
+                    const toMove = Math.min(fromSlot.quantity, canAdd);
+                    toSlot.quantity += toMove;
+                    fromSlot.quantity -= toMove;
+                    if (fromSlot.quantity <= 0) { fromSlot.item = null; fromSlot.quantity = 0; }
+                    PlayerPersistence.savePlayer(player);
+                    return;
+                }
+            }
+
+            // Если слот банка пуст — кладём
+            if (!toSlot.item) {
+                toSlot.item = fromSlot.item;
+                toSlot.quantity = fromSlot.quantity;
+                fromSlot.item = null;
+                fromSlot.quantity = 0;
+                PlayerPersistence.savePlayer(player);
+                return;
+            }
+
+            // Если занят другим предметом — меняем местами
+            const tempItem = toSlot.item;
+            const tempQty = toSlot.quantity;
+            toSlot.item = fromSlot.item;
+            toSlot.quantity = fromSlot.quantity;
+            fromSlot.item = tempItem;
+            fromSlot.quantity = tempQty;
+            PlayerPersistence.savePlayer(player);
+        });
+
+        this.onMessage("withdrawItem", (client, message: { fromBankSlotIndex: number, toSlotIndex: number }) => {
+            const player = this.state.players.get(client.sessionId);
+            if (!player || player.hp <= 0) return;
+            const { fromBankSlotIndex, toSlotIndex } = message;
+            if (fromBankSlotIndex < 0 || fromBankSlotIndex >= player.bank.slots.length) return;
+            if (toSlotIndex < 0 || toSlotIndex >= player.inventory.slots.length) return;
+
+            const fromSlot = player.bank.slots[fromBankSlotIndex];
+            if (!fromSlot || !fromSlot.item) return;
+
+            const toSlot = player.inventory.slots[toSlotIndex];
+
+            // Стакаем с тем же предметом в инвентаре
+            if (toSlot.item && toSlot.item.id === fromSlot.item.id) {
+                const canAdd = toSlot.item.maxStack - toSlot.quantity;
+                if (canAdd > 0) {
+                    const toMove = Math.min(fromSlot.quantity, canAdd);
+                    toSlot.quantity += toMove;
+                    fromSlot.quantity -= toMove;
+                    if (fromSlot.quantity <= 0) { fromSlot.item = null; fromSlot.quantity = 0; }
+                    PlayerPersistence.savePlayer(player);
+                    return;
+                }
+            }
+
+            // Пустой слот инвентаря
+            if (!toSlot.item) {
+                toSlot.item = fromSlot.item;
+                toSlot.quantity = fromSlot.quantity;
+                fromSlot.item = null;
+                fromSlot.quantity = 0;
+                PlayerPersistence.savePlayer(player);
+                return;
+            }
+
+            // Обмен
+            const tempItem = toSlot.item;
+            const tempQty = toSlot.quantity;
+            toSlot.item = fromSlot.item;
+            toSlot.quantity = fromSlot.quantity;
+            fromSlot.item = tempItem;
+            fromSlot.quantity = tempQty;
+            PlayerPersistence.savePlayer(player);
+        });
+
+        this.onMessage("moveBankItem", (client, message: { fromBankSlotIndex: number, toBankSlotIndex: number }) => {
+            const player = this.state.players.get(client.sessionId);
+            if (!player || player.hp <= 0) return;
+            const { fromBankSlotIndex, toBankSlotIndex } = message;
+            if (fromBankSlotIndex === toBankSlotIndex) return;
+            if (fromBankSlotIndex < 0 || fromBankSlotIndex >= player.bank.slots.length) return;
+            if (toBankSlotIndex < 0 || toBankSlotIndex >= player.bank.slots.length) return;
+
+            const fromSlot = player.bank.slots[fromBankSlotIndex];
+            const toSlot = player.bank.slots[toBankSlotIndex];
+            if (!fromSlot.item) return;
+
+            if (toSlot.item && toSlot.item.id === fromSlot.item.id) {
+                const canAdd = toSlot.item.maxStack - toSlot.quantity;
+                if (canAdd > 0) {
+                    const toMove = Math.min(fromSlot.quantity, canAdd);
+                    toSlot.quantity += toMove;
+                    fromSlot.quantity -= toMove;
+                    if (fromSlot.quantity <= 0) { fromSlot.item = null; fromSlot.quantity = 0; }
+                    PlayerPersistence.savePlayer(player);
+                    return;
+                }
+            }
+
+            const tempItem = toSlot.item;
+            const tempQty = toSlot.quantity;
+            toSlot.item = fromSlot.item;
+            toSlot.quantity = fromSlot.quantity;
+            fromSlot.item = tempItem;
+            fromSlot.quantity = tempQty;
+            PlayerPersistence.savePlayer(player);
         });
 
         this.onMessage("editorSave", (client, message: { objects: any[] }) => {

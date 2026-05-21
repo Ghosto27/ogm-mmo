@@ -4,7 +4,7 @@ import { room } from './network';
 
 interface DragState {
     isDragging: boolean;
-    sourceType: 'inventory' | 'equipment';
+    sourceType: 'inventory' | 'equipment' | 'bank';
     sourceIndex: string;       // inventory slot index OR equipment slot name
     sourceElement: HTMLElement;
     ghost: HTMLElement | null;
@@ -121,14 +121,14 @@ function getDropTarget(clientX: number, clientY: number): HTMLElement | null {
 function isValidDrop(sourceType: string, sourceIndex: string, target: HTMLElement): boolean {
     const targetType = target.dataset.dropzone;
     if (targetType === 'inventory') {
-        // Dropping on an inventory slot
-        return true; // always valid (swap/move)
+        return true;
     }
     if (targetType === 'equipment') {
-        // Dropping on an equipment slot - only valid if source has equipable item
-        if (sourceType !== 'inventory') return false; // equipment -> equipment not supported yet
-        // The server will validate the item slot type, so we allow the attempt
+        if (sourceType !== 'inventory') return false;
         return true;
+    }
+    if (targetType === 'bank') {
+        return sourceType === 'inventory' || sourceType === 'bank';
     }
     return false;
 }
@@ -145,11 +145,11 @@ function executeDrop(target: HTMLElement) {
         if (toSlotIndex === undefined) return;
 
         if (sourceType === 'inventory') {
-            // Inventory slot -> Inventory slot: move/swap
             room?.send('moveItem', { fromSlotIndex: parseInt(sourceIndex), toSlotIndex: parseInt(toSlotIndex) });
         } else if (sourceType === 'equipment') {
-            // Equipment slot -> Inventory slot: unequip to slot
             room?.send('unequipToSlot', { slot: sourceIndex, toSlotIndex: parseInt(toSlotIndex) });
+        } else if (sourceType === 'bank') {
+            room?.send('withdrawItem', { fromBankSlotIndex: parseInt(sourceIndex), toSlotIndex: parseInt(toSlotIndex) });
         }
     } else if (targetType === 'equipment') {
         const equipSlot = target.dataset.equipSlot;
@@ -160,6 +160,15 @@ function executeDrop(target: HTMLElement) {
             room?.send('equipItemToSlot', { slotIndex: parseInt(sourceIndex), targetSlot: equipSlot });
         }
         // equipment -> equipment: not supported yet
+    } else if (targetType === 'bank') {
+        const toBankSlotIndex = parseInt(target.dataset.slotIndex!);
+        if (isNaN(toBankSlotIndex)) return;
+
+        if (sourceType === 'inventory') {
+            room?.send('depositItem', { fromSlotIndex: parseInt(sourceIndex), toBankSlotIndex });
+        } else if (sourceType === 'bank' && parseInt(sourceIndex) !== toBankSlotIndex) {
+            room?.send('moveBankItem', { fromBankSlotIndex: parseInt(sourceIndex), toBankSlotIndex });
+        }
     }
 }
 
@@ -175,8 +184,8 @@ function onMouseDown(e: MouseEvent) {
     const icon = target.querySelector('div');
     if (!icon) return; // empty slot
 
-    const sourceType = target.dataset.sourceType as 'inventory' | 'equipment';
-    const sourceIndex = target.dataset.sourceType === 'inventory'
+    const sourceType = target.dataset.sourceType as 'inventory' | 'equipment' | 'bank';
+    const sourceIndex = target.dataset.sourceType === 'inventory' || target.dataset.sourceType === 'bank'
         ? target.dataset.slotIndex!
         : target.dataset.equipSlot!;
 
@@ -224,6 +233,7 @@ function onMouseUp(e: MouseEvent) {
                 room?.send('dropItem', { slotIndex });
             }
         }
+        // Dropped from bank outside — cancel silently
     }
 
     // Cleanup
