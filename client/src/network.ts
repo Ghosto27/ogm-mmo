@@ -29,6 +29,7 @@ import { updateWorldObjects, worldMeshes } from './render/WorldRenderer';
 import { updateResourceNodes } from './render/ResourceNodeRenderer';
 import { updateBankUI, isBankVisible, hideBank } from './ui/BankUI';
 import { updateCraftingRecipes, hideCraftingUI, isCraftingVisible } from './ui/CraftingUI';
+import { refreshProfessions } from './ui/ProfessionsUI';
 import { updateTerrain, getTerrainHeightAt, terrainReady, getTerrainHeightAtFast } from './render/TerrainRenderer';
 import { addVegetationInstance, finalizeVegetation, isVegetationLoaded } from './render/VegetationRenderer';
 import { isEditorActive } from './editor/EditorState';
@@ -182,6 +183,7 @@ function join(playerName: string) {
                         updateCharacterPanel(myPlayer);
                         updateInventoryUI(myPlayer.inventory);
                         updateBankUI(myPlayer.bank);
+                        refreshProfessions();
                         // Квесты
                         const questEntries = Array.from(myPlayer.questProgress.entries()) as [string, number][];
                         const questsObj = Object.fromEntries(questEntries);

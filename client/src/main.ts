@@ -30,6 +30,7 @@ import { normalizeKey } from './keyboard';
 import { createDialogUI } from './ui/DialogUI';
 import { createQuestJournal, toggleQuestJournal } from './quest/QuestJournalUI';
 import { createNotificationUI } from './ui/notificationUI';
+import { createProfessionsUI, toggleProfessions } from './ui/ProfessionsUI';
 import { updateFPS } from './utils/fpsCounter';
 import { updateInteractionLabels } from './render/InteractionLabels';
 import { applyMovementWithCollisions, updateDynamicColliders, getAllColliders, PLAYER_RADIUS, computeGroundHeight, MAX_STEP_HEIGHT } from './collision';
@@ -71,6 +72,7 @@ modelReady.then(() => {
     createNotificationUI();
     createBankUI();
     createCraftingUI();
+    createProfessionsUI();
     initEditor();
     initDragDrop();
     setTimeout(() => {
@@ -105,6 +107,7 @@ document.addEventListener('keydown', (e) => {
             toggleQuestJournal();
         }
     }
+    if (key === 'k') { toggleProfessions(); }
 });
 
 setTimeout(() => renderer.domElement.focus({ preventScroll: true }), 100);
