@@ -3,6 +3,7 @@ import { showTooltip, hideTooltip } from './tooltip';
 import { pushUIMode, popUIMode } from './cameraControls';
 import { fsm } from './player';
 import { showSplitDialog } from './ui/splitDialog';
+import { getItemColor } from './itemColors';
 
 let container: HTMLDivElement;
 let slotElements: HTMLDivElement[] = [];
@@ -93,7 +94,7 @@ export function createInventoryUI() {
             hideTooltip();
         });
 
-        // Shift+click for splitting stacks
+        // Shift+click: split stacks
         slot.addEventListener('click', (event) => {
             if (!event.shiftKey) return;
             const index = parseInt(slot.dataset.index!);
@@ -139,7 +140,7 @@ export function updateInventoryUI(inventory: any) {
             const icon = document.createElement('div');
             icon.style.width = '40px';
             icon.style.height = '40px';
-            icon.style.background = item.id === 'potion_hp_01' ? '#ff5555' : '#55aaff';
+            icon.style.background = getItemColor(item);
             icon.style.borderRadius = '4px';
             icon.style.display = 'flex';
             icon.style.alignItems = 'center';

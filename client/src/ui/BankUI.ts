@@ -2,6 +2,7 @@ import { room } from '../network';
 import { showTooltip, hideTooltip } from '../tooltip';
 import { pushUIMode, popUIMode } from '../cameraControls';
 import { showSplitDialog } from './splitDialog';
+import { getItemColor } from '../itemColors';
 
 let container: HTMLDivElement;
 let slotElements: HTMLDivElement[] = [];
@@ -65,6 +66,7 @@ export function createBankUI() {
         });
         slot.addEventListener('mouseleave', () => hideTooltip());
 
+        // Shift+click: split stacks
         slot.addEventListener('click', (event) => {
             if (!event.shiftKey) return;
             const index = parseInt(slot.dataset.index!);
@@ -109,8 +111,7 @@ export function updateBankUI(bank: any) {
             const icon = document.createElement('div');
             icon.style.width = '34px';
             icon.style.height = '34px';
-            icon.style.background = item.id?.includes('ore') ? '#b87333' :
-                item.id?.includes('bar') ? '#888888' : '#55aaff';
+            icon.style.background = getItemColor(item);
             icon.style.borderRadius = '4px';
             icon.style.display = 'flex';
             icon.style.alignItems = 'center';

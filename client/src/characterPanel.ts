@@ -1,6 +1,7 @@
 import { room } from './network';
 import { showTooltip, hideTooltip } from './tooltip';
 import { pushUIMode, popUIMode } from './cameraControls';
+import { getItemColor } from './itemColors';
 
 let container: HTMLDivElement;
 let isVisible = false;
@@ -162,7 +163,7 @@ export function updateCharacterPanel(player: any) {
             const icon = document.createElement('div');
             icon.style.width = '30px';
             icon.style.height = '30px';
-            icon.style.background = item.id === 'potion_hp_01' ? '#ff5555' : '#55aaff';
+            icon.style.background = getItemColor(item);
             icon.style.borderRadius = '4px';
             icon.textContent = item.name.charAt(0);
             slotDiv.appendChild(icon);

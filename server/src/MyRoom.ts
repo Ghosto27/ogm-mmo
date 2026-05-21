@@ -1402,6 +1402,76 @@ export class MyRoom extends Room<MyRoomState> {
             PlayerPersistence.savePlayer(player);
         });
 
+        this.onMessage("quickTransfer", (client, message: { fromType: string, slotIndex: number }) => {
+            const player = this.state.players.get(client.sessionId);
+            if (!player || player.hp <= 0) return;
+
+            const { fromType, slotIndex } = message;
+
+            if (fromType === 'inventory') {
+                const fromSlot = player.inventory.slots[slotIndex];
+                if (!fromSlot || !fromSlot.item) return;
+
+                // Find best bank slot (stack first, then empty)
+                const target = player.bank;
+                let bestIdx = -1;
+                for (let i = 0; i < target.slots.length; i++) {
+                    const s = target.slots[i];
+                    if (s.item && s.item.id === fromSlot.item.id && s.quantity < s.item.maxStack) {
+                        const toMove = Math.min(fromSlot.quantity, s.item.maxStack - s.quantity);
+                        s.quantity += toMove;
+                        fromSlot.quantity -= toMove;
+                        if (fromSlot.quantity <= 0) { fromSlot.item = null; fromSlot.quantity = 0; }
+                        PlayerPersistence.savePlayer(player);
+                        return;
+                    }
+                    if (!s.item && bestIdx < 0) bestIdx = i;
+                }
+                if (bestIdx >= 0) {
+                    const toSlot = target.slots[bestIdx];
+                    toSlot.item = fromSlot.item;
+                    toSlot.quantity = fromSlot.quantity;
+                    fromSlot.item = null;
+                    fromSlot.quantity = 0;
+                    PlayerPersistence.savePlayer(player);
+                    return;
+                }
+                client.send("notification", { text: "Банк полон!", color: "#ff4444" });
+                return;
+            }
+
+            if (fromType === 'bank') {
+                const fromSlot = player.bank.slots[slotIndex];
+                if (!fromSlot || !fromSlot.item) return;
+
+                const target = player.inventory;
+                let bestIdx = -1;
+                for (let i = 0; i < target.slots.length; i++) {
+                    const s = target.slots[i];
+                    if (s.item && s.item.id === fromSlot.item.id && s.quantity < s.item.maxStack) {
+                        const toMove = Math.min(fromSlot.quantity, s.item.maxStack - s.quantity);
+                        s.quantity += toMove;
+                        fromSlot.quantity -= toMove;
+                        if (fromSlot.quantity <= 0) { fromSlot.item = null; fromSlot.quantity = 0; }
+                        PlayerPersistence.savePlayer(player);
+                        return;
+                    }
+                    if (!s.item && bestIdx < 0) bestIdx = i;
+                }
+                if (bestIdx >= 0) {
+                    const toSlot = target.slots[bestIdx];
+                    toSlot.item = fromSlot.item;
+                    toSlot.quantity = fromSlot.quantity;
+                    fromSlot.item = null;
+                    fromSlot.quantity = 0;
+                    PlayerPersistence.savePlayer(player);
+                    return;
+                }
+                client.send("notification", { text: "Инвентарь полон!", color: "#ff4444" });
+                return;
+            }
+        });
+
         this.onMessage("editorSave", (client, message: { objects: any[] }) => {
             console.log(`[SERVER-EDITOR] Получено объектов: ${message.objects.length}`);
             message.objects.forEach(o => console.log(`  id=${o.id}, x=${o.x}, z=${o.z}`));

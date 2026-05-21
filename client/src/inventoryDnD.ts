@@ -193,6 +193,20 @@ function onMouseDown(e: MouseEvent) {
 
     e.preventDefault();
 
+    // Ctrl+Click: quick transfer between inventory and bank
+    if (e.ctrlKey) {
+        if (sourceType === 'inventory') {
+            const bankPanel = document.getElementById('bank-panel');
+            if (!bankPanel || bankPanel.style.display === 'none') return;
+            room?.send('quickTransfer', { fromType: 'inventory', slotIndex: parseInt(sourceIndex) });
+        } else if (sourceType === 'bank') {
+            const invPanel = document.getElementById('inventory-panel');
+            if (!invPanel || invPanel.style.display === 'none') return;
+            room?.send('quickTransfer', { fromType: 'bank', slotIndex: parseInt(sourceIndex) });
+        }
+        return;
+    }
+
     const rect = target.getBoundingClientRect();
     dragState = {
         isDragging: true,
