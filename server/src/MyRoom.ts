@@ -1107,11 +1107,15 @@ export class MyRoom extends Room<MyRoomState> {
             if (!slot || !slot.item) return;
 
             const item = slot.item;
-            if (!item.slot) return; // не экипировка
+            if (!item.slot) return;
+
+            if (item.requiredLevel > player.level) {
+                client.send("notification", { text: `Требуется уровень ${item.requiredLevel}`, color: "#ff4444" });
+                return;
+            }
 
             const success = EquipmentSystem.equipItem(player, item, slotIndex);
             if (!success) {
-                // можно отправить клиенту сообщение об ошибке, но пока просто логируем
                 console.log(`[EQUIP] Не удалось надеть ${item.name}`);
             } else {
                 PlayerPersistence.savePlayer(player);
@@ -1197,7 +1201,11 @@ export class MyRoom extends Room<MyRoomState> {
             const slot = player.inventory.slots[slotIndex];
             if (!slot || !slot.item) return;
             const item = slot.item;
-            if (item.slot !== targetSlot) return; // wrong slot type for this equipment slot
+            if (item.slot !== targetSlot) return;
+            if (item.requiredLevel > player.level) {
+                client.send("notification", { text: `Требуется уровень ${item.requiredLevel}`, color: "#ff4444" });
+                return;
+            }
             const success = EquipmentSystem.equipItem(player, item, slotIndex);
             if (success) PlayerPersistence.savePlayer(player);
         });
