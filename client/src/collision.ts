@@ -28,7 +28,7 @@ interface OBBCollider {
     rotation: THREE.Matrix4;   // матрица поворота (или можно Quaternion, но Matrix4 удобнее)
 }
 
-type Collider = SphereCollider | CylinderCollider | BoxCollider | OBBCollider;
+export type Collider = SphereCollider | CylinderCollider | BoxCollider | OBBCollider;
 
 // ---------- Хранилище ----------
 const colliders: Collider[] = [];
@@ -56,15 +56,15 @@ export const allColliders = colliders;
 
 // ---------- Функции добавления ----------
 
-export function addSphereCollider(center: THREE.Vector3, radius: number): number {
-    colliders.push({ type: 'sphere', center: center.clone(), radius });
-    return colliders.length - 1;
+export function addSphereCollider(center: THREE.Vector3, radius: number): Collider {
+    const col: Collider = { type: 'sphere', center: center.clone(), radius };
+    colliders.push(col);
+    return col;
 }
 
-export function removeColliderByIndex(index: number): void {
-    if (index >= 0 && index < colliders.length) {
-        colliders.splice(index, 1);
-    }
+export function removeCollider(col: Collider): void {
+    const idx = colliders.indexOf(col);
+    if (idx !== -1) colliders.splice(idx, 1);
 }
 
 export function addCylinderCollider(baseCenter: THREE.Vector3, radius: number, height: number) {
