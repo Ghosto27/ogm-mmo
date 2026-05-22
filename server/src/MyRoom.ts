@@ -785,11 +785,12 @@ export class MyRoom extends Room<MyRoomState> {
             if (dist > 4) return;
 
             const shopData = getShopData();
-            const items: { itemId: string; buyPrice: number; sellPrice: number; maxStack: number }[] = [];
+            const items: { itemId: string; buyPrice: number; sellPrice: number; maxStack: number; name: string }[] = [];
             for (const [itemId, entry] of Object.entries(shopData)) {
                 const template = itemDatabase[itemId];
                 const maxStack = template?.maxStack ?? 1;
-                items.push({ itemId, buyPrice: entry.buyPrice, sellPrice: entry.sellPrice, maxStack });
+                const name = template?.name ?? itemId.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                items.push({ itemId, buyPrice: entry.buyPrice, sellPrice: entry.sellPrice, maxStack, name });
             }
             client.send("merchantData", { items });
         });

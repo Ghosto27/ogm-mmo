@@ -6,7 +6,7 @@ let container: HTMLDivElement;
 let buyList: HTMLDivElement;
 let goldText: HTMLElement;
 let isVisible = false;
-let merchantItems: { itemId: string; buyPrice: number; sellPrice: number; maxStack: number }[] = [];
+let merchantItems: { itemId: string; buyPrice: number; sellPrice: number; maxStack: number; name: string }[] = [];
 
 export function isMerchantOpen(): boolean {
     return isVisible;
@@ -34,7 +34,7 @@ export function updateMerchantGold(gold: number): void {
     goldText.textContent = `💰 ${gold} gold`;
 }
 
-export function updateMerchantItems(items: { itemId: string; buyPrice: number; sellPrice: number; maxStack: number }[]): void {
+export function updateMerchantItems(items: { itemId: string; buyPrice: number; sellPrice: number; maxStack: number; name: string }[]): void {
     merchantItems = items;
     buyList.innerHTML = '';
     for (const entry of items) {
@@ -44,8 +44,7 @@ export function updateMerchantItems(items: { itemId: string; buyPrice: number; s
 
         const nameSpan = document.createElement('span');
         nameSpan.style.cssText = 'flex: 1;';
-        const name = entry.itemId.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-        nameSpan.textContent = name;
+        nameSpan.textContent = entry.name;
 
         const btnGroup = document.createElement('div');
         btnGroup.style.cssText = 'display: flex; align-items: center; gap: 6px;';
