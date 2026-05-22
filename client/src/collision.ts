@@ -56,8 +56,15 @@ export const allColliders = colliders;
 
 // ---------- Функции добавления ----------
 
-export function addSphereCollider(center: THREE.Vector3, radius: number) {
+export function addSphereCollider(center: THREE.Vector3, radius: number): number {
     colliders.push({ type: 'sphere', center: center.clone(), radius });
+    return colliders.length - 1;
+}
+
+export function removeColliderByIndex(index: number): void {
+    if (index >= 0 && index < colliders.length) {
+        colliders.splice(index, 1);
+    }
 }
 
 export function addCylinderCollider(baseCenter: THREE.Vector3, radius: number, height: number) {

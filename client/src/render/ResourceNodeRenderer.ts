@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { scene } from '../scene';
 import { getTerrainHeightAtFast } from './TerrainRenderer';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { addSphereCollider, removeColliderByIndex } from '../collision';
 
 const ORE_CONFIG: Record<string, { oreColor: string; rockColor: string; scale: number }> = {
     "copper_ore": { oreColor: "#d4875a", rockColor: "#8a7a6a", scale: 0.6 },
@@ -44,7 +45,11 @@ export function updateResourceNodes(resourceNodes: any): void {
 
     for (const id in resourceNodeMeshes) {
         if (!resourceNodes.has(id)) {
-            scene.remove(resourceNodeMeshes[id]);
+            const group = resourceNodeMeshes[id];
+            if (group.userData.colliderIndex !== undefined) {
+                removeColliderByIndex(group.userData.colliderIndex);
+            }
+            scene.remove(group);
             delete resourceNodeMeshes[id];
         }
     }
@@ -86,13 +91,22 @@ export function updateResourceNodes(resourceNodes: any): void {
         group.rotation.y = node.rotationY || 0;
 
         scene.add(group);
+
+        const center = new THREE.Vector3(node.x, groundY + config.scale * 0.3, node.z);
+        const colIdx = addSphereCollider(center, config.scale * 2);
+        group.userData.colliderIndex = colIdx;
+
         resourceNodeMeshes[nodeId] = group;
     });
 }
 
 export function clearResourceNodes(): void {
     for (const id in resourceNodeMeshes) {
-        scene.remove(resourceNodeMeshes[id]);
+        const group = resourceNodeMeshes[id];
+        if (group.userData.colliderIndex !== undefined) {
+            removeColliderByIndex(group.userData.colliderIndex);
+        }
+        scene.remove(group);
         delete resourceNodeMeshes[id];
     }
 }
