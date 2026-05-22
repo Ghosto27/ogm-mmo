@@ -6,5 +6,6 @@
     "copper_bar": { "buyPrice": 20, "sellPrice": 10 },
     "tin_bar": { "buyPrice": 30, "sellPrice": 15 },
     "bronze_bar": { "buyPrice": 50, "sellPrice": 25 },
-    "iron_bar": { "buyPrice": 60, "sellPrice": 30 }
+    "iron_bar": { "buyPrice": 60, "sellPrice": 30 },
+    "sword_01": { "buyPrice": 100, "sellPrice": 20 }
 }

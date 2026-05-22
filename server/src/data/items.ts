@@ -121,4 +121,13 @@ export const itemDatabase: { [id: string]: Item } = {
     requiredLevel: 12,
     bonuses: new MapSchema<number>({ defense: 6 })
   }),
+
+  // ---- Loot ----
+  "skeleton_bone": Object.assign(new Item(), {
+    id: "skeleton_bone",
+    name: "Bone",
+    description: "A skeletal bone",
+    maxStack: 10,
+    icon: "icons/bone.png",
+  }),
 };

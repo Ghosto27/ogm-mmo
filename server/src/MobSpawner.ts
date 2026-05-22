@@ -106,13 +106,7 @@ export class MobSpawner {
         const lootItems: { item: Item, quantity: number }[] = [];
         if (mobType === 'skeleton') {
             // Skeletons drop bones and sometimes weapons
-            const boneItem = Object.assign(new Item(), {
-                id: "skeleton_bone",
-                name: "Bone",
-                description: "A skeletal bone",
-                maxStack: 10,
-                icon: "icons/bone.png",
-            });
+            const boneItem = Object.assign(new Item(), itemDatabase["skeleton_bone"]);
             const potion = Object.assign(new Item(), itemDatabase["potion_hp_01"]);
             lootItems.push({ item: potion, quantity: 6 });
             lootItems.push({ item: boneItem, quantity: Math.floor(Math.random() * 3) + 1 });
