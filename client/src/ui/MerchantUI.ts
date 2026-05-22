@@ -6,7 +6,7 @@ let container: HTMLDivElement;
 let buyList: HTMLDivElement;
 let goldText: HTMLElement;
 let isVisible = false;
-let merchantItems: { itemId: string; buyPrice: number; sellPrice: number }[] = [];
+let merchantItems: { itemId: string; buyPrice: number; sellPrice: number; maxStack: number }[] = [];
 
 export function isMerchantOpen(): boolean {
     return isVisible;
@@ -34,7 +34,7 @@ export function updateMerchantGold(gold: number): void {
     goldText.textContent = `💰 ${gold} gold`;
 }
 
-export function updateMerchantItems(items: { itemId: string; buyPrice: number; sellPrice: number }[]): void {
+export function updateMerchantItems(items: { itemId: string; buyPrice: number; sellPrice: number; maxStack: number }[]): void {
     merchantItems = items;
     buyList.innerHTML = '';
     for (const entry of items) {
@@ -47,20 +47,39 @@ export function updateMerchantItems(items: { itemId: string; buyPrice: number; s
         const name = entry.itemId.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
         nameSpan.textContent = name;
 
+        const btnGroup = document.createElement('div');
+        btnGroup.style.cssText = 'display: flex; align-items: center; gap: 6px;';
+
+        const stackPrice = entry.maxStack > 1
+            ? ` / ${entry.buyPrice * entry.maxStack}`
+            : '';
+
         const priceSpan = document.createElement('span');
-        priceSpan.style.cssText = 'color: #ffd700; margin: 0 10px;';
-        priceSpan.textContent = `${entry.buyPrice} gold`;
+        priceSpan.style.cssText = 'color: #ffd700; margin-right: 6px; white-space: nowrap;';
+        priceSpan.textContent = `${entry.buyPrice}${stackPrice} gold`;
 
         const buyBtn = document.createElement('button');
-        buyBtn.style.cssText = 'padding: 4px 10px; background: #22AA22; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-family: monospace;';
-        buyBtn.textContent = 'Купить';
+        buyBtn.style.cssText = 'padding: 4px 8px; background: #22AA22; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-family: monospace; font-size: 11px;';
+        buyBtn.textContent = 'x1';
         buyBtn.addEventListener('click', () => {
             room?.send('merchantBuyItem', { itemId: entry.itemId, quantity: 1 });
         });
 
+        btnGroup.appendChild(priceSpan);
+        btnGroup.appendChild(buyBtn);
+
+        if (entry.maxStack > 1) {
+            const stackBtn = document.createElement('button');
+            stackBtn.style.cssText = 'padding: 4px 8px; background: #1a7a1a; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-family: monospace; font-size: 11px;';
+            stackBtn.textContent = `x${entry.maxStack}`;
+            stackBtn.addEventListener('click', () => {
+                room?.send('merchantBuyItem', { itemId: entry.itemId, quantity: entry.maxStack });
+            });
+            btnGroup.appendChild(stackBtn);
+        }
+
         row.appendChild(nameSpan);
-        row.appendChild(priceSpan);
-        row.appendChild(buyBtn);
+        row.appendChild(btnGroup);
         buyList.appendChild(row);
     }
 }

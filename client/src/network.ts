@@ -494,7 +494,7 @@ function join(playerName: string) {
             showNotification(`+${data.salvageXp} Blacksmithing XP`, 2000);
         });
 
-        room.onMessage("merchantData", (data: { items: { itemId: string; buyPrice: number; sellPrice: number }[] }) => {
+        room.onMessage("merchantData", (data: { items: { itemId: string; buyPrice: number; sellPrice: number; maxStack: number }[] }) => {
             updateMerchantItems(data.items);
         });
 
