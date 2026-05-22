@@ -1684,7 +1684,7 @@ export class MyRoom extends Room<MyRoomState> {
             if (savedData) {
                 player.level = savedData.level;
                 player.exp = savedData.exp;
-                player.expToLevel = savedData.expToLevel;
+                player.expToLevel = Math.floor(100 * Math.pow(1.5, player.level - 1));
                 player.hp = savedData.hp;
 
                 player.stats.strength = savedData.stats.strength;
@@ -1692,9 +1692,6 @@ export class MyRoom extends Room<MyRoomState> {
                 player.stats.intelligence = savedData.stats.intelligence;
                 player.stats.vitality = savedData.stats.vitality;
                 player.stats.luck = savedData.stats.luck;
-                player.stats.attackPower = savedData.stats.attackPower;
-                player.stats.defense = savedData.stats.defense;
-                player.stats.critChance = savedData.stats.critChance;
 
                 player.inventory.slots.clear();
                 savedData.inventory.forEach(slot => {
@@ -1791,16 +1788,13 @@ export class MyRoom extends Room<MyRoomState> {
         while (player.exp >= player.expToLevel) {
             player.exp -= player.expToLevel;
             player.level += 1;
-            // Увеличиваем ёмкость опыта для следующего уровня (простая формула)
             player.expToLevel = Math.floor(player.expToLevel * 1.5);
-            // Увеличиваем максимальное HP
-            player.maxHp += 10;
-            player.hp = player.maxHp;   // полное восстановление при левелапе
 
             console.log(`[LEVEL UP] ${player.name} теперь ${player.level} уровня!`);
             // Можно отправить отдельное сообщение клиенту для спецэффекта
             // this.broadcast("levelUp", { sessionId: client.sessionId, level: player.level });
         }
+        EquipmentSystem.recalculateStats(player);
         // Сохраняем прогресс после получения опыта
         PlayerPersistence.savePlayer(player);
     }

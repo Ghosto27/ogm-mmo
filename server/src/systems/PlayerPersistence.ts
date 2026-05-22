@@ -22,53 +22,46 @@ function buildItemFromTemplate(itemId: string, customBonuses?: Record<string, nu
         unknown.maxStack = 1;
         return unknown;
     }
-
     const item = template.cloneItem();
-
     if (customBonuses) {
         for (const [key, value] of Object.entries(customBonuses)) {
             const current = item.bonuses.get(key) || 0;
             item.bonuses.set(key, current + value);
         }
     }
-
     return item;
+}
+
+function slotToSaveData(slot: ItemSlot): any {
+    if (!slot.item) return null;
+    const data: Record<string, any> = { id: slot.item.id, quantity: slot.quantity };
+    const template = itemDatabase[slot.item.id];
+    if (template) {
+        const delta: Record<string, number> = {};
+        slot.item.bonuses.forEach((v, k) => {
+            if (v !== (template.bonuses.get(k) || 0)) {
+                delta[k] = v - (template.bonuses.get(k) || 0);
+            }
+        });
+        if (Object.keys(delta).length > 0) data.bonuses = delta;
+    }
+    return data;
 }
 
 export class PlayerPersistence {
     static savePlayer(player: Player) {
         const data = {
             hp: player.hp,
-            maxHp: player.maxHp,
             level: player.level,
             exp: player.exp,
-            expToLevel: player.expToLevel,
             stats: {
                 strength: player.stats.strength,
                 dexterity: player.stats.dexterity,
                 intelligence: player.stats.intelligence,
                 vitality: player.stats.vitality,
                 luck: player.stats.luck,
-                attackPower: player.stats.attackPower,
-                defense: player.stats.defense,
-                critChance: player.stats.critChance,
             },
-            inventory: player.inventory.slots.map(slot => {
-                if (!slot.item) return null;
-                const data: Record<string, any> = { id: slot.item.id, quantity: slot.quantity };
-                // Save custom bonuses only if they differ from template
-                const template = itemDatabase[slot.item.id];
-                if (template) {
-                    const delta: Record<string, number> = {};
-                    slot.item.bonuses.forEach((v, k) => {
-                        if (v !== (template.bonuses.get(k) || 0)) {
-                            delta[k] = v - (template.bonuses.get(k) || 0);
-                        }
-                    });
-                    if (Object.keys(delta).length > 0) data.bonuses = delta;
-                }
-                return data;
-            }),
+            inventory: player.inventory.slots.map(slotToSaveData),
             equipment: Object.fromEntries(
                 Array.from(player.equipment.entries()).map(([key, item]) => {
                     const data: Record<string, any> = { id: item.id };
@@ -87,21 +80,7 @@ export class PlayerPersistence {
             ),
             quests: Object.fromEntries(player.questProgress.entries()),
             professions: player.professions.toJSON(),
-            bank: player.bank.slots.map(slot => {
-                if (!slot.item) return null;
-                const data: Record<string, any> = { id: slot.item.id, quantity: slot.quantity };
-                const template = itemDatabase[slot.item.id];
-                if (template) {
-                    const delta: Record<string, number> = {};
-                    slot.item.bonuses.forEach((v, k) => {
-                        if (v !== (template.bonuses.get(k) || 0)) {
-                            delta[k] = v - (template.bonuses.get(k) || 0);
-                        }
-                    });
-                    if (Object.keys(delta).length > 0) data.bonuses = delta;
-                }
-                return data;
-            }),
+            bank: player.bank.slots.map(slotToSaveData),
         };
         const filePath = path.join(DATA_DIR, `${player.name}.json`);
         fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
@@ -109,19 +88,14 @@ export class PlayerPersistence {
 
     static loadPlayer(playerName: string): {
         hp: number;
-        maxHp: number;
         level: number;
         exp: number;
-        expToLevel: number;
         stats: {
             strength: number;
             dexterity: number;
             intelligence: number;
             vitality: number;
             luck: number;
-            attackPower: number;
-            defense: number;
-            critChance: number;
         };
         inventory: ItemSlot[];
         equipment: Map<string, Item>;
@@ -172,11 +146,15 @@ export class PlayerPersistence {
 
         return {
             hp: data.hp,
-            maxHp: data.maxHp,
-            level: data.level,
-            exp: data.exp,
-            expToLevel: data.expToLevel,
-            stats: data.stats,
+            level: data.level ?? 1,
+            exp: data.exp ?? 0,
+            stats: {
+                strength: data.stats?.strength ?? 10,
+                dexterity: data.stats?.dexterity ?? 10,
+                intelligence: data.stats?.intelligence ?? 10,
+                vitality: data.stats?.vitality ?? 10,
+                luck: data.stats?.luck ?? 5,
+            },
             inventory,
             equipment,
             quests,

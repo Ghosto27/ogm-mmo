@@ -37,7 +37,6 @@ export class ProfessionEntry extends Schema {
         return {
             level: this.level,
             xp: this.xp,
-            xpToNext: this.xpToNext
         };
     }
 
@@ -45,7 +44,7 @@ export class ProfessionEntry extends Schema {
         const entry = new ProfessionEntry();
         entry.level = data.level ?? 1;
         entry.xp = data.xp ?? 0;
-        entry.xpToNext = data.xpToNext ?? 100;
+        entry.xpToNext = Math.floor(100 * Math.pow(entry.level, 1.5));
         return entry;
     }
 }
