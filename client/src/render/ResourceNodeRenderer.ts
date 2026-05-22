@@ -1,20 +1,47 @@
 import * as THREE from 'three';
 import { scene } from '../scene';
 import { getTerrainHeightAtFast } from './TerrainRenderer';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
-const NODE_CONFIG: Record<string, { color: string; geometry: 'cylinder' | 'box'; scale: number }> = {
-    "copper_ore": { color: "#b87333", geometry: "cylinder", scale: 0.6 },
-    "tin_ore":    { color: "#c0c0c0", geometry: "cylinder", scale: 0.6 },
-    "iron_ore":   { color: "#808080", geometry: "cylinder", scale: 0.7 },
-    "coal":       { color: "#222222", geometry: "box",      scale: 0.5 },
+const ORE_CONFIG: Record<string, { oreColor: string; rockColor: string; scale: number }> = {
+    "copper_ore": { oreColor: "#d4875a", rockColor: "#8a7a6a", scale: 0.6 },
+    "tin_ore":    { oreColor: "#c8c8c8", rockColor: "#7a7a7a", scale: 0.6 },
+    "iron_ore":   { oreColor: "#b0a090", rockColor: "#6a6a6a", scale: 0.7 },
+    "coal":       { oreColor: "#444444", rockColor: "#555555", scale: 0.5 },
 };
 
 export const resourceNodeMeshes: { [id: string]: THREE.Object3D } = {};
 
+let modelLoaded = false;
+let modelGroup: THREE.Group | null = null;
+let baseMaterial: THREE.MeshStandardMaterial | null = null;
+
+async function initAssets(): Promise<void> {
+    if (modelLoaded) return;
+
+    const texLoader = new THREE.TextureLoader();
+    const baseDir = '/textures/ores/';
+
+    baseMaterial = new THREE.MeshStandardMaterial({
+        map: texLoader.load(baseDir + 'DefaultMaterial_albedo.jpg'),
+        normalMap: texLoader.load(baseDir + 'DefaultMaterial_normal.png'),
+        metalnessMap: texLoader.load(baseDir + 'DefaultMaterial_metallic.jpg'),
+        roughnessMap: texLoader.load(baseDir + 'DefaultMaterial_roughness.jpg'),
+        aoMap: texLoader.load(baseDir + 'DefaultMaterial_AO.jpg'),
+    });
+
+    const loader = new GLTFLoader();
+    const gltf = await loader.loadAsync('/models/ores.gltf');
+    modelGroup = gltf.scene;
+    modelLoaded = true;
+}
+
+const initPromise = initAssets();
+
 export function updateResourceNodes(resourceNodes: any): void {
     if (!resourceNodes || !resourceNodes.forEach) return;
+    if (!modelLoaded || !modelGroup || !baseMaterial) return;
 
-    // Удаляем ноды, которых больше нет
     for (const id in resourceNodeMeshes) {
         if (!resourceNodes.has(id)) {
             scene.remove(resourceNodeMeshes[id]);
@@ -23,38 +50,42 @@ export function updateResourceNodes(resourceNodes: any): void {
     }
 
     resourceNodes.forEach((node: any, nodeId: string) => {
-        const config = NODE_CONFIG[node.type];
+        const config = ORE_CONFIG[node.type];
         if (!config) return;
 
         if (resourceNodeMeshes[nodeId]) {
-            const mesh = resourceNodeMeshes[nodeId];
+            const group = resourceNodeMeshes[nodeId] as THREE.Group;
             const isActive = node.state === "active";
-            mesh.visible = isActive;
-            if (mesh instanceof THREE.Mesh) {
-                (mesh.material as THREE.MeshStandardMaterial).opacity = isActive ? 1.0 : 0.3;
-                (mesh.material as THREE.MeshStandardMaterial).transparent = true;
-            }
+            group.visible = isActive;
+            group.traverse((child) => {
+                if (child instanceof THREE.Mesh) {
+                    child.material.transparent = true;
+                    child.material.opacity = isActive ? 1.0 : 0.3;
+                }
+            });
             return;
         }
 
-        const geometry = config.geometry === 'box'
-            ? new THREE.BoxGeometry(config.scale, config.scale * 0.6, config.scale)
-            : new THREE.CylinderGeometry(config.scale * 0.6, config.scale, config.scale * 0.6, 8);
+        const group = modelGroup!.clone(true);
 
-        const material = new THREE.MeshStandardMaterial({
-            color: config.color,
-            transparent: true,
+        group.traverse((child) => {
+            if (child instanceof THREE.Mesh) {
+                const mat = baseMaterial!.clone();
+                const isRock = child.name.includes('Rock');
+                mat.color = new THREE.Color(isRock ? config.rockColor : config.oreColor);
+                mat.transparent = true;
+                child.material = mat;
+            }
         });
 
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.userData.isResourceNode = true;
-        mesh.userData.nodeType = node.type;
+        group.userData.isResourceNode = true;
+        group.userData.nodeType = node.type;
 
         const groundY = getTerrainHeightAtFast(node.x, node.z);
-        mesh.position.set(node.x, groundY + config.scale * 0.3, node.z);
+        group.position.set(node.x, groundY + config.scale * 0.3, node.z);
 
-        scene.add(mesh);
-        resourceNodeMeshes[nodeId] = mesh;
+        scene.add(group);
+        resourceNodeMeshes[nodeId] = group;
     });
 }
 
