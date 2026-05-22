@@ -1,12 +1,120 @@
 import { room } from '../network';
 import { pushUIMode, popUIMode } from '../cameraControls';
 import { showNotification } from './notificationUI';
+import { registerDropHandler } from '../inventoryDnD';
+import { getItemColor } from '../itemColors';
+
+const SALVAGE_RATE_MIN = 0.2;
+const SALVAGE_RATE_MAX = 0.3;
+
+const salvageRecipes: Record<string, { inputs: { itemId: string; quantity: number }[] }> = {
+    bronze_sword: { inputs: [{ itemId: "bronze_bar", quantity: 4 }] },
+    bronze_helmet: { inputs: [{ itemId: "bronze_bar", quantity: 3 }] },
+    iron_helmet: { inputs: [{ itemId: "iron_bar", quantity: 4 }, { itemId: "coal", quantity: 1 }] },
+    iron_sword: { inputs: [{ itemId: "iron_bar", quantity: 6 }, { itemId: "coal", quantity: 2 }] },
+};
+
+const itemNames: Record<string, string> = {
+    bronze_bar: "Бронзовый слиток",
+    iron_bar: "Железный слиток",
+    coal: "Уголь",
+};
 
 let container: HTMLDivElement;
 let recipeListEl: HTMLDivElement;
 let isVisible = false;
 let currentStationType: string = '';
 let currentRecipes: any[] = [];
+let salvageWrapper: HTMLDivElement;
+
+// Salvage state
+let salvageSlotEl: HTMLDivElement;
+let salvagePreviewEl: HTMLDivElement;
+let salvageBtnEl: HTMLButtonElement;
+let pendingSalvageIndex: number | null = null;
+
+function getInventorySlotData(slotIndex: number): { item: any; quantity: number } | null {
+    if (!room || !room.sessionId) return null;
+    const player = room.state?.players?.get(room.sessionId);
+    if (!player) return null;
+    const slot = player.inventory?.slots?.[slotIndex];
+    return slot ? { item: slot.item, quantity: slot.quantity } : null;
+}
+
+function renderSalvagePreview(slotIndex: number | null) {
+    salvageSlotEl.innerHTML = '';
+    salvagePreviewEl.style.display = 'none';
+    salvageBtnEl.style.display = 'none';
+    pendingSalvageIndex = null;
+
+    if (slotIndex === null) {
+        salvageSlotEl.textContent = 'Сюда';
+        salvageSlotEl.style.color = '#888';
+        return;
+    }
+
+    const slotData = getInventorySlotData(slotIndex);
+    if (!slotData || !slotData.item) {
+        salvageSlotEl.textContent = 'Сюда';
+        salvageSlotEl.style.color = '#888';
+        return;
+    }
+
+    const itemId = slotData.item.id;
+    const recipe = salvageRecipes[itemId];
+    if (!recipe) {
+        salvageSlotEl.textContent = 'Нельзя разобрать';
+        salvageSlotEl.style.color = '#ff4444';
+        return;
+    }
+
+    pendingSalvageIndex = slotIndex;
+
+    const itemDiv = document.createElement('div');
+    itemDiv.style.cssText = `
+        width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+        font-size: 18px; font-weight: bold; border-radius: 4px;
+        background: ${getItemColor(slotData.item)};
+        color: white; text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+    `;
+    itemDiv.textContent = slotData.item.name?.slice(0, 3) || '??';
+    salvageSlotEl.appendChild(itemDiv);
+
+    let previewHtml = '<div style="margin-top: 8px; font-size: 12px; color: #ccc;">Вернётся (20-30%):</div>';
+    for (const inp of recipe.inputs) {
+        const minQty = Math.max(1, Math.round(inp.quantity * SALVAGE_RATE_MIN));
+        const maxQty = Math.max(1, Math.round(inp.quantity * SALVAGE_RATE_MAX));
+        const rangeText = minQty === maxQty ? `${minQty}` : `${minQty}-${maxQty}`;
+        const name = itemNames[inp.itemId] || inp.itemId;
+        previewHtml += `<div style="font-size: 13px; padding: 2px 0; color: ${getItemColor({ id: inp.itemId })};">${rangeText}x ${name}</div>`;
+    }
+    salvagePreviewEl.innerHTML = previewHtml;
+    salvagePreviewEl.style.display = 'block';
+    salvageBtnEl.style.display = 'inline-block';
+}
+
+function onSalvageDrop(sourceType: string, sourceIndex: string) {
+    if (sourceType !== 'inventory') return;
+    const idx = parseInt(sourceIndex);
+    if (isNaN(idx)) return;
+
+    const slotData = getInventorySlotData(idx);
+    if (!slotData || !slotData.item) return;
+
+    const recipe = salvageRecipes[slotData.item.id];
+    if (!recipe) {
+        showNotification('Этот предмет нельзя разобрать', 2000);
+        return;
+    }
+
+    renderSalvagePreview(idx);
+}
+
+function doSalvage() {
+    if (pendingSalvageIndex === null) return;
+    room?.send('salvageItem', { slotIndex: pendingSalvageIndex });
+    renderSalvagePreview(null);
+}
 
 export function createCraftingUI() {
     container = document.createElement('div');
@@ -41,7 +149,68 @@ export function createCraftingUI() {
     recipeListEl.id = 'crafting-recipes';
     container.appendChild(recipeListEl);
 
+    // Salvage section
+    salvageWrapper = document.createElement('div');
+    salvageWrapper.id = 'crafting-salvage';
+
+    const separator = document.createElement('hr');
+    separator.style.cssText = 'border: none; border-top: 1px solid #555; margin: 12px 0;';
+    salvageWrapper.appendChild(separator);
+
+    const salvageTitle = document.createElement('div');
+    salvageTitle.textContent = 'Разбор предметов';
+    salvageTitle.style.cssText = 'text-align: center; font-weight: bold; font-size: 14px; margin-bottom: 8px;';
+    salvageWrapper.appendChild(salvageTitle);
+
+    const slotRow = document.createElement('div');
+    slotRow.style.cssText = 'display: flex; align-items: center; gap: 10px;';
+
+    salvageSlotEl = document.createElement('div');
+    salvageSlotEl.setAttribute('data-dropzone', 'salvage');
+    salvageSlotEl.style.cssText = `
+        width: 50px; height: 50px; border: 2px dashed #888; border-radius: 6px;
+        display: flex; align-items: center; justify-content: center;
+        background: rgba(255,255,255,0.05); cursor: default; flex-shrink: 0;
+        font-size: 11px; color: #888; text-align: center; line-height: 1.2;
+        transition: border-color 0.15s, background 0.15s;
+    `;
+    salvageSlotEl.textContent = 'Сюда';
+    slotRow.appendChild(salvageSlotEl);
+
+    const previewCol = document.createElement('div');
+    previewCol.style.cssText = 'flex: 1; display: flex; flex-direction: column; gap: 6px;';
+
+    salvagePreviewEl = document.createElement('div');
+    salvagePreviewEl.style.display = 'none';
+    previewCol.appendChild(salvagePreviewEl);
+
+    salvageBtnEl = document.createElement('button');
+    salvageBtnEl.textContent = 'Разобрать';
+    salvageBtnEl.style.cssText = `
+        padding: 6px 14px; border: none; border-radius: 4px;
+        background: #a44; color: white; cursor: pointer;
+        font-size: 12px; display: none; align-self: flex-start;
+    `;
+    salvageBtnEl.addEventListener('click', doSalvage);
+    previewCol.appendChild(salvageBtnEl);
+
+    slotRow.appendChild(previewCol);
+    salvageWrapper.appendChild(slotRow);
+    container.appendChild(salvageWrapper);
+
+    salvageSlotEl.addEventListener('mouseenter', () => {
+        if (!salvageSlotEl.querySelector('div')) {
+            salvageSlotEl.style.borderColor = '#4f4';
+            salvageSlotEl.style.background = 'rgba(68,255,68,0.1)';
+        }
+    });
+    salvageSlotEl.addEventListener('mouseleave', () => {
+        salvageSlotEl.style.borderColor = '#888';
+        salvageSlotEl.style.background = 'rgba(255,255,255,0.05)';
+    });
+
     document.body.appendChild(container);
+    registerDropHandler('salvage', onSalvageDrop);
 }
 
 export function showCraftingUI(stationType: string) {
@@ -55,6 +224,10 @@ export function showCraftingUI(stationType: string) {
         title.textContent = stationType === 'furnace' ? 'Smelting (Furnace)' : 'Smithing (Anvil)';
     }
 
+    const includeSalvage = stationType === 'anvil';
+    salvageWrapper.style.display = includeSalvage ? '' : 'none';
+    if (!includeSalvage) renderSalvagePreview(null);
+
     room?.send('getStationRecipes', { stationType });
 }
 
@@ -65,6 +238,7 @@ export function hideCraftingUI() {
         popUIMode();
         currentStationType = '';
         currentRecipes = [];
+        renderSalvagePreview(null);
     }
 }
 
@@ -95,7 +269,6 @@ export function updateCraftingRecipes(recipes: any[]) {
             opacity: ${recipe.canCraft ? '1' : '0.5'};
         `;
 
-        // Info block
         const info = document.createElement('div');
         info.style.flex = '1';
 

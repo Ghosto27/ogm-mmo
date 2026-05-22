@@ -26,6 +26,19 @@ let dragState: DragState = {
 
 let highlightedTarget: HTMLElement | null = null;
 
+// ---------- External drop handler registration ----------
+
+type DropHandler = (sourceType: string, sourceIndex: string) => void;
+const externalDropHandlers = new Map<string, DropHandler>();
+
+export function registerDropHandler(type: string, handler: DropHandler) {
+    externalDropHandlers.set(type, handler);
+}
+
+export function unregisterDropHandler(type: string) {
+    externalDropHandlers.delete(type);
+}
+
 // ---------- Ghost element ----------
 
 function createGhost(slot: HTMLElement, clientX: number, clientY: number): HTMLElement {
@@ -130,6 +143,9 @@ function isValidDrop(sourceType: string, sourceIndex: string, target: HTMLElemen
     if (targetType === 'bank') {
         return sourceType === 'inventory' || sourceType === 'bank';
     }
+    if (targetType && externalDropHandlers.has(targetType)) {
+        return sourceType === 'inventory';
+    }
     return false;
 }
 
@@ -168,6 +184,14 @@ function executeDrop(target: HTMLElement) {
             room?.send('depositItem', { fromSlotIndex: parseInt(sourceIndex), toBankSlotIndex });
         } else if (sourceType === 'bank' && parseInt(sourceIndex) !== toBankSlotIndex) {
             room?.send('moveBankItem', { fromBankSlotIndex: parseInt(sourceIndex), toBankSlotIndex });
+        }
+    } else {
+        if (targetType) {
+            const handler = externalDropHandlers.get(targetType);
+            if (handler) {
+                handler(sourceType, sourceIndex);
+                return;
+            }
         }
     }
 }

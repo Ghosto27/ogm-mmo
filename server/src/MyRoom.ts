@@ -25,7 +25,7 @@ import { initServerColliders, applyMobMovementWithCollisions, isPlayerPositionBl
 import { ProfessionsData } from "./models/ProfessionsData";
 import { ResourceNode } from "./schemas/ResourceNode";
 import { ResourceSpawner } from "./systems/ResourceSpawner";
-import { recipes, Recipe, computeSuccessChance, computeBonusChance } from "./data/recipes";
+import { recipes, Recipe, computeSuccessChance, computeBonusChance, findRecipeByResult, MIN_SALVAGE_RATE, MAX_SALVAGE_RATE } from "./data/recipes";
 
 export class Player extends Schema {
     @type("number") x: number = 0;
@@ -1470,6 +1470,64 @@ export class MyRoom extends Room<MyRoomState> {
                 client.send("notification", { text: "Инвентарь полон!", color: "#ff4444" });
                 return;
             }
+        });
+
+        // ---------- Salvage (разбор предметов) ----------
+
+        this.onMessage("salvageItem", (client, message: { slotIndex: number }) => {
+            const player = this.state.players.get(client.sessionId);
+            if (!player || player.hp <= 0) return;
+
+            // Проверка дистанции до наковальни
+            let nearAnvil = false;
+            this.state.worldObjects.forEach((wo: any) => {
+                if (wo.modelName === 'anvil') {
+                    const dx = player.x - wo.x;
+                    const dz = player.z - wo.z;
+                    if (Math.sqrt(dx*dx + dz*dz) <= 4) nearAnvil = true;
+                }
+            });
+            if (!nearAnvil) return;
+
+            const slot = player.inventory.slots[message.slotIndex];
+            if (!slot || !slot.item) return;
+
+            const itemName = slot.item.name;
+            const recipe = findRecipeByResult(slot.item.id);
+            if (!recipe) {
+                client.send("notification", { text: "Этот предмет нельзя разобрать", color: "#ffaa00" });
+                return;
+            }
+
+            // Удаляем предмет из инвентаря
+            const qtyToRemove = slot.quantity;
+            player.inventory.removeItem(message.slotIndex, qtyToRemove);
+
+            // Возврат 20-30% от стоимости крафта
+            const rate = MIN_SALVAGE_RATE + Math.random() * (MAX_SALVAGE_RATE - MIN_SALVAGE_RATE);
+            const returnedItems: { itemId: string; name: string; quantity: number }[] = [];
+
+            for (const inp of recipe.inputs) {
+                const template = itemDatabase[inp.itemId];
+                if (!template) continue;
+                const returnedQty = Math.max(1, Math.round(inp.quantity * rate));
+                const item = Object.assign(new Item(), template);
+                player.inventory.addItem(item, returnedQty);
+                returnedItems.push({ itemId: inp.itemId, name: template.name, quantity: returnedQty });
+            }
+
+            // XP
+            const salvageXp = Math.floor(recipe.xpReward * 0.3);
+            player.professions.blacksmithing.addXp(salvageXp);
+
+            console.log(`[SALVAGE] ${player.name} разобрал ${itemName} x${qtyToRemove}, получил ${returnedItems.map(i => `${i.name} x${i.quantity}`).join(', ')} (+${salvageXp} XP)`);
+            PlayerPersistence.savePlayer(player);
+
+            client.send("salvageResult", {
+                itemName,
+                returnedItems,
+                salvageXp,
+            });
         });
 
         this.onMessage("editorSave", (client, message: { objects: any[] }) => {

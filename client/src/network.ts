@@ -471,6 +471,12 @@ function join(playerName: string) {
             }
         });
 
+        room.onMessage("salvageResult", (data: { itemName: string, returnedItems: { itemId: string, name: string, quantity: number }[], salvageXp: number }) => {
+            const parts = data.returnedItems.map(i => `${i.name} x${i.quantity}`);
+            showNotification(`Разобрал ${data.itemName}: ${parts.join(', ')}`, 4000);
+            showNotification(`+${data.salvageXp} Blacksmithing XP`, 2000);
+        });
+
         room.onMessage("adminXpResult", (data: { profession: string, level: number, xp: number, xpToNext: number }) => {
             const resultEl = document.getElementById('admin-xp-result');
             if (resultEl) {

@@ -33,6 +33,13 @@ export function computeBonusChance(base: number, level: number, reqLevel: number
     return Math.min(MAX_BONUS_CHANCE, base * (1 + BONUS_PER_LEVEL_MULT * (level - reqLevel)));
 }
 
+export function findRecipeByResult(itemId: string): Recipe | undefined {
+    return recipes.find(r => r.output.itemId === itemId);
+}
+
+export const MIN_SALVAGE_RATE = 0.2;
+export const MAX_SALVAGE_RATE = 0.3;
+
 export const recipes: Recipe[] = [
     // ===== Furnace (Smelting) =====
     {
