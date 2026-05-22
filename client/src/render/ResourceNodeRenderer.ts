@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { scene } from '../scene';
-import { getTerrainHeightAtFast } from './TerrainRenderer';
+import { getTerrainHeightAt } from './TerrainRenderer';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { addSphereCollider, removeCollider, Collider } from '../collision';
 
@@ -67,7 +67,7 @@ export function updateResourceNodes(resourceNodes: any): void {
                 removeCollider(group.userData.collider as Collider);
                 delete group.userData.collider;
             } else if (isActive && !group.userData.collider) {
-                const groundY = getTerrainHeightAtFast(node.x, node.z);
+                const groundY = getTerrainHeightAt(node.x, node.z);
                 const center = new THREE.Vector3(node.x, groundY + config.scale * 0.3, node.z);
                 group.userData.collider = addSphereCollider(center, config.scale * 2);
             }
@@ -97,7 +97,7 @@ export function updateResourceNodes(resourceNodes: any): void {
         group.userData.isResourceNode = true;
         group.userData.nodeType = node.type;
 
-        const groundY = getTerrainHeightAtFast(node.x, node.z);
+        const groundY = getTerrainHeightAt(node.x, node.z);
         group.position.set(node.x, groundY + config.scale * 0.3, node.z);
         group.rotation.y = node.rotationY || 0;
 
@@ -120,6 +120,8 @@ export function clearResourceNodes(): void {
         delete resourceNodeMeshes[id];
     }
 }
+
+export const resourceNodesAssetsReady = initPromise;
 
 export function setResourceNodesVisible(visible: boolean): void {
     for (const id in resourceNodeMeshes) {

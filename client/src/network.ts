@@ -26,7 +26,7 @@ import { showNotification } from './ui/notificationUI';
 import { showFloatingDamage } from './damageNumbers';
 import { setQuestDefs, getQuestName } from './quest/questData';
 import { updateWorldObjects, worldMeshes } from './render/WorldRenderer';
-import { updateResourceNodes } from './render/ResourceNodeRenderer';
+import { updateResourceNodes, resourceNodesAssetsReady } from './render/ResourceNodeRenderer';
 import { updateBankUI, isBankVisible, hideBank } from './ui/BankUI';
 import { updateCraftingRecipes, hideCraftingUI, isCraftingVisible } from './ui/CraftingUI';
 import { refreshProfessions } from './ui/ProfessionsUI';
@@ -405,13 +405,15 @@ function join(playerName: string) {
             // 2. Всегда обновляем мир – и editor_, и vegezone_, и всё остальное
             updateWorldObjects(state.worldObjects);
 
-            // ------ Resource Nodes (рудные жилы) ------
-            if (state.resourceNodes) {
-                updateResourceNodes(state.resourceNodes);
-            }
-
             // ------ Ландшафт ------
             if (state.terrain) updateTerrain(state.terrain);
+
+            // ------ Resource Nodes (рудные жилы) ------
+            if (state.resourceNodes) {
+                Promise.all([terrainReady, resourceNodesAssetsReady]).then(() => {
+                    updateResourceNodes(state.resourceNodes);
+                });
+            }
 
             
         });

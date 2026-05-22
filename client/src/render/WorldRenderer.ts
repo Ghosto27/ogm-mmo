@@ -218,7 +218,7 @@ function createCollisionForModel(mesh: THREE.Object3D, obj: any) {
         box.getSize(size);
         // Берём среднее между шириной и глубиной, делённое пополам, и чуть уменьшаем
         const maxDim = Math.max(size.x, size.z);
-        const radius = (maxDim / 2) * 0.6;
+        const radius = (maxDim / 2) * 0.8;
         // Центр сферы – центр бокса (он будет примерно в середине камня)
         const center = new THREE.Vector3();
         box.getCenter(center);
