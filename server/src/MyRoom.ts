@@ -1650,6 +1650,21 @@ export class MyRoom extends Room<MyRoomState> {
             }
         });
 
+        this.onMessage("getResourceNodes", (client) => {
+            const nodes: { id: string; type: string; x: number; z: number; rotationY: number }[] = [];
+            this.state.resourceNodes.forEach((node, id) => {
+                nodes.push({ id, type: node.type, x: node.x, z: node.z, rotationY: node.rotationY });
+            });
+            client.send('resourceNodesData', { nodes });
+        });
+
+        this.onMessage("editorSaveResourceNodes", (client, message: { nodes: { id: string; type: string; x: number; z: number; rotationY?: number }[] }) => {
+            console.log(`[EDITOR] Сохранение ${message.nodes.length} рудных жил`);
+            if (this.resourceSpawner) {
+                this.resourceSpawner.replaceAllNodes(message.nodes);
+            }
+        });
+
         console.log("Комната 'world' создана");
         
     }

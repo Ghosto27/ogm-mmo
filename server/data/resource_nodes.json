@@ -3,84 +3,182 @@
     "id": "test_ore_11",
     "type": "copper_ore",
     "x": 12,
-    "z": -55
+    "z": -55,
+    "rotationY": 0
   },
   {
     "id": "test_ore_12",
     "type": "copper_ore",
     "x": 18,
-    "z": -60
+    "z": -60,
+    "rotationY": 0
   },
-   {
+  {
     "id": "test_ore_13",
     "type": "copper_ore",
     "x": 20,
-    "z": -60
+    "z": -60,
+    "rotationY": 0
   },
-   {
+  {
     "id": "test_ore_14",
     "type": "copper_ore",
     "x": 22,
-    "z": -60
+    "z": -60,
+    "rotationY": 0
   },
-   {
+  {
     "id": "test_ore_15",
     "type": "copper_ore",
     "x": 18,
-    "z": -58
+    "z": -58,
+    "rotationY": 0
   },
-   {
+  {
     "id": "test_ore_16",
     "type": "copper_ore",
     "x": 18,
-    "z": -56
+    "z": -56,
+    "rotationY": 0
   },
-   {
+  {
     "id": "test_ore_17",
     "type": "copper_ore",
     "x": 18,
-    "z": -54
+    "z": -54,
+    "rotationY": 0
   },
-   {
+  {
     "id": "test_ore_18",
     "type": "copper_ore",
     "x": 16,
-    "z": -60
+    "z": -60,
+    "rotationY": 0
   },
   {
     "id": "test_ore_19",
     "type": "copper_ore",
     "x": 22,
-    "z": -72
+    "z": -72,
+    "rotationY": 0
   },
   {
     "id": "test_ore_20",
     "type": "tin_ore",
     "x": 30,
-    "z": -45
+    "z": -45,
+    "rotationY": 0
   },
   {
     "id": "test_ore_5",
     "type": "tin_ore",
     "x": 35,
-    "z": -55
+    "z": -55,
+    "rotationY": 0
   },
   {
     "id": "test_ore_6",
     "type": "coal",
     "x": 28,
-    "z": -70
+    "z": -70,
+    "rotationY": 0
   },
   {
     "id": "test_ore_7",
     "type": "iron_ore",
     "x": 50,
-    "z": -49
+    "z": -49,
+    "rotationY": 0
   },
   {
     "id": "test_ore_8",
     "type": "iron_ore",
     "x": 55,
-    "z": -62
+    "z": -62,
+    "rotationY": 0
+  },
+  {
+    "id": "resnode_5fda5d56-b60a-45dd-a7a3-e2d888955184",
+    "type": "copper_ore",
+    "x": -2.7238127710842974,
+    "z": -34.09005041662143,
+    "rotationY": 5.615665281582974
+  },
+  {
+    "id": "resnode_7bb8725c-72a0-43a2-93ff-3853784e1aa7",
+    "type": "copper_ore",
+    "x": -7.049538914401971,
+    "z": -34.259054201453345,
+    "rotationY": 5.133009135232787
+  },
+  {
+    "id": "resnode_be6db0e2-55e4-4047-b25a-39fe598630db",
+    "type": "copper_ore",
+    "x": -10.969805630093045,
+    "z": -34.51659436042082,
+    "rotationY": 0.3033749472160592
+  },
+  {
+    "id": "resnode_b4410bfd-ef05-41e8-93b8-2c26a4b42bd1",
+    "type": "tin_ore",
+    "x": -2.953040040767249,
+    "z": -37.72508286345088,
+    "rotationY": 3.8208585639949684
+  },
+  {
+    "id": "resnode_c0239cd5-b673-4780-8ce9-980fd6a2b271",
+    "type": "tin_ore",
+    "x": -7.763741768025774,
+    "z": -38.211637999172055,
+    "rotationY": 5.073657056518175
+  },
+  {
+    "id": "resnode_2828842f-4274-4c56-bbbe-fd4688757f7e",
+    "type": "tin_ore",
+    "x": -11.33438614895121,
+    "z": -38.30044153206281,
+    "rotationY": 3.9052553931768843
+  },
+  {
+    "id": "resnode_c718e770-fde6-4104-a0da-d3ed718cb43a",
+    "type": "iron_ore",
+    "x": -3.2081302581144016,
+    "z": -42.19595465487336,
+    "rotationY": 4.509157518831629
+  },
+  {
+    "id": "resnode_f92eef15-b281-4806-b7cf-d82775ffc872",
+    "type": "iron_ore",
+    "x": -7.859904835038563,
+    "z": -42.27380782234635,
+    "rotationY": 1.8162768794186477
+  },
+  {
+    "id": "resnode_36179404-388e-4926-9984-eec722e800d4",
+    "type": "iron_ore",
+    "x": -11.66320568208593,
+    "z": -42.31726107511311,
+    "rotationY": 1.6138387249932002
+  },
+  {
+    "id": "resnode_78e29fca-db4e-4584-8786-89581e11abe2",
+    "type": "coal",
+    "x": -3.6264063435134943,
+    "z": -46.638614160819394,
+    "rotationY": 2.440129784782002
+  },
+  {
+    "id": "resnode_c4b2b466-f90f-4c14-bcac-0a15ca0f4956",
+    "type": "coal",
+    "x": -8.427319677227612,
+    "z": -46.455839400527836,
+    "rotationY": 4.400605312356064
+  },
+  {
+    "id": "resnode_fa2ba67b-d172-462e-8e6b-d6cbb1931239",
+    "type": "coal",
+    "x": -12.252816513297088,
+    "z": -46.3101995568967,
+    "rotationY": 5.425239680144339
   }
 ]

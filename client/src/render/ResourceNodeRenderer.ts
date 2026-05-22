@@ -83,6 +83,7 @@ export function updateResourceNodes(resourceNodes: any): void {
 
         const groundY = getTerrainHeightAtFast(node.x, node.z);
         group.position.set(node.x, groundY + config.scale * 0.3, node.z);
+        group.rotation.y = node.rotationY || 0;
 
         scene.add(group);
         resourceNodeMeshes[nodeId] = group;
@@ -93,5 +94,11 @@ export function clearResourceNodes(): void {
     for (const id in resourceNodeMeshes) {
         scene.remove(resourceNodeMeshes[id]);
         delete resourceNodeMeshes[id];
+    }
+}
+
+export function setResourceNodesVisible(visible: boolean): void {
+    for (const id in resourceNodeMeshes) {
+        resourceNodeMeshes[id].visible = visible;
     }
 }

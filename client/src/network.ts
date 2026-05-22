@@ -33,7 +33,7 @@ import { refreshProfessions } from './ui/ProfessionsUI';
 import { updateTerrain, getTerrainHeightAt, terrainReady, getTerrainHeightAtFast } from './render/TerrainRenderer';
 import { addVegetationInstance, finalizeVegetation, isVegetationLoaded } from './render/VegetationRenderer';
 import { isEditorActive } from './editor/EditorState';
-import { applyVegetationZones, applyMobZones } from './editor/Editor';
+import { applyVegetationZones, applyMobZones, applyResourceNodes } from './editor/Editor';
 import { scene } from './scene';
 
 export const client = new Client(SERVER_URL);
@@ -624,6 +624,12 @@ function join(playerName: string) {
                     editor.applyMobZones(zones);
                 }
             });
+        });
+
+        room.onMessage('resourceNodesData', (data: { nodes: { id: string; type: string; x: number; z: number; rotationY?: number }[] }) => {
+            if (applyResourceNodes) {
+                applyResourceNodes(data.nodes || []);
+            }
         });
     }).catch(err => {
         console.error('[JOIN] Ошибка:', err);

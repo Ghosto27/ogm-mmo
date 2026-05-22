@@ -6,6 +6,7 @@ export class ResourceNode extends Schema {
     @type("number") x: number = 0;
     @type("number") z: number = 0;
     @type("number") y: number = 0;
+    @type("number") rotationY: number = 0;
     @type("string") state: string = "active"; // "active" | "depleted"
     @type("number") respawnAt: number = 0;
 
@@ -30,12 +31,13 @@ export class ResourceNode extends Schema {
     }
 
     get respawnTimeMs(): number {
+        const range = (min: number, max: number) => min + Math.random() * (max - min);
         switch (this.type) {
-            case "copper_ore": return 60000;
-            case "tin_ore": return 90000;
-            case "coal": return 120000;
-            case "iron_ore": return 180000;
-            default: return 60000;
+            case "copper_ore": return Math.floor(range(5000, 10000));
+            case "tin_ore":    return Math.floor(range(8000, 15000));
+            case "coal":       return Math.floor(range(10000, 20000));
+            case "iron_ore":   return Math.floor(range(15000, 30000));
+            default:           return Math.floor(range(5000, 10000));
         }
     }
 
@@ -44,7 +46,8 @@ export class ResourceNode extends Schema {
             id: this.id,
             type: this.type,
             x: this.x,
-            z: this.z
+            z: this.z,
+            rotationY: this.rotationY
         };
     }
 
@@ -54,6 +57,7 @@ export class ResourceNode extends Schema {
         node.type = data.type;
         node.x = data.x;
         node.z = data.z;
+        node.rotationY = data.rotationY || 0;
         return node;
     }
 }

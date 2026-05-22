@@ -7,7 +7,9 @@ import {
     createEditorUI, showEditorUI,
     updatePropertiesPanel, getScaleFromInputs, getPositionFromInputs,
     setVegetationZones, showVegetationZoneProps,
-    getRotationFromInputs, showMobZoneProps, setMobZones
+    getRotationFromInputs, showMobZoneProps, setMobZones,
+    showResourceNodeProps, getResourceNodeTypeFromProps,
+    getResourcePlacementType, resetResourcePlacementButton
 } from './EditorUI';
 import { inputState, sprintKey } from '../input';
 import { terrainMesh, getTerrainHeightAtFast, getTerrainHeightAt } from '../render/TerrainRenderer';
@@ -15,6 +17,7 @@ import { worldMeshes } from '../render/WorldRenderer';
 import { createModelClone, getModelBaseSize } from '../utils/modelLoader';
 import { getColliderConfig } from '../collisionConfig';
 import { pushUIMode, popUIMode } from '../cameraControls';
+import { setResourceNodesVisible } from '../render/ResourceNodeRenderer';
 
 let transformControls: TransformControls;
 let editorObjects: THREE.Object3D[] = [];
@@ -31,6 +34,8 @@ let drawingMobZone = false;
 let mobZoneCenter: THREE.Vector3 | null = null;
 let mobZonePreview: THREE.Line | null = null;
 let mobZoneVisuals: THREE.LineLoop[] = [];
+let resourceEditorObjects: THREE.Object3D[] = [];
+let resourcePlacementMode = false;
 
 // ---------- свободная камера (оставлено без изменений) ----------
 let freeCameraEnabled = false;
@@ -153,11 +158,18 @@ function attachTransformControls(obj: THREE.Object3D, addToSelection: boolean = 
         if (selectedObjects.length === 0) {
             transformControls.detach();
             updatePropertiesPanel(null);
+            showResourceNodeProps(null);
         } else {
             // Привязываемся к последнему оставшемуся
             const last = selectedObjects[selectedObjects.length - 1];
             transformControls.attach(last);
-            updatePropertiesPanel(last);
+            if (last.userData.isResourceNode) {
+                updatePropertiesPanel(null);
+                showResourceNodeProps(last);
+            } else {
+                updatePropertiesPanel(last);
+                showResourceNodeProps(null);
+            }
         }
         return;
     }
@@ -169,13 +181,20 @@ function attachTransformControls(obj: THREE.Object3D, addToSelection: boolean = 
 
     // Всегда привязываем TransformControls к последнему выбранному
     transformControls.attach(obj);
-    updatePropertiesPanel(obj);
+    if (obj.userData.isResourceNode) {
+        updatePropertiesPanel(null);
+        showResourceNodeProps(obj);
+    } else {
+        updatePropertiesPanel(obj);
+        showResourceNodeProps(null);
+    }
 }
 
 function deselectAllObjects() {
     if (transformControls) transformControls.detach();
     selectedObjects = [];
     updatePropertiesPanel(null);
+    showResourceNodeProps(null);
 }
 
 function deselectObject() {
@@ -188,6 +207,8 @@ function deleteSelectedObjects() {
         scene.remove(obj);
         const editorIdx = editorObjects.indexOf(obj);
         if (editorIdx !== -1) editorObjects.splice(editorIdx, 1);
+        const resourceIdx = resourceEditorObjects.indexOf(obj);
+        if (resourceIdx !== -1) resourceEditorObjects.splice(resourceIdx, 1);
     }
     deselectAllObjects();
 }
@@ -213,10 +234,34 @@ async function onEditorClick(event: MouseEvent) {
             const intersects = raycaster.intersectObject(terrainMesh);
             if (intersects.length > 0) {
                 const point = intersects[0].point;
-                await placeObject(point.x, point.z);   // <-- главное изменение
+                await placeObject(point.x, point.z);
             }
         }
         return;
+    }
+
+    if (resourcePlacementMode) {
+        if (terrainMesh) {
+            const intersects = raycaster.intersectObject(terrainMesh);
+            if (intersects.length > 0) {
+                const point = intersects[0].point;
+                placeResourceNode(point.x, point.z);
+            }
+        }
+        return;
+    }
+
+    // Ищем ресурсную ноду под курсором
+    const resourceHits = raycaster.intersectObjects(resourceEditorObjects, true);
+    if (resourceHits.length > 0) {
+        let hit: THREE.Object3D | null = resourceHits[0].object;
+        while (hit && !hit.userData?.isResourceNode) {
+            hit = hit.parent;
+        }
+        if (hit && hit.userData?.isResourceNode) {
+            attachTransformControls(hit, event.shiftKey);
+            return;
+        }
     }
 
     // Ищем объект редактора под курсором
@@ -260,6 +305,37 @@ async function placeObject(worldX: number, worldZ: number): Promise<void> {
     attachTransformControls(obj);
 }
 
+const RESOURCE_NODE_COLORS: Record<string, string> = {
+    copper_ore: "#d4875a",
+    tin_ore: "#c8c8c8",
+    iron_ore: "#b0a090",
+    coal: "#444444",
+};
+
+function createResourceNodePlaceholder(type: string, x: number, z: number): THREE.Mesh {
+    const geo = new THREE.BoxGeometry(1, 0.5, 1);
+    const color = RESOURCE_NODE_COLORS[type] || '#888888';
+    const mat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.15 });
+    const mesh = new THREE.Mesh(geo, mat);
+    const y = getTerrainHeightAtFast(x, z);
+    mesh.position.set(x, y + 0.25, z);
+    mesh.rotation.y = Math.random() * Math.PI * 2;
+    mesh.userData.isResourceNode = true;
+    mesh.userData.oreType = type;
+    mesh.userData.editorId = 'resnode_' + crypto.randomUUID();
+    mesh.userData.baseMinY = 0.25;
+    return mesh;
+}
+
+function placeResourceNode(x: number, z: number) {
+    const type = getResourcePlacementType();
+    if (!type) return;
+    const mesh = createResourceNodePlaceholder(type, x, z);
+    scene.add(mesh);
+    resourceEditorObjects.push(mesh);
+    attachTransformControls(mesh);
+}
+
 // Функции-обработчики для UI
 function onDeleteAction() {
     deleteSelectedObjects();
@@ -268,12 +344,26 @@ function onDeleteAction() {
 function onPropertiesChanged() {
     if (selectedObjects.length === 0) return;
 
+    const first = selectedObjects[0];
+    if (first.userData.isResourceNode) {
+        // Resource node: update type
+        const newType = getResourceNodeTypeFromProps();
+        first.userData.oreType = newType;
+        const color = RESOURCE_NODE_COLORS[newType] || '#888888';
+        const mat = (first as THREE.Mesh).material as THREE.MeshStandardMaterial;
+        if (mat) {
+            mat.color.set(color);
+            mat.emissive.set(color);
+        }
+        showResourceNodeProps(first);
+        return;
+    }
+
     const pos = getPositionFromInputs();
     const scl = getScaleFromInputs();
     const rot = getRotationFromInputs();
 
     // Запоминаем старые значения первого объекта (для расчёта смещения)
-    const first = selectedObjects[0];
     const oldPos = first.position.clone();
     const oldScale = first.scale.clone();
     const oldRot = first.rotation.clone();
@@ -303,6 +393,40 @@ function onPlacementToggle(type: string) {
     } else {
         placementMode = false;
     }
+}
+
+function onResourceNodePlacementToggle(type: string) {
+    resourcePlacementMode = !!type;
+    if (!type) {
+        resetResourcePlacementButton();
+    }
+}
+
+function onDeleteResourceNode() {
+    deleteSelectedObjects();
+}
+
+function onSaveResourceNodes() {
+    const nodes = resourceEditorObjects.map(obj => ({
+        id: obj.userData.editorId || 'resnode_' + crypto.randomUUID(),
+        type: obj.userData.oreType || 'copper_ore',
+        x: obj.position.x,
+        z: obj.position.z,
+        rotationY: obj.rotation.y,
+    }));
+
+    nodes.forEach(n => console.log(`[RESOURCE-SAVE] id=${n.id}, type=${n.type}, x=${n.x}, z=${n.z}, rot=${n.rotationY.toFixed(3)}`));
+
+    if (room) {
+        room.send('editorSaveResourceNodes', { nodes });
+        console.log('[EDITOR] Ресурсные ноды сохранены');
+    }
+}
+
+function requestResourceNodes() {
+    if (!room) return;
+    room.send('getResourceNodes');
+    console.log('[EDITOR] Запрошены ресурсные ноды с сервера');
 }
 
 function requestVegetationZones() {
@@ -409,6 +533,10 @@ export function initEditor() {
         onZoneGeometryChanged: (index) => { updateZoneRect(index); },
         onMobZoneGeometryChanged: (index) => { updateMobZoneCircle(index); },
         onGenerateVegetationZone: onGenerateSelectedZone,
+        onPlaceResourceNode: onResourceNodePlacementToggle,
+        onSaveResourceNodes: onSaveResourceNodes,
+        onDeleteResourceNode: onDeleteResourceNode,
+        onTabResourcesSelected: () => { requestResourceNodes(); },
     });
 
     // TransformControls
@@ -416,7 +544,11 @@ export function initEditor() {
     transformControls.addEventListener('change', () => {
         if (selectedObjects.length > 0) {
             const last = selectedObjects[selectedObjects.length - 1];
-            updatePropertiesPanel(last);
+            if (last.userData.isResourceNode) {
+                showResourceNodeProps(last);
+            } else {
+                updatePropertiesPanel(last);
+            }
         }
     });
 
@@ -444,6 +576,8 @@ export function initEditor() {
         // Escape сбрасывает выделение и режим размещения
         if (e.key === 'Escape' && isEditorActive()) {
             placementMode = false;
+            resourcePlacementMode = false;
+            resetResourcePlacementButton();
             deselectObject();
         }
     });
@@ -455,6 +589,9 @@ async function enterEditorMode() {
     setEditorActive(true);
     showEditorUI(true);
     pushUIMode();
+
+    // Скрываем реальные ресурсные ноды (редактор покажет свои placeholder'ы)
+    setResourceNodesVisible(false);
 
     // --- Очистка мусора: удаляем объекты, которые не являются актуальными оригиналами из worldMeshes ---
     const toRemove: THREE.Object3D[] = [];
@@ -505,6 +642,11 @@ async function enterEditorMode() {
     }
     selectedObjects = [];
     startFreeCamera();
+
+    // Загружаем ресурсные ноды для редактора
+    resourceEditorObjects = [];
+    requestResourceNodes();
+
     console.log(`[EDITOR] Загружено ${editorObjects.length} объектов`);
 }
 
@@ -515,7 +657,11 @@ function exitEditorMode() {
     deselectObject();
     popUIMode();
     placementMode = false;
+    resourcePlacementMode = false;
     
+    // Показываем реальные ресурсные ноды
+    setResourceNodesVisible(true);
+
     // Очистка визуализаций зон растительности
     clearZoneVisuals();
     vegetationZones = [];
@@ -530,6 +676,12 @@ function exitEditorMode() {
     mobZones = [];
     drawingMobZone = false;
     mobZoneCenter = null;
+    
+    // Очистка placeholder'ов ресурсных нод
+    for (const obj of resourceEditorObjects) {
+        scene.remove(obj);
+    }
+    resourceEditorObjects = [];
     
     editorObjects = [];
     selectedObjects = [];
@@ -831,6 +983,23 @@ function highlightMobZone(index: number) {
             );
         }
     }
+}
+
+export function applyResourceNodes(nodes: { id: string; type: string; x: number; z: number; rotationY?: number }[]) {
+    // Очищаем старые placeholder'ы
+    for (const obj of resourceEditorObjects) {
+        scene.remove(obj);
+    }
+    resourceEditorObjects = [];
+
+    for (const node of nodes) {
+        const mesh = createResourceNodePlaceholder(node.type, node.x, node.z);
+        mesh.userData.editorId = node.id;
+        mesh.rotation.y = node.rotationY || 0;
+        scene.add(mesh);
+        resourceEditorObjects.push(mesh);
+    }
+    console.log(`[EDITOR] Загружено ${nodes.length} ресурсных нод`);
 }
 
 export function applyMobZones(zones: any[]) {

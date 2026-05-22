@@ -33,6 +33,7 @@ let btnNewVegetationZone: HTMLButtonElement;
 let btnSaveVegetationZones: HTMLButtonElement;
 let btnDeleteVegetationZone: HTMLButtonElement;
 let mobsPanel: HTMLElement;
+let resourcesPanel: HTMLElement;
 let selectMobZone: HTMLSelectElement;
 let mobZoneProps: HTMLElement;
 let inpMobZoneId: HTMLInputElement;
@@ -42,6 +43,13 @@ let btnNewMobZone: HTMLButtonElement;
 let btnSaveMobZones: HTMLButtonElement;
 let btnDeleteMobZone: HTMLButtonElement;
 
+// --- Элементы ресурсных нод ---
+let selectResourceType: HTMLSelectElement;
+let inpResourceX: HTMLInputElement;
+let inpResourceZ: HTMLInputElement;
+let resourceProps: HTMLElement;
+let resourcePlacementActive = false;
+
 // Переменные для режима размещения (нужны только для UI)
 let placementType = 'cube';
 let placementMode = false;
@@ -49,7 +57,7 @@ let placementMode = false;
 let editorCallbacks: any = {};
 
 // Текущая вкладка и данные зон
-let currentTab: 'static' | 'vegetation' | 'mobs' = 'static';
+let currentTab: 'static' | 'vegetation' | 'mobs' | 'resources' = 'static';
 let vegetationZones: any[] = [];
 
 // --- Колбэки (будут назначены из Editor.ts) ---
@@ -67,11 +75,14 @@ let onNewMobZone: () => void;
 let onSaveMobZones: () => void;
 let onDeleteMobZone: () => void;
 let onMobZoneSelected: (index: number) => void;
+let onPlaceResourceNode: (type: string) => void;
+let onSaveResourceNodes: () => void;
+let onDeleteResourceNode: () => void;
 let inpZoneWidth: HTMLInputElement;
 let inpZoneDepth: HTMLInputElement;
 let btnGenerateVegetationZone: HTMLButtonElement;
 
-function switchTab(tab: 'static' | 'vegetation' | 'mobs') {
+function switchTab(tab: 'static' | 'vegetation' | 'mobs' | 'resources') {
     currentTab = tab;
     const tabs = document.querySelectorAll('.tab-btn');
     tabs.forEach(b => b.classList.remove('active'));
@@ -79,11 +90,15 @@ function switchTab(tab: 'static' | 'vegetation' | 'mobs') {
     staticPanel.style.display = tab === 'static' ? 'block' : 'none';
     vegetationPanel.style.display = tab === 'vegetation' ? 'block' : 'none';
     mobsPanel.style.display = tab === 'mobs' ? 'block' : 'none';
+    resourcesPanel.style.display = tab === 'resources' ? 'block' : 'none';
     if (tab === 'vegetation' && editorCallbacks.onTabVegetationSelected) {
         editorCallbacks.onTabVegetationSelected();
     }
     if (tab === 'mobs' && editorCallbacks.onTabMobsSelected) {
         editorCallbacks.onTabMobsSelected();
+    }
+    if (tab === 'resources' && editorCallbacks.onTabResourcesSelected) {
+        editorCallbacks.onTabResourcesSelected();
     }
 }
 
@@ -105,6 +120,10 @@ export function createEditorUI(
         onDeleteMobZone: () => void;
         onMobZoneSelected: (index: number) => void;
         onTabMobsSelected?: () => void;
+        onPlaceResourceNode?: (type: string) => void;
+        onSaveResourceNodes?: () => void;
+        onDeleteResourceNode?: () => void;
+        onTabResourcesSelected?: () => void;
         onZoneGeometryChanged?: (index: number) => void;
         onMobZoneGeometryChanged?: (index: number) => void;
         onGenerateVegetationZone?: () => void;
@@ -126,6 +145,9 @@ export function createEditorUI(
     onSaveMobZones = callbacks.onSaveMobZones;
     onDeleteMobZone = callbacks.onDeleteMobZone;
     onMobZoneSelected = callbacks.onMobZoneSelected;
+    onPlaceResourceNode = callbacks.onPlaceResourceNode || (() => {});
+    onSaveResourceNodes = callbacks.onSaveResourceNodes || (() => {});
+    onDeleteResourceNode = callbacks.onDeleteResourceNode || (() => {});
 
     // Создаём панель
     panel = document.createElement('div');
@@ -142,6 +164,7 @@ export function createEditorUI(
             <button id="tab-static" class="tab-btn active">🏠 Статика</button>
             <button id="tab-vegetation" class="tab-btn">🌿 Зоны</button>
             <button id="tab-mobs" class="tab-btn">🐺 Мобы</button>
+            <button id="tab-resources" class="tab-btn">⛏ Ресурсы</button>
         </div>
 
         <!-- Панель статических объектов -->
@@ -263,6 +286,36 @@ export function createEditorUI(
                 </div>
             </div>
         </div>
+
+        <!-- Панель ресурсных нод -->
+        <div id="resources-panel" style="display:none;">
+            <div style="margin-bottom:8px;">
+                <label style="font-size:13px;">Тип руды:</label>
+                <select id="select-resource-type" style="width:100%;margin:4px 0;padding:4px;">
+                    <option value="copper_ore">Медная руда</option>
+                    <option value="tin_ore">Оловянная руда</option>
+                    <option value="iron_ore">Железная руда</option>
+                    <option value="coal">Уголь</option>
+                </select>
+            </div>
+            <button id="btn-place-resource" style="margin:4px 0;padding:6px 12px;width:100%;">📌 Разместить руду</button>
+            <div id="resource-props" style="display:none; margin-top:4px;">
+                <div style="font-weight:bold;">Свойства рудной жилы</div>
+                <label style="font-size:12px;">Тип</label>
+                <select id="inp-resource-type" style="width:100%;margin:2px 0;">
+                    <option value="copper_ore">Медная руда</option>
+                    <option value="tin_ore">Оловянная руда</option>
+                    <option value="iron_ore">Железная руда</option>
+                    <option value="coal">Уголь</option>
+                </select>
+                <div style="display:flex; gap:4px; margin-top:4px;">
+                    <div style="flex:1;"><label style="font-size:12px;">X</label><input id="inp-resource-x" type="number" step="0.1" readonly style="width:100%;"></div>
+                    <div style="flex:1;"><label style="font-size:12px;">Z</label><input id="inp-resource-z" type="number" step="0.1" readonly style="width:100%;"></div>
+                </div>
+            </div>
+            <button id="btn-delete-resource" style="margin:4px 0;padding:6px 12px;width:100%;">🗑️ Удалить выбранную</button>
+            <button id="btn-save-resources" style="margin:4px 0;padding:6px 12px;width:100%;">💾 Сохранить руды</button>
+        </div>
     `;
 
     document.body.appendChild(panel);
@@ -307,6 +360,13 @@ export function createEditorUI(
     btnGenerateVegetationZone = document.getElementById('btn-generate-vegetation-zone') as HTMLButtonElement;
     btnGenerateVegetationZone.onclick = () => editorCallbacks.onGenerateVegetationZone?.();
 
+    // Элементы ресурсных нод
+    resourcesPanel = document.getElementById('resources-panel')!;
+    selectResourceType = document.getElementById('select-resource-type') as HTMLSelectElement;
+    resourceProps = document.getElementById('resource-props')!;
+    inpResourceX = document.getElementById('inp-resource-x') as HTMLInputElement;
+    inpResourceZ = document.getElementById('inp-resource-z') as HTMLInputElement;
+
     // Элементы моб-зон
     mobsPanel = document.getElementById('mobs-panel')!;
     selectMobZone = document.getElementById('select-mob-zone') as HTMLSelectElement;
@@ -322,10 +382,31 @@ export function createEditorUI(
     document.getElementById('tab-static')!.onclick = () => switchTab('static');
     document.getElementById('tab-vegetation')!.onclick = () => switchTab('vegetation');
     document.getElementById('tab-mobs')!.onclick = () => switchTab('mobs');
+    document.getElementById('tab-resources')!.onclick = () => switchTab('resources');
 
     btnNewMobZone.onclick = () => editorCallbacks.onNewMobZone?.();
     btnSaveMobZones.onclick = () => editorCallbacks.onSaveMobZones?.();
     btnDeleteMobZone.onclick = () => editorCallbacks.onDeleteMobZone?.();
+
+    // Ресурсные ноды
+    document.getElementById('btn-place-resource')!.onclick = () => {
+        const type = selectResourceType.value;
+        resourcePlacementActive = !resourcePlacementActive;
+        const btn = document.getElementById('btn-place-resource')!;
+        if (resourcePlacementActive) {
+            btn.textContent = `⏹ Стоп (${selectResourceType.options[selectResourceType.selectedIndex].text})`;
+            btn.style.background = '#aa3333';
+        } else {
+            btn.textContent = '📌 Разместить руду';
+            btn.style.background = '';
+        }
+        editorCallbacks.onPlaceResourceNode?.(resourcePlacementActive ? type : '');
+    };
+    document.getElementById('btn-delete-resource')!.onclick = () => editorCallbacks.onDeleteResourceNode?.();
+    document.getElementById('btn-save-resources')!.onclick = () => editorCallbacks.onSaveResourceNodes?.();
+    document.getElementById('inp-resource-type')!.addEventListener('change', () => {
+        editorCallbacks.onPropertiesChanged?.();
+    });
     selectMobZone.onchange = () => {
         const idx = parseInt(selectMobZone.value);
         if (!isNaN(idx)) {
@@ -569,4 +650,36 @@ function updateMobZoneFromInputs() {
     // Обновляем отображение в выпадающем списке (если ID изменился)
     const option = selectMobZone.options[currentMobZoneIndex];
     if (option) option.text = zone.id;
+}
+
+// --- Функции для ресурсных нод ---
+
+export function showResourceNodeProps(obj: THREE.Object3D | null) {
+    if (!obj || !obj.userData.isResourceNode) {
+        resourceProps.style.display = 'none';
+        return;
+    }
+    resourceProps.style.display = 'block';
+    const typeSelect = document.getElementById('inp-resource-type') as HTMLSelectElement;
+    typeSelect.value = obj.userData.oreType || 'copper_ore';
+    inpResourceX.value = obj.position.x.toFixed(2);
+    inpResourceZ.value = obj.position.z.toFixed(2);
+}
+
+export function getResourceNodeTypeFromProps(): string {
+    const sel = document.getElementById('inp-resource-type') as HTMLSelectElement;
+    return sel ? sel.value : 'copper_ore';
+}
+
+export function getResourcePlacementType(): string {
+    return selectResourceType ? selectResourceType.value : 'copper_ore';
+}
+
+export function resetResourcePlacementButton() {
+    resourcePlacementActive = false;
+    const btn = document.getElementById('btn-place-resource')!;
+    if (btn) {
+        btn.textContent = '📌 Разместить руду';
+        btn.style.background = '';
+    }
 }

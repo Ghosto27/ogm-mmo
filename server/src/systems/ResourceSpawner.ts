@@ -49,6 +49,7 @@ export class ResourceSpawner {
             node.x = data.x;
             node.z = data.z;
             node.y = this.getTerrainY(data.x, data.z);
+            node.rotationY = data.rotationY || 0;
             node.state = "active";
             node.respawnAt = 0;
             this.room.state.resourceNodes.set(node.id, node);
@@ -139,6 +140,28 @@ export class ResourceSpawner {
     markNodeDepleted(node: ResourceNode): void {
         node.state = "depleted";
         node.respawnAt = Date.now() + node.respawnTimeMs;
+    }
+
+    replaceAllNodes(nodesData: { id: string; type: string; x: number; z: number; rotationY?: number }[]): void {
+        // Clear existing
+        this.room.state.resourceNodes.forEach((_: ResourceNode, key: string) => {
+            this.room.state.resourceNodes.delete(key);
+        });
+        // Create new
+        for (const data of nodesData) {
+            const node = new ResourceNode();
+            node.id = data.id;
+            node.type = data.type;
+            node.x = data.x;
+            node.z = data.z;
+            node.y = this.getTerrainY(data.x, data.z);
+            node.rotationY = data.rotationY || 0;
+            node.state = "active";
+            node.respawnAt = 0;
+            this.room.state.resourceNodes.set(node.id, node);
+        }
+        this.saveToFile(nodesData);
+        console.log(`[RESOURCE] Заменено ${nodesData.length} рудных жил через редактор`);
     }
 
     private loadFromFile(): any[] | null {
