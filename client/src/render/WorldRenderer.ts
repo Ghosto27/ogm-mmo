@@ -63,6 +63,12 @@ export async function createMesh(obj: any): Promise<THREE.Object3D | null> {
         mesh.userData.editorType = 'anvil';
         mesh.userData.isAnvil = true;
         return mesh;
+    } else if (modelName === 'merchant') {
+        const geometry = new THREE.BoxGeometry(0.8, 1.5, 0.8);
+        const material = new THREE.MeshStandardMaterial({ color: obj.color || '#22AA22' });
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.userData.isMerchant = true;
+        return mesh;
     } else if (!modelName || modelName === '') {
         console.warn(`[WORLD] Объект без modelName, создаю куб`);
         const geometry = new THREE.BoxGeometry(1, 1, 1);
@@ -185,6 +191,8 @@ export async function updateWorldObjects(worldObjects: any) {
             addInteractionLabel(id, obj3D, '[F] Плавильня');
         } else if (obj.modelName === 'anvil') {
             addInteractionLabel(id, obj3D, '[F] Кузница');
+        } else if (obj.modelName === 'merchant') {
+            addInteractionLabel(id, obj3D, '[F] Торговец');
         }
 
         worldMeshes[id] = obj3D;

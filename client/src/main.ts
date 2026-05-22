@@ -23,6 +23,7 @@ import { createInventoryUI, toggleInventory } from './inventoryUI';
 import { createLootUI } from './ui/LootWindowUI';
 import { createBankUI } from './ui/BankUI';
 import { createCraftingUI } from './ui/CraftingUI';
+import { initMerchantUI } from './ui/MerchantUI';
 import { animateLootMeshes } from './render/LootRenderer';
 import {createCharacterPanel, toggleCharacterPanel} from './characterPanel';
 import { createChatInput, isChatActive } from './chat/chatInput';
@@ -73,6 +74,7 @@ modelReady.then(() => {
     createNotificationUI();
     createBankUI();
     createCraftingUI();
+    initMerchantUI();
     createProfessionsUI();
     createAdminPanel();
     initEditor();

@@ -29,6 +29,7 @@ import { updateWorldObjects, worldMeshes } from './render/WorldRenderer';
 import { updateResourceNodes, resourceNodesAssetsReady } from './render/ResourceNodeRenderer';
 import { updateBankUI, isBankVisible, hideBank } from './ui/BankUI';
 import { updateCraftingRecipes, hideCraftingUI, isCraftingVisible } from './ui/CraftingUI';
+import { showMerchantUI, hideMerchantUI, isMerchantOpen, updateMerchantItems, updateMerchantGold } from './ui/MerchantUI';
 import { refreshProfessions } from './ui/ProfessionsUI';
 import { updateTerrain, getTerrainHeightAt, terrainReady, getTerrainHeightAtFast } from './render/TerrainRenderer';
 import { addVegetationInstance, finalizeVegetation, isVegetationLoaded } from './render/VegetationRenderer';
@@ -179,7 +180,8 @@ function join(playerName: string) {
                     // Получаем актуального myPlayer для доступа к level, exp, expToLevel, inventory
                     const myPlayer = state.players.get(room.sessionId);
                     if (myPlayer) {
-                        updatePlayerUI(local.hp, local.maxHp, myPlayer.level, myPlayer.exp, myPlayer.expToLevel);
+                        updatePlayerUI(local.hp, local.maxHp, myPlayer.level, myPlayer.exp, myPlayer.expToLevel, myPlayer.gold);
+                        if (isMerchantOpen()) updateMerchantGold(myPlayer.gold);
                         updateCharacterPanel(myPlayer);
                         updateInventoryUI(myPlayer.inventory);
                         updateBankUI(myPlayer.bank);
@@ -350,6 +352,19 @@ function join(playerName: string) {
                 }
             }
 
+            // Авто-закрытие торговца при отдалении
+            if (isMerchantOpen()) {
+                const player = state.players.get(room.sessionId);
+                if (player) {
+                    const obj = state.worldObjects?.get('merchant_01');
+                    if (!obj) hideMerchantUI();
+                    else {
+                        const dist = Math.sqrt((player.x - obj.x)**2 + (player.z - obj.z)**2);
+                        if (dist > 4) hideMerchantUI();
+                    }
+                }
+            }
+
             // ---------- Мешки с лутом ----------
             state.lootBags.forEach((bag: any, bagId: string) => {
                 if (!bag || !bag.items) return;
@@ -477,6 +492,14 @@ function join(playerName: string) {
             const parts = data.returnedItems.map(i => `${i.name} x${i.quantity}`);
             showNotification(`Разобрал ${data.itemName}: ${parts.join(', ')}`, 4000);
             showNotification(`+${data.salvageXp} Blacksmithing XP`, 2000);
+        });
+
+        room.onMessage("merchantData", (data: { items: { itemId: string; buyPrice: number; sellPrice: number }[] }) => {
+            updateMerchantItems(data.items);
+        });
+
+        room.onMessage("merchantResult", (data: { success: boolean; message?: string }) => {
+            showNotification(data.message || (data.success ? 'Успешно' : 'Ошибка'), 2000);
         });
 
         room.onMessage("adminXpResult", (data: { profession: string, level: number, xp: number, xpToNext: number }) => {

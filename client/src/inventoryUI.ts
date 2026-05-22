@@ -4,6 +4,7 @@ import { pushUIMode, popUIMode } from './cameraControls';
 import { fsm } from './player';
 import { showSplitDialog } from './ui/splitDialog';
 import { getItemColor } from './itemColors';
+import { isMerchantOpen, getSellPrice } from './ui/MerchantUI';
 
 let container: HTMLDivElement;
 let slotElements: HTMLDivElement[] = [];
@@ -61,23 +62,37 @@ export function createInventoryUI() {
         slot.dataset.sourceType = 'inventory';
 
         // ----- Обработчики мыши -----
-        // ПКМ – использовать предмет (зелье)
+        // ПКМ – продажа торговцу / использование предмета
         slot.addEventListener('contextmenu', (event) => {
             event.preventDefault();
             const index = parseInt(slot.dataset.index!);
             const slotData = getSlotData(index);
-            if (slotData && slotData.item) {
-                const item = slotData.item;
-                if (item.slot) {
-                    // Экипировка – надеть
-                    room?.send('equipItem', { slotIndex: index });
-                } else if (item.id === 'potion_hp_01') {
-                    // Зелье – использовать
-                    if (fsm['local']?.isPlayingOneShot) return;
-                    room?.send('useItem', { slotIndex: index });
-                    // Play consume animation
-                    fsm['local']?.requestConsume();
+            if (!slotData || !slotData.item) return;
+            const item = slotData.item;
+
+            // Если открыт торговец и предмет продаётся
+            if (isMerchantOpen()) {
+                const sellPrice = getSellPrice(item.id);
+                if (sellPrice > 0) {
+                    if (slotData.quantity > 1) {
+                        showSellConfirmDialog(item.name, slotData.quantity, sellPrice, (qty) => {
+                            room?.send('merchantSellItem', { inventorySlot: index, quantity: qty });
+                        });
+                    } else {
+                        room?.send('merchantSellItem', { inventorySlot: index, quantity: 1 });
+                    }
+                    return;
                 }
+            }
+
+            if (item.slot) {
+                // Экипировка – надеть
+                room?.send('equipItem', { slotIndex: index });
+            } else if (item.id === 'potion_hp_01') {
+                // Зелье – использовать
+                if (fsm['local']?.isPlayingOneShot) return;
+                room?.send('useItem', { slotIndex: index });
+                fsm['local']?.requestConsume();
             }
         });
 
@@ -184,6 +199,75 @@ function getSlotData(slotIndex: number): any {
     if (!player) return null;
     const slot = player.inventory.slots[slotIndex];
     return slot ? { item: slot.item, quantity: slot.quantity } : null;
+}
+
+// ---------- Диалог подтверждения продажи стака ----------
+function showSellConfirmDialog(itemName: string, maxQty: number, unitPrice: number, onConfirm: (qty: number) => void): void {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:5000;display:flex;align-items:center;justify-content:center;';
+
+    const dialog = document.createElement('div');
+    dialog.style.cssText = 'background:#222;border:2px solid #22AA22;border-radius:8px;padding:20px;color:#fff;font-family:monospace;min-width:300px;';
+
+    const title = document.createElement('div');
+    title.style.cssText = 'font-size:14px;margin-bottom:10px;';
+    title.textContent = `Продажа: ${itemName}`;
+    dialog.appendChild(title);
+
+    const qtyRow = document.createElement('div');
+    qtyRow.style.cssText = 'margin-bottom:10px;display:flex;align-items:center;gap:10px;';
+
+    const qtyLabel = document.createElement('span');
+    qtyLabel.textContent = 'Количество:';
+    qtyRow.appendChild(qtyLabel);
+
+    const qtyInput = document.createElement('input');
+    qtyInput.type = 'range';
+    qtyInput.min = '1';
+    qtyInput.max = String(maxQty);
+    qtyInput.value = String(maxQty);
+    qtyInput.style.cssText = 'flex:1;';
+    qtyRow.appendChild(qtyInput);
+
+    const qtyDisplay = document.createElement('span');
+    qtyDisplay.textContent = String(maxQty);
+    qtyRow.appendChild(qtyDisplay);
+
+    dialog.appendChild(qtyRow);
+
+    const priceDisplay = document.createElement('div');
+    priceDisplay.style.cssText = 'text-align:center;font-size:16px;margin-bottom:15px;color:#ffd700;';
+    priceDisplay.textContent = `💰 ${maxQty * unitPrice} gold`;
+    dialog.appendChild(priceDisplay);
+
+    qtyInput.addEventListener('input', () => {
+        const v = parseInt(qtyInput.value) || 1;
+        qtyDisplay.textContent = String(v);
+        priceDisplay.textContent = `💰 ${v * unitPrice} gold`;
+    });
+
+    const btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;gap:10px;justify-content:center;';
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = 'Отмена';
+    cancelBtn.style.cssText = 'padding:6px 16px;background:#555;color:#fff;border:none;border-radius:4px;cursor:pointer;font-family:monospace;';
+    cancelBtn.addEventListener('click', () => document.body.removeChild(overlay));
+    btnRow.appendChild(cancelBtn);
+
+    const sellBtn = document.createElement('button');
+    sellBtn.textContent = 'Продать';
+    sellBtn.style.cssText = 'padding:6px 16px;background:#22AA22;color:#fff;border:none;border-radius:4px;cursor:pointer;font-family:monospace;';
+    sellBtn.addEventListener('click', () => {
+        const qty = parseInt(qtyInput.value) || 1;
+        onConfirm(qty);
+        document.body.removeChild(overlay);
+    });
+    btnRow.appendChild(sellBtn);
+
+    dialog.appendChild(btnRow);
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
 }
 
 export { slotElements };

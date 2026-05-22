@@ -26,6 +26,7 @@ import { ProfessionsData } from "./models/ProfessionsData";
 import { ResourceNode } from "./schemas/ResourceNode";
 import { ResourceSpawner } from "./systems/ResourceSpawner";
 import { recipes, Recipe, computeSuccessChance, computeBonusChance, findRecipeByResult, MIN_SALVAGE_RATE, MAX_SALVAGE_RATE } from "./data/recipes";
+import { loadShopData, getShopData, getBuyPrice, getSellPrice, isSellable } from "./data/shopData";
 
 export class Player extends Schema {
     @type("number") x: number = 0;
@@ -38,6 +39,7 @@ export class Player extends Schema {
     @type("number") level: number = 1;
     @type("number") exp: number = 0;
     @type("number") expToLevel: number = 100;
+    @type("number") gold: number = 0;
     @type(Inventory) inventory: Inventory = new Inventory();
     @type(PlayerStats) stats: PlayerStats = new PlayerStats();
     @type({ map: Item }) equipment = new MapSchema<Item>();
@@ -397,6 +399,7 @@ export class MyRoom extends Room<MyRoomState> {
 
         this.spawner = new MobSpawner(this);
         //LocationLoader.load(this, "village");
+        loadShopData();
         const vegetationSpawner = new VegetationSpawner(this);
         vegetationSpawner.initialize();
         this.vegetationSpawner = vegetationSpawner;
@@ -510,6 +513,19 @@ export class MyRoom extends Room<MyRoomState> {
         this.state.worldObjects.set(anvil.id, anvil);
         console.log(`[ANVIL] Наковальня появилась на (${anvil.x}, ${anvil.z})`);
 
+        // Создаём торговца
+        const merchant = new WorldObject();
+        merchant.id = "merchant_01";
+        merchant.modelName = "merchant";
+        merchant.x = 15;
+        merchant.z = -35;
+        merchant.y = 0;
+        merchant.scaleX = 1;
+        merchant.scaleY = 1.5;
+        merchant.scaleZ = 1;
+        merchant.color = "#22AA22";
+        this.state.worldObjects.set(merchant.id, merchant);
+        console.log(`[MERCHANT] Торговец появился на (${merchant.x}, ${merchant.z})`);
 
         // ===== DEBUG: God mode toggle =====
         this.onMessage("setGodMode", (client, message: { enabled: boolean }) => {
@@ -753,6 +769,97 @@ export class MyRoom extends Room<MyRoomState> {
                 quantity: totalQuantity,
                 xpGained: recipe.xpReward,
             });
+        });
+
+        // ===== Торговец =====
+        this.onMessage("getMerchantData", (client) => {
+            const player = this.state.players.get(client.sessionId);
+            if (!player) return;
+
+            // Проверка дистанции до торговца
+            const merchant = this.state.worldObjects.get("merchant_01");
+            if (!merchant) return;
+            const dist = Math.sqrt(
+                (player.x - merchant.x) ** 2 + (player.z - merchant.z) ** 2
+            );
+            if (dist > 4) return;
+
+            const shopData = getShopData();
+            const items: { itemId: string; buyPrice: number; sellPrice: number }[] = [];
+            for (const [itemId, entry] of Object.entries(shopData)) {
+                items.push({ itemId, buyPrice: entry.buyPrice, sellPrice: entry.sellPrice });
+            }
+            client.send("merchantData", { items });
+        });
+
+        this.onMessage("merchantBuyItem", (client, message: { itemId: string; quantity: number }) => {
+            const player = this.state.players.get(client.sessionId);
+            if (!player || !message.itemId || message.quantity <= 0) return;
+
+            const merchant = this.state.worldObjects.get("merchant_01");
+            if (!merchant) return;
+            const dist = Math.sqrt(
+                (player.x - merchant.x) ** 2 + (player.z - merchant.z) ** 2
+            );
+            if (dist > 4) return;
+
+            const buyPrice = getBuyPrice(message.itemId);
+            if (buyPrice <= 0) return;
+
+            const totalCost = buyPrice * message.quantity;
+            if (player.gold < totalCost) {
+                client.send("merchantResult", { success: false, message: "Недостаточно золота" });
+                return;
+            }
+
+            // Создаём предмет
+            const template = itemDatabase[message.itemId];
+            if (!template) {
+                client.send("merchantResult", { success: false, message: "Предмет не найден" });
+                return;
+            }
+
+            const item = template.cloneItem();
+            const slot = player.inventory.addItem(item, message.quantity);
+            if (!slot) {
+                client.send("merchantResult", { success: false, message: "Инвентарь полон" });
+                return;
+            }
+
+            player.gold -= totalCost;
+            PlayerPersistence.savePlayer(player);
+            client.send("merchantResult", { success: true, message: `Куплено ${message.quantity} x ${template.name} за ${totalCost} gold` });
+        });
+
+        this.onMessage("merchantSellItem", (client, message: { inventorySlot: number; quantity: number }) => {
+            const player = this.state.players.get(client.sessionId);
+            if (!player) return;
+
+            const merchant = this.state.worldObjects.get("merchant_01");
+            if (!merchant) return;
+            const dist = Math.sqrt(
+                (player.x - merchant.x) ** 2 + (player.z - merchant.z) ** 2
+            );
+            if (dist > 4) return;
+
+            const slot = player.inventory.slots[message.inventorySlot];
+            if (!slot || !slot.item) return;
+            if (message.quantity <= 0 || message.quantity > (slot.quantity || 1)) return;
+
+            const sellPrice = getSellPrice(slot.item.id);
+            if (sellPrice <= 0) return;
+
+            const totalGold = sellPrice * message.quantity;
+            player.gold += totalGold;
+
+            slot.quantity -= message.quantity;
+            if (slot.quantity <= 0) {
+                slot.item = null;
+                slot.quantity = 0;
+            }
+
+            PlayerPersistence.savePlayer(player);
+            client.send("merchantResult", { success: true, message: `Продано за ${totalGold} gold` });
         });
 
         this.onMessage("attackMob", (client, message) => {
@@ -1701,6 +1808,7 @@ export class MyRoom extends Room<MyRoomState> {
                 player.exp = savedData.exp;
                 player.expToLevel = Math.floor(100 * Math.pow(1.5, player.level - 1));
                 player.hp = savedData.hp;
+                player.gold = savedData.gold;
 
                 player.stats.strength = savedData.stats.strength;
                 player.stats.dexterity = savedData.stats.dexterity;

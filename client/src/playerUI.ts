@@ -1,6 +1,7 @@
 let hpText: HTMLElement;
 let expBar: HTMLElement;
 let expText: HTMLElement;
+let goldText: HTMLElement;
 
 export function createPlayerUI(playerName: string, level: number) {
     const container = document.createElement('div');
@@ -46,10 +47,17 @@ export function createPlayerUI(playerName: string, level: number) {
     expText.style.color = '#aaa';
     container.appendChild(expText);
 
+    goldText = document.createElement('div');
+    goldText.style.fontSize = '12px';
+    goldText.style.color = '#ffd700';
+    goldText.style.marginTop = '4px';
+    goldText.textContent = '💰 0';
+    container.appendChild(goldText);
+
     document.body.appendChild(container);
 }
 
-export function updatePlayerUI(hp: number, maxHp: number, level: number, exp: number, expToLevel: number) {
+export function updatePlayerUI(hp: number, maxHp: number, level: number, exp: number, expToLevel: number, gold?: number) {
     if (hpText) {
         hpText.textContent = `❤️ ${hp}/${maxHp}`;
     }
@@ -61,5 +69,8 @@ export function updatePlayerUI(hp: number, maxHp: number, level: number, exp: nu
         const percent = (exp / expToLevel) * 100;
         expBar.style.width = `${percent}%`;
         expText.textContent = `Опыт: ${exp}/${expToLevel}`;
+    }
+    if (goldText && gold !== undefined) {
+        goldText.textContent = `💰 ${gold}`;
     }
 }

@@ -1,0 +1,10 @@
+{
+    "copper_ore": { "buyPrice": 5, "sellPrice": 2 },
+    "tin_ore": { "buyPrice": 8, "sellPrice": 3 },
+    "iron_ore": { "buyPrice": 15, "sellPrice": 6 },
+    "coal": { "buyPrice": 10, "sellPrice": 4 },
+    "copper_ingot": { "buyPrice": 20, "sellPrice": 10 },
+    "tin_ingot": { "buyPrice": 30, "sellPrice": 15 },
+    "iron_ingot": { "buyPrice": 60, "sellPrice": 30 },
+    "steel_ingot": { "buyPrice": 120, "sellPrice": 60 }
+}

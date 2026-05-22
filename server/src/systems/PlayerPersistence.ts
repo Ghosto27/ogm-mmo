@@ -54,6 +54,7 @@ export class PlayerPersistence {
             hp: player.hp,
             level: player.level,
             exp: player.exp,
+            gold: player.gold,
             stats: {
                 strength: player.stats.strength,
                 dexterity: player.stats.dexterity,
@@ -90,6 +91,7 @@ export class PlayerPersistence {
         hp: number;
         level: number;
         exp: number;
+        gold: number;
         stats: {
             strength: number;
             dexterity: number;
@@ -148,6 +150,7 @@ export class PlayerPersistence {
             hp: data.hp,
             level: data.level ?? 1,
             exp: data.exp ?? 0,
+            gold: data.gold ?? 0,
             stats: {
                 strength: data.stats?.strength ?? 10,
                 dexterity: data.stats?.dexterity ?? 10,
