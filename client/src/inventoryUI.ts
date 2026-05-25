@@ -3,12 +3,13 @@ import { showTooltip, hideTooltip } from './tooltip';
 import { pushUIMode, popUIMode } from './cameraControls';
 import { fsm } from './player';
 import { showSplitDialog } from './ui/splitDialog';
-import { getItemColor } from './itemColors';
+import { createItemIcon } from './itemColors';
 import { isMerchantOpen, getSellPrice } from './ui/MerchantUI';
 
 let container: HTMLDivElement;
 let slotElements: HTMLDivElement[] = [];
 let isVisible = false;
+let lastInvSlotIds: { id: string | null; qty: number }[] = [];
 
 // ---------- Интерфейс инвентаря ----------
 export function createInventoryUI() {
@@ -145,25 +146,22 @@ export function updateInventoryUI(inventory: any) {
     for (let i = 0; i < slotElements.length; i++) {
         const slot = slotElements[i];
         const slotData = inventory.slots[i];
-        slot.innerHTML = ''; // очищаем
+        const itemId = slotData?.item?.id || null;
+        const quantity = slotData?.quantity || 0;
+
+        // Skip if content hasn't changed
+        if (lastInvSlotIds[i]?.id === itemId && lastInvSlotIds[i]?.qty === quantity) continue;
+        lastInvSlotIds[i] = { id: itemId, qty: quantity };
+
+        slot.innerHTML = '';
 
         if (slotData && slotData.item) {
             const item = slotData.item;
             const quantity = slotData.quantity;
 
-            // Иконка (пока цветной квадратик)
-            const icon = document.createElement('div');
-            icon.style.width = '40px';
-            icon.style.height = '40px';
-            icon.style.background = getItemColor(item);
-            icon.style.borderRadius = '4px';
-            icon.style.display = 'flex';
-            icon.style.alignItems = 'center';
-            icon.style.justifyContent = 'center';
-            icon.textContent = item.name.charAt(0); // первая буква названия
+            const icon = createItemIcon(item, 40);
             slot.appendChild(icon);
 
-            // Количество, если больше 1
             if (quantity > 1) {
                 const qty = document.createElement('span');
                 qty.style.position = 'absolute';
@@ -178,7 +176,6 @@ export function updateInventoryUI(inventory: any) {
                 slot.appendChild(qty);
             }
 
-            // Всплывающая подсказка (title оставим как fallback)
             slot.title = '';
         } else {
             slot.title = '';

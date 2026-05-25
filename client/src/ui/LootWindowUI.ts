@@ -2,7 +2,7 @@ import { room } from '../network';
 import { showTooltip, hideTooltip } from '../tooltip';
 import { pushUIMode, popUIMode } from '../cameraControls';
 import { fsm } from '../player';
-import { getItemColor } from '../itemColors';
+import { createItemIcon } from '../itemColors';
 
 let container: HTMLDivElement;
 let slotElements: HTMLDivElement[] = [];
@@ -118,12 +118,7 @@ export function updateLootSlots(items: any[]) {
             if (!slotData || !slotData.item) continue; // skip empty slots
             const item = slotData.item;
             const qty = slotData.quantity;
-            const icon = document.createElement('div');
-            icon.style.width = '30px';
-            icon.style.height = '30px';
-            icon.style.background = getItemColor(item);
-            icon.style.borderRadius = '4px';
-            icon.textContent = item.name.charAt(0);
+            const icon = createItemIcon(item, 30);
             slot.appendChild(icon);
             if (qty > 1) {
                 const qtySpan = document.createElement('span');

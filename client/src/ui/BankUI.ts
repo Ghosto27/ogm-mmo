@@ -2,11 +2,13 @@ import { room } from '../network';
 import { showTooltip, hideTooltip } from '../tooltip';
 import { pushUIMode, popUIMode } from '../cameraControls';
 import { showSplitDialog } from './splitDialog';
-import { getItemColor } from '../itemColors';
+import { createItemIcon } from '../itemColors';
 
 let container: HTMLDivElement;
 let slotElements: HTMLDivElement[] = [];
 let isVisible = false;
+// Track last known slot item ids to avoid unnecessary re-renders
+let lastSlotIds: { id: string | null; qty: number }[] = [];
 
 export function createBankUI() {
     container = document.createElement('div');
@@ -102,22 +104,20 @@ export function updateBankUI(bank: any) {
     for (let i = 0; i < slotElements.length; i++) {
         const slot = slotElements[i];
         const slotData = bank.slots[i];
+        const itemId = slotData?.item?.id || null;
+        const quantity = slotData?.quantity || 0;
+
+        // Skip if content hasn't changed
+        if (lastSlotIds[i]?.id === itemId && lastSlotIds[i]?.qty === quantity) continue;
+        lastSlotIds[i] = { id: itemId, qty: quantity };
+
         slot.innerHTML = '';
 
         if (slotData && slotData.item) {
             const item = slotData.item;
             const quantity = slotData.quantity;
 
-            const icon = document.createElement('div');
-            icon.style.width = '34px';
-            icon.style.height = '34px';
-            icon.style.background = getItemColor(item);
-            icon.style.borderRadius = '4px';
-            icon.style.display = 'flex';
-            icon.style.alignItems = 'center';
-            icon.style.justifyContent = 'center';
-            icon.style.fontSize = '10px';
-            icon.textContent = item.name?.charAt(0) || '?';
+            const icon = createItemIcon(item, 34);
             slot.appendChild(icon);
 
             if (quantity > 1) {

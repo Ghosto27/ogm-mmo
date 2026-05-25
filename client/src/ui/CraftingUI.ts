@@ -2,7 +2,7 @@ import { room } from '../network';
 import { pushUIMode, popUIMode } from '../cameraControls';
 import { showNotification } from './notificationUI';
 import { registerDropHandler } from '../inventoryDnD';
-import { getItemColor } from '../itemColors';
+import { getItemColor, createItemIcon } from '../itemColors';
 
 const SALVAGE_RATE_MIN = 0.2;
 const SALVAGE_RATE_MAX = 0.3;
@@ -70,14 +70,8 @@ function renderSalvagePreview(slotIndex: number | null) {
 
     pendingSalvageIndex = slotIndex;
 
-    const itemDiv = document.createElement('div');
-    itemDiv.style.cssText = `
-        width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
-        font-size: 18px; font-weight: bold; border-radius: 4px;
-        background: ${getItemColor(slotData.item)};
-        color: white; text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
-    `;
-    itemDiv.textContent = slotData.item.name?.slice(0, 3) || '??';
+    salvageSlotEl.innerHTML = '';
+    const itemDiv = createItemIcon(slotData.item, 50);
     salvageSlotEl.appendChild(itemDiv);
 
     let previewHtml = '<div style="margin-top: 8px; font-size: 12px; color: #ccc;">Вернётся (20-30%):</div>';
