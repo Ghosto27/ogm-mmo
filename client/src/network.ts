@@ -516,6 +516,11 @@ function join(playerName: string) {
             }
         });
 
+        room.onMessage("adminItemList", (data: { items: { id: string; name: string }[] }) => {
+            const adminItems = (window as any).__adminItems;
+            if (adminItems) adminItems(data.items);
+        });
+
         room.onMessage("notification", (data: { text: string, color?: string }) => {
             showNotification(data.text, 3000);
         });

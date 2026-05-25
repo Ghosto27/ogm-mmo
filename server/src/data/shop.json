@@ -8,5 +8,9 @@
     "bronze_bar": { "buyPrice": 50, "sellPrice": 25 },
     "iron_bar": { "buyPrice": 60, "sellPrice": 30 },
     "sword_01": { "buyPrice": 100, "sellPrice": 20 },
-    "potion_hp_01": { "buyPrice": 10, "sellPrice": 2 }
+    "potion_hp_01": { "buyPrice": 10, "sellPrice": 2 },
+    "potion_hp_02": { "buyPrice": 25, "sellPrice": 6 },
+    "potion_hp_03": { "buyPrice": 60, "sellPrice": 15 },
+    "potion_hp_04": { "buyPrice": 150, "sellPrice": 35 },
+    "potion_hp_05": { "buyPrice": 350, "sellPrice": 80 }
 }

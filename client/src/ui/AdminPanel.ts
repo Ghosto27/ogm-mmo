@@ -1,24 +1,9 @@
 import { room } from '../network';
 import { pushUIMode, popUIMode } from '../cameraControls';
 
-const ADMIN_ITEMS = [
-    { id: 'copper_ore', name: 'Медная руда', category: 'Руда' },
-    { id: 'tin_ore', name: 'Оловянная руда', category: 'Руда' },
-    { id: 'iron_ore', name: 'Железная руда', category: 'Руда' },
-    { id: 'coal', name: 'Уголь', category: 'Руда' },
-    { id: 'copper_bar', name: 'Медный слиток', category: 'Слитки' },
-    { id: 'tin_bar', name: 'Оловянный слиток', category: 'Слитки' },
-    { id: 'bronze_bar', name: 'Бронзовый слиток', category: 'Слитки' },
-    { id: 'iron_bar', name: 'Железный слиток', category: 'Слитки' },
-    { id: 'bronze_sword', name: 'Бронзовый меч', category: 'Оружие' },
-    { id: 'iron_sword', name: 'Железный меч', category: 'Оружие' },
-    { id: 'bronze_helmet', name: 'Бронзовый шлем', category: 'Броня' },
-    { id: 'iron_helmet', name: 'Железный шлем', category: 'Броня' },
-    { id: 'potion_hp_01', name: 'Зелье здоровья', category: 'Расходники' },
-];
-
 let container: HTMLDivElement;
 let isVisible = false;
+let adminItems: { id: string; name: string }[] = [];
 
 function createStyledSelect(id: string, options: { value: string, text: string }[]): HTMLSelectElement {
     const select = document.createElement('select');
@@ -85,6 +70,52 @@ function createSection(title: string, color: string): { section: HTMLDivElement,
     header.style.color = color;
     section.appendChild(header);
     return { section, header: () => header };
+}
+
+function categorizeItem(id: string): string {
+    if (id.includes('_ore') || id === 'coal') return 'Руда';
+    if (id.includes('_bar')) return 'Слитки';
+    if (id.includes('_sword') || id.includes('_helmet')) return 'Снаряжение';
+    if (id.includes('potion_hp')) return 'Расходники';
+    if (id === 'skeleton_bone') return 'Лут';
+    return 'Прочее';
+}
+
+function buildItemSelect(): HTMLSelectElement {
+    const select = document.createElement('select');
+    select.id = 'admin-item-select';
+    select.style.width = '100%';
+    select.style.padding = '6px';
+    select.style.fontSize = '13px';
+    select.style.borderRadius = '4px';
+    select.style.border = '1px solid #555';
+    select.style.background = '#222';
+    select.style.color = 'white';
+    select.style.boxSizing = 'border-box';
+
+    const categories: string[] = [];
+    const catMap: Record<string, { value: string, text: string }[]> = {};
+    for (const it of adminItems) {
+        const cat = categorizeItem(it.id);
+        if (!catMap[cat]) {
+            catMap[cat] = [];
+            if (!categories.includes(cat)) categories.push(cat);
+        }
+        catMap[cat].push({ value: it.id, text: it.name });
+    }
+
+    for (const cat of categories) {
+        const group = document.createElement('optgroup');
+        group.label = cat;
+        for (const opt of catMap[cat]) {
+            const el = document.createElement('option');
+            el.value = opt.value;
+            el.textContent = opt.text;
+            group.appendChild(el);
+        }
+        select.appendChild(group);
+    }
+    return select;
 }
 
 export function createAdminPanel() {
@@ -172,40 +203,14 @@ export function createAdminPanel() {
     itemLabel.style.color = '#aaa';
     itemSection.section.appendChild(itemLabel);
 
-    // Group items by category
-    const categories: string[] = [];
-    const catMap: Record<string, { value: string, text: string }[]> = {};
-    for (const it of ADMIN_ITEMS) {
-        if (!catMap[it.category]) {
-            catMap[it.category] = [];
-            categories.push(it.category);
-        }
-        catMap[it.category].push({ value: it.id, text: it.name });
-    }
-
-    const itemSelect = document.createElement('select');
-    itemSelect.id = 'admin-item-select';
-    itemSelect.style.width = '100%';
-    itemSelect.style.padding = '6px';
-    itemSelect.style.fontSize = '13px';
-    itemSelect.style.borderRadius = '4px';
-    itemSelect.style.border = '1px solid #555';
-    itemSelect.style.background = '#222';
-    itemSelect.style.color = 'white';
-    itemSelect.style.boxSizing = 'border-box';
-
-    for (const cat of categories) {
-        const group = document.createElement('optgroup');
-        group.label = cat;
-        for (const opt of catMap[cat]) {
-            const el = document.createElement('option');
-            el.value = opt.value;
-            el.textContent = opt.text;
-            group.appendChild(el);
-        }
-        itemSelect.appendChild(group);
-    }
-    itemSection.section.appendChild(itemSelect);
+    // Placeholder — will be replaced when items load
+    const itemSelectPlaceholder = document.createElement('div');
+    itemSelectPlaceholder.id = 'admin-item-select-placeholder';
+    itemSelectPlaceholder.textContent = 'Загрузка...';
+    itemSelectPlaceholder.style.color = '#888';
+    itemSelectPlaceholder.style.fontSize = '13px';
+    itemSelectPlaceholder.style.padding = '6px';
+    itemSection.section.appendChild(itemSelectPlaceholder);
 
     const qtyLabel = document.createElement('div');
     qtyLabel.textContent = 'Quantity:';
@@ -235,6 +240,19 @@ export function createAdminPanel() {
     itemResult.style.color = '#8f8';
     itemSection.section.appendChild(itemResult);
 
+    // Register callback for server item list
+    (window as any).__adminItems = (items: { id: string; name: string }[]) => {
+        adminItems = items;
+        const placeholder = document.getElementById('admin-item-select-placeholder');
+        if (placeholder) {
+            const parent = placeholder.parentNode;
+            if (parent) {
+                const newSelect = buildItemSelect();
+                parent.replaceChild(newSelect, placeholder);
+            }
+        }
+    };
+
     document.body.appendChild(container);
 }
 
@@ -243,6 +261,8 @@ export function toggleAdminPanel() {
     container.style.display = isVisible ? 'block' : 'none';
     if (isVisible) {
         pushUIMode();
+        // Request fresh item list from server
+        room?.send('getAdminItemList');
     } else {
         popUIMode();
         const xpResult = document.getElementById('admin-xp-result');

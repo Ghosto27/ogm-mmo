@@ -4,10 +4,38 @@ import { MapSchema } from "@colyseus/schema";
 export const itemDatabase: { [id: string]: Item } = {
   "potion_hp_01": Object.assign(new Item(), {
     id: "potion_hp_01",
+    name: "Малое зелье здоровья",
+    description: "Восстанавливает 20 HP",
+    maxStack: 10,
+    icon: "icons/potion_hp_01.png",
+  }),
+  "potion_hp_02": Object.assign(new Item(), {
+    id: "potion_hp_02",
     name: "Зелье здоровья",
     description: "Восстанавливает 50 HP",
+    maxStack: 10,
+    icon: "icons/potion_hp_02.png",
+  }),
+  "potion_hp_03": Object.assign(new Item(), {
+    id: "potion_hp_03",
+    name: "Большое зелье здоровья",
+    description: "Восстанавливает 100 HP",
     maxStack: 5,
-    icon: "icons/potion_hp_01.png",
+    icon: "icons/potion_hp_03.png",
+  }),
+  "potion_hp_04": Object.assign(new Item(), {
+    id: "potion_hp_04",
+    name: "Сильное зелье здоровья",
+    description: "Восстанавливает 250 HP",
+    maxStack: 5,
+    icon: "icons/potion_hp_04.png",
+  }),
+  "potion_hp_05": Object.assign(new Item(), {
+    id: "potion_hp_05",
+    name: "Великое зелье здоровья",
+    description: "Восстанавливает 500 HP",
+    maxStack: 3,
+    icon: "icons/potion_hp_05.png",
   }),
   "sword_01": Object.assign(new Item(), {
     id: "sword_01",
@@ -127,7 +155,7 @@ export const itemDatabase: { [id: string]: Item } = {
     id: "skeleton_bone",
     name: "Bone",
     description: "A skeletal bone",
-    maxStack: 10,
+    maxStack: 25,
     icon: "icons/skeleton_bone.png",
   }),
 };

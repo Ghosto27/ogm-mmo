@@ -591,6 +591,15 @@ export class MyRoom extends Room<MyRoomState> {
 
         // ---------- Admin handlers ----------
 
+        this.onMessage("getAdminItemList", (client) => {
+            const items: { id: string; name: string }[] = [];
+            for (const [id, template] of Object.entries(itemDatabase)) {
+                items.push({ id, name: template.name });
+            }
+            items.sort((a, b) => a.name.localeCompare(b.name));
+            client.send("adminItemList", { items });
+        });
+
         this.onMessage("adminAddXp", (client, message: { profession: string, amount: number }) => {
             const player = this.state.players.get(client.sessionId);
             if (!player || player.hp <= 0) return;
@@ -1194,9 +1203,15 @@ export class MyRoom extends Room<MyRoomState> {
             const slot = player.inventory.slots[slotIndex];
             if (!slot || !slot.item) return;
 
-            // Пока обрабатываем только зелье здоровья
-            if (slot.item.id === 'potion_hp_01') {
-                const healAmount = 50;
+            const healMap: Record<string, number> = {
+                'potion_hp_01': 20,
+                'potion_hp_02': 50,
+                'potion_hp_03': 100,
+                'potion_hp_04': 250,
+                'potion_hp_05': 500,
+            };
+            const healAmount = healMap[slot.item.id];
+            if (healAmount) {
                 player.hp = Math.min(player.maxHp, player.hp + healAmount);
                 
                 // Уменьшаем количество
