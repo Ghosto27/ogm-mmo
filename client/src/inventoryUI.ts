@@ -89,7 +89,7 @@ export function createInventoryUI() {
             if (item.slot) {
                 // Экипировка – надеть
                 room?.send('equipItem', { slotIndex: index });
-            } else if (item.id === 'potion_hp_01') {
+            } else if (item.id?.startsWith('potion_hp')) {
                 // Зелье – использовать
                 if (fsm['local']?.isPlayingOneShot) return;
                 room?.send('useItem', { slotIndex: index });

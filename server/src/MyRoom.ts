@@ -604,6 +604,23 @@ export class MyRoom extends Room<MyRoomState> {
             const player = this.state.players.get(client.sessionId);
             if (!player || player.hp <= 0) return;
 
+            if (message.profession === 'character') {
+                if (message.amount > 0) {
+                    this.addExperience(player, message.amount);
+                } else {
+                    player.exp = Math.max(0, player.exp + message.amount);
+                    EquipmentSystem.recalculateStats(player);
+                    PlayerPersistence.savePlayer(player);
+                }
+                client.send("adminXpResult", {
+                    profession: 'character',
+                    level: player.level,
+                    xp: player.exp,
+                    xpToNext: player.expToLevel,
+                });
+                return;
+            }
+
             const prof = player.professions as any;
             const entry = prof[message.profession];
             if (!entry || typeof entry.addXp !== 'function') return;
@@ -1220,6 +1237,8 @@ export class MyRoom extends Room<MyRoomState> {
                     slot.item = null;
                     slot.quantity = 0;
                 }
+
+                client.send("useItemResult", { healAmount });
             }
         });
 

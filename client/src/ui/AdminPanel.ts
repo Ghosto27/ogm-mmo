@@ -159,6 +159,7 @@ export function createAdminPanel() {
     xpSection.section.appendChild(profLabel);
 
     const profSelect = createStyledSelect('admin-prof-select', [
+        { value: 'character', text: 'Character' },
         { value: 'mining', text: 'Mining' },
         { value: 'blacksmithing', text: 'Blacksmithing' },
     ]);

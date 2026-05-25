@@ -460,6 +460,13 @@ function join(playerName: string) {
             showNotification(`${data.targetName}: -${data.damage}${critText} (${attackLabel})`, 2000);
         });
 
+        room.onMessage("useItemResult", (data: { healAmount: number }) => {
+            if (localModel) {
+                const pos = localModel.position.clone();
+                showFloatingDamage(pos, data.healAmount, false, true);
+            }
+        });
+
         room.onMessage("gatherResult", (data: { nodeId: string, itemId: string, quantity: number, xpGained: number, profession: string }) => {
             const itemNames: Record<string, string> = {
                 "copper_ore": "Медная руда",

@@ -45,7 +45,7 @@ export const itemDatabase: { [id: string]: Item } = {
     icon: "icons/training_sword.png",
     slot: "weapon",
     requiredLevel: 1,
-    bonuses: new MapSchema<number>({ strength: 20 })
+    bonuses: new MapSchema<number>({ strength: 3 })
   }),
 
   // ---- Mining (resources) ----
@@ -117,7 +117,7 @@ export const itemDatabase: { [id: string]: Item } = {
     icon: "icons/bronze_sword.png",
     slot: "weapon",
     requiredLevel: 5,
-    bonuses: new MapSchema<number>({ strength: 5 })
+    bonuses: new MapSchema<number>({ strength: 20 })
   }),
   "iron_sword": Object.assign(new Item(), {
     id: "iron_sword",
@@ -127,7 +127,7 @@ export const itemDatabase: { [id: string]: Item } = {
     icon: "icons/iron_sword.png",
     slot: "weapon",
     requiredLevel: 10,
-    bonuses: new MapSchema<number>({ strength: 12 })
+    bonuses: new MapSchema<number>({ strength: 30 })
   }),
   "bronze_helmet": Object.assign(new Item(), {
     id: "bronze_helmet",
