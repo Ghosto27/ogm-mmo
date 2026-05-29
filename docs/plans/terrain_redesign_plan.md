@@ -15,10 +15,10 @@
 Mesh vertices (129×129) ──редактор──→ raw heights [Uint8, 16KB]
           ↓                              ↓
    видно сразу в игре              JSON → сервер → pngjs → 2048×2048 PNG
-                                                      ↓
-                                            express.static('public')
-                                                      ↓
-                                            клиент загружает с сервера
+                                                       ↓
+                                             express.static('public')
+                                                       ↓
+                                             клиент загружает с сервера
 ```
 
 - **heightmap.png** (2048×2048) — единственный файл, заменяется целиком при Save
@@ -35,7 +35,7 @@ Mesh vertices (129×129) ──редактор──→ raw heights [Uint8, 16K
 
 - Редактирование напрямую по вершинам `geometry.attributes.position.array` (129×129).
 - Рейкаст мыши в террейн → worldX, worldZ → находим вершины в радиусе кисти.
-- ЛКМ + drag = raise, Shift+ЛКМ + drag = lower.
+- **Зажатие ЛКМ** → `setInterval` 50ms применяет кисть; мусорные вызовы из `mousemove` убраны.
 - `vertexHeightBuffer` (Float32Array, 129×129) синхронизирован с мешем.
 - После каждого штриха: `position.needsUpdate = true`, `computeVertexNormals()`.
 
@@ -45,10 +45,10 @@ Mesh vertices (129×129) ──редактор──→ raw heights [Uint8, 16K
 |---|---|
 | Raise | Поднять вершины в радиусе с falloff |
 | Lower | Опустить вершины в радиусе с falloff |
-| Flatten | Выровнять до целевой высоты (pick height по клику) |
+| Flatten | Выровнять до высоты ЦЕНТРА кисти |
 | Smooth | Усреднить с соседями (3×3 окно) |
 
-Параметры: Radius (1–20), Strength (0.01–1.0), Falloff (Gaussian / Linear / Flat).  
+Параметры: Radius (1–40), Strength (0.01–1.0), Falloff (Gaussian / Linear / Flat).  
 Колёсико мыши = радиус кисти.
 
 ### 1.3 Сохранение (Save)
@@ -60,26 +60,72 @@ Mesh vertices (129×129) ──редактор──→ raw heights [Uint8, 16K
 5. Обновляет `WorldTerrain.heightmapPath` с `?t=timestamp` → schema sync
 6. Все клиенты перезагружают террейн с сервера
 
+**Важно:** координаты загрузки и сохранения согласованы:
+- Save: `sx = Math.floor(dx/2048 * 129)` — пиксели 0..15 → col 0, 16..31 → col 1
+- Load: `px = Math.min(Math.floor(col/128 * 2048), 2047)` — col 1 → px=16 ✓  
+  (а не `Math.floor(col/128 * 2047)` → px=15, как было до фикса)
+
 ### 1.4 UI вкладки «🌍 Ландшафт»
 
 - Выбор инструмента: Raise / Lower / Flatten / Smooth
-- Слайдеры: Radius, Strength
+- Слайдеры: Radius (1–40), Strength
 - Выпадающий список: Falloff type
 - Кнопка «📍 Забрать высоту» (pick height)
 - Кнопка «💾 Сохранить ландшафт»
-- Превью кисти (белое кольцо) на террейне
+- Превью кисти: **LineLoop** (48 сегментов, семплирует vertexHeightBuffer) — кольцо ложится на рельеф
 - Хинты: ЛКМ=raise, Shift+ЛКМ=lower, колесо=радиус
 
 ### 1.5 Файлы (изменённые/новые)
 
 | Файл | Изменения |
 |---|---|
-| `client/src/editor/TerrainEditor.ts` | **Новый** — состояние кисти, превью, raycast |
-| `client/src/render/TerrainRenderer.ts` | `vertexHeightBuffer`, `applyBrush()`, `exportRawHeights()`, загрузка с SERVER_URL |
-| `client/src/editor/Editor.ts` | Вкладка «🌍 Ландшафт», mouse handlers, pick height, save |
-| `client/src/editor/EditorUI.ts` | HTML панель с инструментами |
+| `client/src/editor/TerrainEditor.ts` | **Новый** — состояние кисти, превью (LineLoop), raycast, sampleHeight() |
+| `client/src/render/TerrainRenderer.ts` | `vertexHeightBuffer`, `applyBrush()`, `exportRawHeights()`, загрузка с SERVER_URL, фикс координат (width vs width-1) |
+| `client/src/editor/Editor.ts` | Вкладка «🌍 Ландшафт», mouse handlers (interval), pick height, save, shiftHeld |
+| `client/src/editor/EditorUI.ts` | HTML панель с инструментами (radius max 40) |
 | `server/src/index.ts` | `express.static('public')`, `maxPayload: 10MB` в attach |
 | `server/src/MyRoom.ts` | Handler `saveHeightmapRaw` → pngjs → PNG 2048×2048 |
+
+---
+
+## Масштабирование (увеличение детализации)
+
+Текущие параметры: segments=128 (129×129 вершин), heightmap=2048×2048.
+
+### Уровни
+
+| Segments | Вершин | Размер массива | PNG | Пропускная способность на пиксель |
+|----------|--------|----------------|-----|-----------------------------------|
+| 128 (тек.) | 16641 | ~16 KB | 2048×2048 | ~15.9 px/vertex |
+| 256 | 66049 | ~66 KB | 4096×4096 | ~16 px/vertex |
+| 512 | 263169 | ~263 KB | 8192×8192 | ~16 px/vertex |
+
+### Что менять для каждого уровня
+
+**Простое (только размер PNG):**
+- `server/src/MyRoom.ts:1824` — `const dstSize = 2048` → нужный размер
+- Начальный `heightmap.png` — заменить файлом нужного размера
+
+**Среднее (segments):**
+- Схемы сервера: `WorldTerrain.segments` (дефолт)
+- `client/src/render/TerrainRenderer.ts` — заменить хардкод `segments: 128` в `onSaveTerrain()`
+- `exportRawHeights()` автоматически подстраивается под размер буфера
+- Все циклы по `vertexHeightBuffer` уже используют `getTerrainSegments()`
+- **maxPayload** — 66 KB для 256, 263 KB для 512 — текущих 10MB хватит
+
+**Сложное (необходимые рефакторинги):**
+- `WorldTerrain.width` / `WorldTerrain.depth` — могут потребовать изменения размера мира (сейчас 2048×2048)
+- `PlaneGeometry(terrain.width, terrain.depth, segments, segments)` — размер мира остаётся, меняется только сетка
+- `getTerrainHeightAtFast()` — билинейная интерполяция, адаптируется автоматически
+- `resource_nodes.json` — позиции объектов не зависят от сегментации
+
+### Тормозные места при увеличении
+
+- **Mesh:** больше вершин → больше времени на `computeVertexNormals()`, больше памяти GPU
+- **Сохранение:** 66KB JSON для 256 — ок; 263KB для 512 — ок
+- **WebSocket:** на 512 сегментах ~263KB за сообщение — влезает
+- **Raycast:** 260K треугольников — three.js справляется, но медленнее
+- **Brush apply:** цикл по всем вершинам (O(N)) — для 512 ~260K итераций за раз, может лагать при 50ms интервале
 
 ---
 
@@ -145,3 +191,4 @@ gl_FragColor = texture2D(tex0, vUv * tiling) * splat.r
 2. ⏳ **Фаза 2** — Splatmap-шейдер + покраска текстур
 3. **Фаза 3** — Вода
 4. **Фаза 4** — Дороги
+5. **Масштабирование** — увеличение segments/PNG по мере необходимости

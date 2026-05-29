@@ -165,7 +165,7 @@ export function createEditorUI(
     panel = document.createElement('div');
     panel.id = 'editor-panel';
     panel.style.cssText = `
-        position: absolute; top: 10px; left: 10px; width: 280px;
+        position: absolute; top: 10px; left: 10px; width: 350px;
         background: rgba(30,30,30,0.9); border: 1px solid #555;
         border-radius: 8px; color: white; font-family: Arial, sans-serif;
         z-index: 2000; padding: 12px; display: none; pointer-events: auto;
