@@ -12,12 +12,13 @@ import {
     getResourcePlacementType, resetResourcePlacementButton
 } from './EditorUI';
 import { inputState, sprintKey } from '../input';
-import { terrainMesh, getTerrainHeightAtFast, getTerrainHeightAt } from '../render/TerrainRenderer';
+import { terrainMesh, getTerrainHeightAtFast, getTerrainHeightAt, applyBrush, exportHeightmapToBlob, exportRawHeights, syncVertexBufferToMesh } from '../render/TerrainRenderer';
 import { worldMeshes } from '../render/WorldRenderer';
 import { createModelClone, getModelBaseSize } from '../utils/modelLoader';
 import { getColliderConfig } from '../collisionConfig';
 import { pushUIMode, popUIMode } from '../cameraControls';
 import { setResourceNodesVisible } from '../render/ResourceNodeRenderer';
+import { isTerrainActive, setTerrainActive, updateBrushParams, showBrushPreview, hideBrushPreview, updateBrushPreviewPosition, raycastTerrain, isEditorMouseEvent, getBrushState, setOnApplyBrush } from './TerrainEditor';
 
 let transformControls: TransformControls;
 let editorObjects: THREE.Object3D[] = [];
@@ -36,6 +37,13 @@ let mobZonePreview: THREE.Line | null = null;
 let mobZoneVisuals: THREE.LineLoop[] = [];
 let resourceEditorObjects: THREE.Object3D[] = [];
 let resourcePlacementMode = false;
+
+// --- Terrain editing ---
+let terrainBrushActive = false;
+let terrainBrushMouseDown = false;
+let terrainBrushInterval: ReturnType<typeof setInterval> | null = null;
+let shiftHeld = false;
+let pickingHeight = false;
 
 // ---------- свободная камера (оставлено без изменений) ----------
 let freeCameraEnabled = false;
@@ -56,6 +64,39 @@ function onMouseDownForEditor(e: MouseEvent) {
         mouseDragged = false;
         lastMouseX = e.clientX;
         lastMouseY = e.clientY;
+        // Pick terrain height for flatten
+        if (pickingHeight && terrainMesh && !isEditorMouseEvent(e.target)) {
+            pickingHeight = false;
+            const point = raycastTerrain(e.clientX, e.clientY, terrainMesh);
+            if (point) {
+                updateBrushParams({ targetHeight: point.y, tool: 'flatten' });
+                const toolSelect = document.getElementById('select-terrain-tool') as HTMLSelectElement;
+                if (toolSelect) toolSelect.value = 'flatten';
+                console.log('[TERRAIN] Высота захвачена:', point.y.toFixed(2));
+            }
+            return;
+        }
+        // Start terrain brush (hold LMB = continuous)
+        if (isTerrainActive() && terrainMesh && !isEditorMouseEvent(e.target)) {
+            terrainBrushMouseDown = true;
+            const point = raycastTerrain(e.clientX, e.clientY, terrainMesh);
+            if (point) {
+                const shiftDown = e.shiftKey;
+                const brush = getBrushState();
+                const effectiveTool = shiftDown ? 'lower' : brush.tool;
+                // Сохраняем позицию для интервала
+                updateBrushPreviewPosition(point.x, point.z);
+                applyBrush(point.x, point.z, { ...brush, tool: effectiveTool });
+                // Запускаем интервал для непрерывного применения кисти (20 раз/с)
+                if (terrainBrushInterval === null) {
+                    terrainBrushInterval = setInterval(() => {
+                        const b = getBrushState();
+                        const tool = shiftHeld ? 'lower' : b.tool;
+                        applyBrush(b.worldX, b.worldZ, { ...b, tool });
+                    }, 50);
+                }
+            }
+        }
     }
 }
 
@@ -65,6 +106,12 @@ function onMouseUpForEditor(e: MouseEvent) {
     }
     if (e.button === 0) {
         mouseDragged = false;
+        terrainBrushMouseDown = false;
+        // Останавливаем интервал кисти
+        if (terrainBrushInterval !== null) {
+            clearInterval(terrainBrushInterval);
+            terrainBrushInterval = null;
+        }
     }
 }
 
@@ -81,7 +128,22 @@ function onMouseMoveForEditor(e: MouseEvent) {
         camera.quaternion.setFromEuler(new THREE.Euler(pitch, yaw, 0, 'YXZ'));
         mouseDragged = true;
     } else if (mouseDown && (e.buttons & 1) === 1) {
-        mouseDragged = true; // перемещение с зажатой ЛКМ тоже считаем драгом
+        mouseDragged = true;
+        // Обновляем позицию кисти (само применение — в terrainBrushInterval)
+        if (isTerrainActive() && terrainMesh && !isEditorMouseEvent(e.target)) {
+            const point = raycastTerrain(e.clientX, e.clientY, terrainMesh);
+            if (point) {
+                updateBrushPreviewPosition(point.x, point.z);
+            }
+        }
+    }
+    
+    // Обновление превью кисти при движении мыши (даже без нажатия)
+    if (isTerrainActive() && terrainMesh && freeCameraEnabled && !isEditorMouseEvent(e.target)) {
+        const point = raycastTerrain(e.clientX, e.clientY, terrainMesh);
+        if (point) {
+            showBrushPreview(point.x, point.z);
+        }
     }
 }
 
@@ -537,6 +599,24 @@ export function initEditor() {
         onSaveResourceNodes: onSaveResourceNodes,
         onDeleteResourceNode: onDeleteResourceNode,
         onTabResourcesSelected: () => { requestResourceNodes(); },
+        onTabTerrainSelected: () => {
+            setTerrainActive(true);
+            showBrushPreview(0, 0);
+        },
+        onSaveTerrain: onSaveTerrain,
+        onTerrainToolChanged: (tool) => {
+            updateBrushParams({ tool: tool as any });
+        },
+        onTerrainParamChanged: () => {
+            const radius = parseFloat((document.getElementById('range-terrain-radius') as HTMLInputElement).value);
+            const strength = parseFloat((document.getElementById('range-terrain-strength') as HTMLInputElement).value);
+            const falloff = (document.getElementById('select-terrain-falloff') as HTMLSelectElement).value as any;
+            updateBrushParams({ radius, strength, falloff });
+        },
+        onPickTerrainHeight: () => {
+            // Will be activated on next click
+            pickingHeight = true;
+        },
     });
 
     // TransformControls
@@ -564,6 +644,28 @@ export function initEditor() {
         }
     });
 
+    // Track Shift for terrain brush tool toggle
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'Shift') shiftHeld = true;
+    });
+    window.addEventListener('keyup', (e) => {
+        if (e.key === 'Shift') shiftHeld = false;
+    });
+
+    // Terrain brush scroll
+    window.addEventListener('wheel', (e) => {
+        if (!isTerrainActive() || !isEditorActive()) return;
+        const brush = getBrushState();
+        const delta = e.deltaY > 0 ? -0.5 : 0.5;
+        const newRadius = Math.max(1, Math.min(40, brush.radius + delta));
+        updateBrushParams({ radius: newRadius });
+        // Update UI slider
+        const slider = document.getElementById('range-terrain-radius') as HTMLInputElement;
+        const label = document.getElementById('lbl-terrain-radius');
+        if (slider) slider.value = String(newRadius);
+        if (label) label.textContent = String(newRadius);
+    });
+
     window.addEventListener('keydown', async (e) => {
         if (e.key === 'F10') {
             e.preventDefault();
@@ -584,6 +686,11 @@ export function initEditor() {
 
     console.log('[EDITOR] Редактор инициализирован');
 }
+
+// Terrain brush callback
+setOnApplyBrush((x, z, brush) => {
+    applyBrush(x, z, brush);
+});
 
 async function enterEditorMode() {
     setEditorActive(true);
@@ -658,6 +765,9 @@ function exitEditorMode() {
     popUIMode();
     placementMode = false;
     resourcePlacementMode = false;
+    setTerrainActive(false);
+    hideBrushPreview();
+    terrainBrushMouseDown = false;
     
     // Показываем реальные ресурсные ноды
     setResourceNodesVisible(true);
@@ -691,6 +801,14 @@ function exitEditorMode() {
 export function updateEditor(deltaTime: number) {
     if (isEditorActive() && freeCameraEnabled) {
         moveCamera(deltaTime);
+    }
+    
+    // Terrain brush preview
+    if (isEditorActive() && isTerrainActive() && terrainMesh) {
+        // Preview follows mouse when not dragging
+        if (!terrainBrushMouseDown) {
+            // Preview already updated from mousemove
+        }
     }
 }
 
@@ -737,6 +855,27 @@ function onSnapToGroundAction() {
     }
     if (selectedObjects.length > 0) {
         updatePropertiesPanel(selectedObjects[0]);
+    }
+}
+
+async function onSaveTerrain() {
+    const raw = exportRawHeights();
+    if (raw.length === 0) {
+        console.warn('[TERRAIN] Нет данных для сохранения');
+        return;
+    }
+    // Отправляем массив чисел (всего 16KB) — это помещается в WebSocket
+    if (room) {
+        const heights: number[] = [];
+        for (let i = 0; i < raw.length; i++) {
+            heights.push(raw[i]);
+        }
+        room.send('saveHeightmapRaw', {
+            heights,
+            segments: 128,
+            maxHeight: 200,
+        });
+        console.log('[TERRAIN] Ландшафт отправлен на сервер');
     }
 }
 

@@ -34,6 +34,7 @@ let btnSaveVegetationZones: HTMLButtonElement;
 let btnDeleteVegetationZone: HTMLButtonElement;
 let mobsPanel: HTMLElement;
 let resourcesPanel: HTMLElement;
+let terrainPanel: HTMLElement;
 let selectMobZone: HTMLSelectElement;
 let mobZoneProps: HTMLElement;
 let inpMobZoneId: HTMLInputElement;
@@ -57,7 +58,7 @@ let placementMode = false;
 let editorCallbacks: any = {};
 
 // Текущая вкладка и данные зон
-let currentTab: 'static' | 'vegetation' | 'mobs' | 'resources' = 'static';
+let currentTab: 'static' | 'vegetation' | 'mobs' | 'resources' | 'terrain' = 'static';
 let vegetationZones: any[] = [];
 
 // --- Колбэки (будут назначены из Editor.ts) ---
@@ -82,7 +83,7 @@ let inpZoneWidth: HTMLInputElement;
 let inpZoneDepth: HTMLInputElement;
 let btnGenerateVegetationZone: HTMLButtonElement;
 
-function switchTab(tab: 'static' | 'vegetation' | 'mobs' | 'resources') {
+function switchTab(tab: 'static' | 'vegetation' | 'mobs' | 'resources' | 'terrain') {
     currentTab = tab;
     const tabs = document.querySelectorAll('.tab-btn');
     tabs.forEach(b => b.classList.remove('active'));
@@ -91,6 +92,7 @@ function switchTab(tab: 'static' | 'vegetation' | 'mobs' | 'resources') {
     vegetationPanel.style.display = tab === 'vegetation' ? 'block' : 'none';
     mobsPanel.style.display = tab === 'mobs' ? 'block' : 'none';
     resourcesPanel.style.display = tab === 'resources' ? 'block' : 'none';
+    terrainPanel.style.display = tab === 'terrain' ? 'block' : 'none';
     if (tab === 'vegetation' && editorCallbacks.onTabVegetationSelected) {
         editorCallbacks.onTabVegetationSelected();
     }
@@ -99,6 +101,9 @@ function switchTab(tab: 'static' | 'vegetation' | 'mobs' | 'resources') {
     }
     if (tab === 'resources' && editorCallbacks.onTabResourcesSelected) {
         editorCallbacks.onTabResourcesSelected();
+    }
+    if (tab === 'terrain' && editorCallbacks.onTabTerrainSelected) {
+        editorCallbacks.onTabTerrainSelected();
     }
 }
 
@@ -127,6 +132,11 @@ export function createEditorUI(
         onZoneGeometryChanged?: (index: number) => void;
         onMobZoneGeometryChanged?: (index: number) => void;
         onGenerateVegetationZone?: () => void;
+        onTabTerrainSelected?: () => void;
+        onSaveTerrain?: () => void;
+        onTerrainToolChanged?: (tool: string) => void;
+        onTerrainParamChanged?: () => void;
+        onPickTerrainHeight?: () => void;
     }
 ) {
     editorCallbacks = callbacks;
@@ -149,6 +159,8 @@ export function createEditorUI(
     onSaveResourceNodes = callbacks.onSaveResourceNodes || (() => {});
     onDeleteResourceNode = callbacks.onDeleteResourceNode || (() => {});
 
+    // Terrain callbacks (храним прямо в editorCallbacks)
+
     // Создаём панель
     panel = document.createElement('div');
     panel.id = 'editor-panel';
@@ -165,6 +177,7 @@ export function createEditorUI(
             <button id="tab-vegetation" class="tab-btn">🌿 Зоны</button>
             <button id="tab-mobs" class="tab-btn">🐺 Мобы</button>
             <button id="tab-resources" class="tab-btn">⛏ Ресурсы</button>
+            <button id="tab-terrain" class="tab-btn">🌍 Ландшафт</button>
         </div>
 
         <!-- Панель статических объектов -->
@@ -316,6 +329,46 @@ export function createEditorUI(
             <button id="btn-delete-resource" style="margin:4px 0;padding:6px 12px;width:100%;">🗑️ Удалить выбранную</button>
             <button id="btn-save-resources" style="margin:4px 0;padding:6px 12px;width:100%;">💾 Сохранить руды</button>
         </div>
+
+        <!-- Панель ландшафта -->
+        <div id="terrain-panel" style="display:none;">
+            <div style="font-weight:bold;margin-bottom:6px;">🌍 Редактор ландшафта</div>
+            <div style="margin-bottom:6px;">
+                <label style="font-size:12px;">Инструмент:</label>
+                <select id="select-terrain-tool" style="width:100%;margin:2px 0;padding:4px;">
+                    <option value="raise">Поднять (Raise)</option>
+                    <option value="lower">Опустить (Lower)</option>
+                    <option value="flatten">Выровнять (Flatten)</option>
+                    <option value="smooth">Сгладить (Smooth)</option>
+                </select>
+            </div>
+            <div style="margin-bottom:6px;">
+                <label style="font-size:12px;">Радиус: <span id="lbl-terrain-radius">5</span></label>
+                <input id="range-terrain-radius" type="range" min="1" max="40" value="5" step="0.5" style="width:100%;">
+            </div>
+            <div style="margin-bottom:6px;">
+                <label style="font-size:12px;">Сила: <span id="lbl-terrain-strength">0.50</span></label>
+                <input id="range-terrain-strength" type="range" min="0.01" max="1.0" value="0.5" step="0.01" style="width:100%;">
+            </div>
+            <div style="margin-bottom:6px;">
+                <label style="font-size:12px;">Спад (Falloff):</label>
+                <select id="select-terrain-falloff" style="width:100%;margin:2px 0;padding:4px;">
+                    <option value="gaussian">Gaussian (плавный)</option>
+                    <option value="linear">Linear (линейный)</option>
+                    <option value="flat">Flat (ровный)</option>
+                </select>
+            </div>
+            <div style="margin-bottom:6px;">
+                <button id="btn-pick-height" style="padding:4px 8px;width:100%;">📍 Забрать высоту (Flatten)</button>
+            </div>
+            <hr style="margin:6px 0;">
+            <div style="color:#aaa;font-size:11px;margin-bottom:6px;">
+                ЛКМ+двигать = применить кисть<br>
+                Shift+ЛКМ = опускать (Lower)<br>
+                Колесо = изменить радиус
+            </div>
+            <button id="btn-save-terrain" style="margin:4px 0;padding:6px 12px;width:100%;background:#4a4;font-weight:bold;">💾 Сохранить ландшафт</button>
+        </div>
     `;
 
     document.body.appendChild(panel);
@@ -362,6 +415,7 @@ export function createEditorUI(
 
     // Элементы ресурсных нод
     resourcesPanel = document.getElementById('resources-panel')!;
+    terrainPanel = document.getElementById('terrain-panel')!;
     selectResourceType = document.getElementById('select-resource-type') as HTMLSelectElement;
     resourceProps = document.getElementById('resource-props')!;
     inpResourceX = document.getElementById('inp-resource-x') as HTMLInputElement;
@@ -383,6 +437,7 @@ export function createEditorUI(
     document.getElementById('tab-vegetation')!.onclick = () => switchTab('vegetation');
     document.getElementById('tab-mobs')!.onclick = () => switchTab('mobs');
     document.getElementById('tab-resources')!.onclick = () => switchTab('resources');
+    document.getElementById('tab-terrain')!.onclick = () => switchTab('terrain');
 
     btnNewMobZone.onclick = () => editorCallbacks.onNewMobZone?.();
     btnSaveMobZones.onclick = () => editorCallbacks.onSaveMobZones?.();
@@ -407,6 +462,32 @@ export function createEditorUI(
     document.getElementById('inp-resource-type')!.addEventListener('change', () => {
         editorCallbacks.onPropertiesChanged?.();
     });
+
+    // Terrain controls
+    document.getElementById('tab-terrain')!.onclick = () => switchTab('terrain');
+    document.getElementById('select-terrain-tool')!.onchange = () => {
+        const tool = (document.getElementById('select-terrain-tool') as HTMLSelectElement).value;
+        editorCallbacks.onTerrainToolChanged?.(tool);
+    };
+    document.getElementById('range-terrain-radius')!.oninput = () => {
+        const val = (document.getElementById('range-terrain-radius') as HTMLInputElement).value;
+        document.getElementById('lbl-terrain-radius')!.textContent = val;
+        editorCallbacks.onTerrainParamChanged?.();
+    };
+    document.getElementById('range-terrain-strength')!.oninput = () => {
+        const val = (document.getElementById('range-terrain-strength') as HTMLInputElement).value;
+        document.getElementById('lbl-terrain-strength')!.textContent = val;
+        editorCallbacks.onTerrainParamChanged?.();
+    };
+    document.getElementById('select-terrain-falloff')!.onchange = () => {
+        editorCallbacks.onTerrainParamChanged?.();
+    };
+    document.getElementById('btn-pick-height')!.onclick = () => {
+        editorCallbacks.onPickTerrainHeight?.();
+    };
+    document.getElementById('btn-save-terrain')!.onclick = () => {
+        editorCallbacks.onSaveTerrain?.();
+    };
     selectMobZone.onchange = () => {
         const idx = parseInt(selectMobZone.value);
         if (!isNaN(idx)) {

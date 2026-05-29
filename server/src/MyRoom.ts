@@ -1809,6 +1809,50 @@ export class MyRoom extends Room<MyRoomState> {
             }
         });
 
+        this.onMessage("saveHeightmapRaw", (client, message: { heights: number[]; segments: number; maxHeight: number }) => {
+            console.log('[EDITOR] Сохранение ландшафта');
+            try {
+                const { PNG } = require('pngjs');
+                const fs = require('fs');
+                const path = require('path');
+
+                const seg = message.segments || 128;
+                const srcSize = seg + 1; // 129
+                const heights = message.heights;
+
+                // Создаём PNG 2048×2048
+                const dstSize = 2048;
+                const png = new PNG({ width: dstSize, height: dstSize });
+
+                for (let dy = 0; dy < dstSize; dy++) {
+                    for (let dx = 0; dx < dstSize; dx++) {
+                        const sx = Math.floor((dx / dstSize) * srcSize);
+                        const sy = Math.floor((dy / dstSize) * srcSize);
+                        const val = heights[sy * srcSize + sx] || 0;
+                        const dstIdx = (dy * dstSize + dx) * 4;
+                        png.data[dstIdx] = val;
+                        png.data[dstIdx + 1] = val;
+                        png.data[dstIdx + 2] = val;
+                        png.data[dstIdx + 3] = 255;
+                    }
+                }
+
+                const buf = PNG.sync.write(png);
+
+                // Сохраняем в server/public/ (сервер раздаёт статику через express.static)
+                const filePath = path.join(__dirname, '../public/textures/heightmap.png');
+                fs.writeFileSync(filePath, buf);
+                console.log('[EDITOR] Ландшафт сохранён:', filePath, `(${buf.length} bytes)`);
+
+                // Обновляем schema для перезагрузки террейна у других клиентов
+                if (this.state.terrain) {
+                    this.state.terrain.heightmapPath = `/textures/heightmap.png?t=${Date.now()}`;
+                }
+            } catch (err) {
+                console.error('[EDITOR] Ошибка сохранения ландшафта:', err);
+            }
+        });
+
         console.log("Комната 'world' создана");
         
     }

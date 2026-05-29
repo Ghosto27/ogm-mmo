@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { scene } from '../scene';
+import type { BrushState } from '../editor/TerrainEditor';
+import { SERVER_URL } from '../config';
 
 export let terrainMesh: THREE.Mesh | null = null;
 let lastTerrainKey: string = '';
@@ -11,6 +13,10 @@ export let terrainDepth = 0;
 export let terrainMaxHeight = 0;
 let imageWidth = 0;
 let imageHeight = 0;
+
+// Буфер высот (129×129) для редактирования
+let vertexHeightBuffer: Float32Array | null = null;
+let terrainSegments = 0;
 
 let terrainReadyResolve: () => void;
 export const terrainReady = new Promise<void>((resolve) => {
@@ -61,9 +67,14 @@ export function updateTerrain(terrain: any) {
         heightmapData = { data, width: image.width, height: image.height };
         imageWidth = image.width;
         imageHeight = image.height;
-        terrainWidth = terrain.width;
-        terrainDepth = terrain.depth;
-        terrainMaxHeight = terrain.maxHeight;
+    terrainWidth = terrain.width;
+    terrainDepth = terrain.depth;
+    terrainMaxHeight = terrain.maxHeight;
+    terrainSegments = terrain.segments;
+
+    // Инициализируем буфер высот
+    const numVertices = (terrain.segments + 1) * (terrain.segments + 1);
+    vertexHeightBuffer = new Float32Array(numVertices);
 
         const vertices = geometry.attributes.position.array;
         for (let i = 0; i < vertices.length; i += 3) {
@@ -71,12 +82,16 @@ export function updateTerrain(terrain: any) {
             const u = (uvIndex % (terrain.segments + 1)) / terrain.segments;
             const v = Math.floor(uvIndex / (terrain.segments + 1)) / terrain.segments;
 
-            const px = Math.floor(u * (image.width - 1));
-            const py = Math.floor(v * (image.height - 1));
+            const px = Math.min(Math.floor(u * image.width), image.width - 1);
+            const py = Math.min(Math.floor(v * image.height), image.height - 1);
             const pixelIndex = (py * image.width + px) * 4;
             const r = data[pixelIndex];
 
-            vertices[i + 1] = (r / 255) * terrain.maxHeight;
+            const h = (r / 255) * terrain.maxHeight;
+            vertices[i + 1] = h;
+            if (vertexHeightBuffer) {
+                vertexHeightBuffer[Math.floor(i / 3)] = h;
+            }
         }
 
         geometry.attributes.position.needsUpdate = true;
@@ -154,7 +169,20 @@ export function updateTerrain(terrain: any) {
                 terrainReadyResolve();
             });
     };
-    image.src = terrain.heightmapPath;
+    const baseUrl = SERVER_URL.replace(/\/+$/, '');
+    image.src = `${baseUrl}${terrain.heightmapPath}`;
+    image.onerror = () => {
+        console.warn('[TERRAIN] Не удалось загрузить heightmap:', terrain.heightmapPath);
+        // Если меш уже был, не удаляем его — оставляем старый
+        if (!terrainMesh) {
+            // fallback для первой загрузки
+            const material = new THREE.MeshStandardMaterial({ color: 0x3a9d23, roughness: 0.8 });
+            terrainMesh = new THREE.Mesh(geometry, material);
+            terrainMesh.receiveShadow = true;
+            scene.add(terrainMesh);
+            terrainReadyResolve();
+        }
+    };
     (window as any).terrainWidth = terrainWidth;
     (window as any).terrainDepth = terrainDepth;
     (window as any).heightmapData = heightmapData;
@@ -215,4 +243,147 @@ export function getTerrainHeightAtFast(x: number, z: number): number {
     const r = rTop + (rBottom - rTop) * fy;
 
     return (r / 255) * terrainMaxHeight;
+}
+
+// ---------- Terrain Editor ----------
+
+export function getTerrainSegments() { return terrainSegments; }
+export function getVertexHeightBuffer() { return vertexHeightBuffer; }
+
+export function syncVertexBufferToMesh() {
+    if (!terrainMesh || !vertexHeightBuffer) return;
+    const positions = terrainMesh.geometry.attributes.position.array;
+    for (let i = 0; i < vertexHeightBuffer.length; i++) {
+        positions[i * 3 + 1] = vertexHeightBuffer[i];
+    }
+    terrainMesh.geometry.attributes.position.needsUpdate = true;
+    terrainMesh.geometry.computeVertexNormals();
+}
+
+export function applyBrush(centerX: number, centerZ: number, brush: BrushState) {
+    if (!terrainMesh || !vertexHeightBuffer) return;
+    const segments = terrainSegments;
+    const positions = terrainMesh.geometry.attributes.position.array;
+    const radius = brush.radius;
+
+    const halfW = terrainWidth / 2;
+    const halfD = terrainDepth / 2;
+
+    // Для flatten: высота вершины в центре кисти
+    let flattenAvg = brush.targetHeight;
+    if (brush.tool === 'flatten') {
+        let closestDist = Infinity;
+        for (let i = 0; i < vertexHeightBuffer.length; i++) {
+            const row = Math.floor(i / (segments + 1));
+            const col = i % (segments + 1);
+            const u = col / segments;
+            const v = row / segments;
+            const vx = u * terrainWidth - halfW;
+            const vz = v * terrainDepth - halfD;
+            const dx = vx - centerX;
+            const dz = vz - centerZ;
+            const dist = Math.sqrt(dx * dx + dz * dz);
+            if (dist < closestDist) {
+                closestDist = dist;
+                flattenAvg = vertexHeightBuffer[i];
+            }
+        }
+    }
+
+    for (let i = 0; i < vertexHeightBuffer.length; i++) {
+        const row = Math.floor(i / (segments + 1));
+        const col = i % (segments + 1);
+        const u = col / segments;
+        const v = row / segments;
+
+        const vx = u * terrainWidth - halfW;
+        const vz = v * terrainDepth - halfD;
+        const dx = vx - centerX;
+        const dz = vz - centerZ;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+
+        if (dist > radius) continue;
+
+        let weight = 1;
+        if (brush.falloff === 'gaussian') {
+            weight = Math.exp(-(dist * dist) / (radius * radius * 0.5));
+        } else if (brush.falloff === 'linear') {
+            weight = 1 - dist / radius;
+        }
+
+        const currentH = vertexHeightBuffer[i];
+
+        let newH = currentH;
+        switch (brush.tool) {
+            case 'raise':
+                newH = currentH + brush.strength * weight;
+                break;
+            case 'lower':
+                newH = currentH - brush.strength * weight;
+                break;
+            case 'flatten':
+                newH = currentH + (flattenAvg - currentH) * weight * 0.3;
+                break;
+            case 'smooth': {
+                let sum = 0;
+                let count = 0;
+                for (let dr = -1; dr <= 1; dr++) {
+                    for (let dc = -1; dc <= 1; dc++) {
+                        const nr = row + dr;
+                        const nc = col + dc;
+                        if (nr < 0 || nr > segments || nc < 0 || nc > segments) continue;
+                        sum += vertexHeightBuffer[nr * (segments + 1) + nc];
+                        count++;
+                    }
+                }
+                const avg = sum / count;
+                newH = currentH + (avg - currentH) * weight * 0.3;
+                break;
+            }
+        }
+
+        newH = Math.max(0, Math.min(terrainMaxHeight, newH));
+        vertexHeightBuffer[i] = newH;
+        positions[i * 3 + 1] = newH;
+    }
+
+    terrainMesh.geometry.attributes.position.needsUpdate = true;
+    terrainMesh.geometry.computeVertexNormals();
+}
+
+export function exportHeightmapToBlob(): Promise<Blob | null> {
+    return new Promise((resolve) => {
+        if (!vertexHeightBuffer) { resolve(null); return; }
+
+        const size = terrainSegments + 1; // 129
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d')!;
+        const imageData = ctx.createImageData(size, size);
+
+        for (let i = 0; i < vertexHeightBuffer.length; i++) {
+            const pixel = Math.round((vertexHeightBuffer[i] / terrainMaxHeight) * 255);
+            const clamped = Math.max(0, Math.min(255, pixel));
+            imageData.data[i * 4] = clamped;
+            imageData.data[i * 4 + 1] = clamped;
+            imageData.data[i * 4 + 2] = clamped;
+            imageData.data[i * 4 + 3] = 255;
+        }
+
+        ctx.putImageData(imageData, 0, 0);
+
+        canvas.toBlob((blob) => {
+            resolve(blob);
+        }, 'image/png');
+    });
+}
+
+export function exportRawHeights(): Uint8Array {
+    if (!vertexHeightBuffer) return new Uint8Array(0);
+    const data = new Uint8Array(vertexHeightBuffer.length);
+    for (let i = 0; i < vertexHeightBuffer.length; i++) {
+        data[i] = Math.round((vertexHeightBuffer[i] / terrainMaxHeight) * 255);
+    }
+    return data;
 }

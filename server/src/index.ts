@@ -4,7 +4,6 @@ import express from "express";
 import cors from "cors";
 import { MyRoom } from "./MyRoom";
 import { Encoder } from "@colyseus/schema";
-import { WebSocketTransport } from '@colyseus/ws-transport';
 
 Encoder.BUFFER_SIZE = 256 * 1024; // 32 КБ (можно увеличить до 64 * 1024 при необходимости)
 
@@ -17,12 +16,14 @@ app.use(cors({
     credentials: true
 }));
 
+// Раздаём статику из public/
+app.use(express.static('public'));
+
 const httpServer = createServer(app);
 
-// Важно: в 0.16 конструктор Server() пустой, а сервер прикрепляется через attach
-const gameServer = new Server( );
+const gameServer = new Server();
 gameServer.define("world", MyRoom);
-gameServer.attach({ server: httpServer });
+gameServer.attach({ server: httpServer, maxPayload: 1024 * 1024 * 10 } as any);
 
 gameServer.listen(port).then(() => {
     console.log(`Сервер Colyseus запущен на http://localhost:${port}`);
