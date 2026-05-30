@@ -1,7 +1,7 @@
 import { heightmapData, terrainWidth, terrainDepth } from './render/TerrainRenderer';
 
 const MAP_SIZE_PX = 256;          // размер canvas в пикселях
-//let WORLD_SIZE = 2048;            // будет обновлено из terrainWidth
+//let WORLD_SIZE = 4096;            // будет обновлено из terrainWidth
 export let fullMapCanvas: HTMLCanvasElement | null = null;
 let lastHeightmapKey = '';
 let canvas: HTMLCanvasElement;
@@ -44,7 +44,7 @@ export function updateMinimap(
 ) {
     if (!ctx) return;
 
-    const WORLD_SIZE = terrainWidth > 0 ? terrainWidth : 2048;
+    const WORLD_SIZE = terrainWidth > 0 ? terrainWidth : 4096;
     const VIEW_SIZE = 512;                  // сколько метров показывать вокруг игрока
     const SCALE = MAP_SIZE_PX / VIEW_SIZE;  // пикселей на метр
     const centerX = MAP_SIZE_PX / 2;
