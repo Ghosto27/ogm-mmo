@@ -70,6 +70,7 @@ export class MyRoom extends Room<MyRoomState> {
     private timers: NodeJS.Timeout[] = [];
     vegetationSpawner!: VegetationSpawner;
     resourceSpawner!: ResourceSpawner;
+    waterBodies: any[] = [];
     private chunkBuffer = new Map<string, { totalChunks: number; chunks: any[][] }>();
 
     public addTimer(timer: NodeJS.Timeout) {
@@ -452,6 +453,17 @@ export class MyRoom extends Room<MyRoomState> {
         // Spawn initial skeletons from spawnZones
         this.spawner.spawnInitialSkeletons();
         console.log('[MOB] Скелеты загружены из skeletonSpawnZones');
+
+        // Загружаем водоёмы
+        try {
+            const waterFilePath = path.join(__dirname, '../data/water_bodies.json');
+            if (fs.existsSync(waterFilePath)) {
+                this.waterBodies = JSON.parse(fs.readFileSync(waterFilePath, 'utf-8'));
+                console.log(`[WATER] Загружено ${this.waterBodies.length} водоёмов из water_bodies.json`);
+            }
+        } catch (err) {
+            console.error('[WATER] Ошибка загрузки water_bodies.json:', err);
+        }
 
         const terrain = new WorldTerrain();
         terrain.heightmapPath = "/textures/heightmap.png";
@@ -1851,6 +1863,38 @@ export class MyRoom extends Room<MyRoomState> {
             } catch (err) {
                 console.error('[EDITOR] Ошибка сохранения ландшафта:', err);
             }
+        });
+
+        this.onMessage("saveSplatmap", (client, message: { data: number[] }) => {
+            console.log('[EDITOR] Сохранение сплатмапа');
+            try {
+                const fs = require('fs');
+                const path = require('path');
+                const buf = Buffer.from(message.data);
+                const filePath = path.join(__dirname, '../public/textures/splatmap.raw');
+                fs.writeFileSync(filePath, buf);
+                console.log('[EDITOR] Сплатмап сохранён:', filePath, `(${buf.length} bytes)`);
+            } catch (err) {
+                console.error('[EDITOR] Ошибка сохранения сплатмапа:', err);
+            }
+        });
+
+        this.onMessage("saveWaterBodies", (client, message: { bodies: any[] }) => {
+            console.log('[EDITOR] Сохранение водоёмов');
+            try {
+                const fs = require('fs');
+                const path = require('path');
+                const filePath = path.join(__dirname, '../data/water_bodies.json');
+                fs.writeFileSync(filePath, JSON.stringify(message.bodies, null, 2));
+                this.waterBodies = message.bodies || [];
+                console.log('[EDITOR] Водоёмы сохранены:', filePath);
+            } catch (err) {
+                console.error('[EDITOR] Ошибка сохранения водоёмов:', err);
+            }
+        });
+
+        this.onMessage("getWaterBodies", (client) => {
+            client.send('waterBodiesData', { bodies: this.waterBodies || [] });
         });
 
         console.log("Комната 'world' создана");

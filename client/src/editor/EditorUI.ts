@@ -35,6 +35,7 @@ let btnDeleteVegetationZone: HTMLButtonElement;
 let mobsPanel: HTMLElement;
 let resourcesPanel: HTMLElement;
 let terrainPanel: HTMLElement;
+let waterPanel: HTMLElement;
 let selectMobZone: HTMLSelectElement;
 let mobZoneProps: HTMLElement;
 let inpMobZoneId: HTMLInputElement;
@@ -58,7 +59,7 @@ let placementMode = false;
 let editorCallbacks: any = {};
 
 // Текущая вкладка и данные зон
-let currentTab: 'static' | 'vegetation' | 'mobs' | 'resources' | 'terrain' = 'static';
+let currentTab: 'static' | 'vegetation' | 'mobs' | 'resources' | 'terrain' | 'water' = 'static';
 let vegetationZones: any[] = [];
 
 // --- Колбэки (будут назначены из Editor.ts) ---
@@ -83,7 +84,7 @@ let inpZoneWidth: HTMLInputElement;
 let inpZoneDepth: HTMLInputElement;
 let btnGenerateVegetationZone: HTMLButtonElement;
 
-function switchTab(tab: 'static' | 'vegetation' | 'mobs' | 'resources' | 'terrain') {
+function switchTab(tab: 'static' | 'vegetation' | 'mobs' | 'resources' | 'terrain' | 'water') {
     currentTab = tab;
     const tabs = document.querySelectorAll('.tab-btn');
     tabs.forEach(b => b.classList.remove('active'));
@@ -93,6 +94,7 @@ function switchTab(tab: 'static' | 'vegetation' | 'mobs' | 'resources' | 'terrai
     mobsPanel.style.display = tab === 'mobs' ? 'block' : 'none';
     resourcesPanel.style.display = tab === 'resources' ? 'block' : 'none';
     terrainPanel.style.display = tab === 'terrain' ? 'block' : 'none';
+    if (waterPanel) waterPanel.style.display = tab === 'water' ? 'block' : 'none';
     if (tab === 'vegetation' && editorCallbacks.onTabVegetationSelected) {
         editorCallbacks.onTabVegetationSelected();
     }
@@ -104,6 +106,9 @@ function switchTab(tab: 'static' | 'vegetation' | 'mobs' | 'resources' | 'terrai
     }
     if (tab === 'terrain' && editorCallbacks.onTabTerrainSelected) {
         editorCallbacks.onTabTerrainSelected();
+    }
+    if (tab === 'water' && editorCallbacks.onTabWaterSelected) {
+        editorCallbacks.onTabWaterSelected();
     }
 }
 
@@ -136,7 +141,14 @@ export function createEditorUI(
         onSaveTerrain?: () => void;
         onTerrainToolChanged?: (tool: string) => void;
         onTerrainParamChanged?: () => void;
-        onPickTerrainHeight?: () => void;
+        onPaintChannelChanged?: (channel: string) => void;
+        onSaveSplatmap?: () => void;
+        onTabWaterSelected?: () => void;
+        onNewWaterBody?: () => void;
+        onSaveWaterBodies?: () => void;
+        onDeleteWaterBody?: () => void;
+        onWaterBodySelected?: (index: number) => void;
+        onWaterBodyChanged?: (index: number) => void;
     }
 ) {
     editorCallbacks = callbacks;
@@ -159,6 +171,12 @@ export function createEditorUI(
     onSaveResourceNodes = callbacks.onSaveResourceNodes || (() => {});
     onDeleteResourceNode = callbacks.onDeleteResourceNode || (() => {});
 
+    // Water callbacks
+    let onNewWaterBody = callbacks.onNewWaterBody || (() => {});
+    let onSaveWaterBodies = callbacks.onSaveWaterBodies || (() => {});
+    let onDeleteWaterBody = callbacks.onDeleteWaterBody || (() => {});
+    let onWaterBodySelected = callbacks.onWaterBodySelected || (() => {});
+
     // Terrain callbacks (храним прямо в editorCallbacks)
 
     // Создаём панель
@@ -178,6 +196,7 @@ export function createEditorUI(
             <button id="tab-mobs" class="tab-btn">🐺 Мобы</button>
             <button id="tab-resources" class="tab-btn">⛏ Ресурсы</button>
             <button id="tab-terrain" class="tab-btn">🌍 Ландшафт</button>
+            <button id="tab-water" class="tab-btn">💧 Вода</button>
         </div>
 
         <!-- Панель статических объектов -->
@@ -340,11 +359,21 @@ export function createEditorUI(
                     <option value="lower">Опустить (Lower)</option>
                     <option value="flatten">Выровнять (Flatten)</option>
                     <option value="smooth">Сгладить (Smooth)</option>
+                    <option value="paint">Покраска (Paint)</option>
+                </select>
+            </div>
+            <div id="paint-channel-group" style="margin-bottom:6px;display:none;">
+                <label style="font-size:12px;">Канал:</label>
+                <select id="select-paint-channel" style="width:100%;margin:2px 0;padding:4px;">
+                    <option value="grass">Трава (R)</option>
+                    <option value="dirt">Земля (G)</option>
+                    <option value="rock">Камень (B)</option>
+                    <option value="sand">Песок (A)</option>
                 </select>
             </div>
             <div style="margin-bottom:6px;">
-                <label style="font-size:12px;">Радиус: <span id="lbl-terrain-radius">5</span></label>
-                <input id="range-terrain-radius" type="range" min="1" max="40" value="5" step="0.5" style="width:100%;">
+                <label style="font-size:12px;">Радиус: <span id="lbl-terrain-radius">10</span></label>
+                <input id="range-terrain-radius" type="range" min="1" max="40" value="10" step="0.5" style="width:100%;">
             </div>
             <div style="margin-bottom:6px;">
                 <label style="font-size:12px;">Сила: <span id="lbl-terrain-strength">0.50</span></label>
@@ -358,16 +387,36 @@ export function createEditorUI(
                     <option value="flat">Flat (ровный)</option>
                 </select>
             </div>
-            <div style="margin-bottom:6px;">
-                <button id="btn-pick-height" style="padding:4px 8px;width:100%;">📍 Забрать высоту (Flatten)</button>
-            </div>
             <hr style="margin:6px 0;">
             <div style="color:#aaa;font-size:11px;margin-bottom:6px;">
                 ЛКМ+двигать = применить кисть<br>
-                Shift+ЛКМ = опускать (Lower)<br>
+                Shift+ЛКМ = опускать (Lower) / стирать (Paint)<br>
                 Колесо = изменить радиус
             </div>
             <button id="btn-save-terrain" style="margin:4px 0;padding:6px 12px;width:100%;background:#4a4;font-weight:bold;">💾 Сохранить ландшафт</button>
+            <button id="btn-save-splatmap" style="margin:4px 0;padding:6px 12px;width:100%;background:#48a;font-weight:bold;">🎨 Сохранить сплатмап</button>
+        </div>
+
+        <!-- Панель воды -->
+        <div id="water-panel" style="display:none;">
+            <div style="font-weight:bold;margin-bottom:6px;">💧 Водоёмы</div>
+            <select id="select-water-body" style="width:100%; margin:4px 0;"></select>
+            <div id="water-body-props" style="display:none; margin-top:4px;">
+                <label>ID</label><input id="inp-water-id" type="text" style="width:100%;">
+                <div style="display:flex; gap:4px; margin-top:4px;">
+                    <div style="flex:1;"><label style="font-size:12px;">X</label><input id="inp-water-x" type="number" step="0.1" style="width:100%;"></div>
+                    <div style="flex:1;"><label style="font-size:12px;">Z</label><input id="inp-water-z" type="number" step="0.1" style="width:100%;"></div>
+                </div>
+                <label>Высота воды (Y)</label><input id="inp-water-y" type="number" step="0.1" style="width:100%;">
+                <label>Ширина</label><input id="inp-water-width" type="number" step="1" value="20" style="width:100%;">
+                <label>Глубина</label><input id="inp-water-depth" type="number" step="1" value="20" style="width:100%;">
+                <div style="margin-top:4px;">
+                    <button id="btn-delete-water-body">🗑️ Удалить водоём</button>
+                </div>
+            </div>
+            <hr style="margin:6px 0;">
+            <button id="btn-new-water-body" style="margin:4px 0;padding:6px 12px;width:100%;">➕ Новый водоём</button>
+            <button id="btn-save-water-bodies" style="margin:4px 0;padding:6px 12px;width:100%;">💾 Сохранить водоёмы</button>
         </div>
     `;
 
@@ -464,9 +513,77 @@ export function createEditorUI(
     });
 
     // Terrain controls
+    waterPanel = document.getElementById('water-panel')!;
+    let selectWaterBody = document.getElementById('select-water-body') as HTMLSelectElement;
+    let waterBodyProps = document.getElementById('water-body-props')!;
+    let inpWaterId = document.getElementById('inp-water-id') as HTMLInputElement;
+    let inpWaterX = document.getElementById('inp-water-x') as HTMLInputElement;
+    let inpWaterZ = document.getElementById('inp-water-z') as HTMLInputElement;
+    let inpWaterY = document.getElementById('inp-water-y') as HTMLInputElement;
+    let inpWaterWidth = document.getElementById('inp-water-width') as HTMLInputElement;
+    let inpWaterDepth = document.getElementById('inp-water-depth') as HTMLInputElement;
+
+    document.getElementById('tab-water')!.onclick = () => switchTab('water');
+    document.getElementById('btn-new-water-body')!.onclick = () => onNewWaterBody();
+    document.getElementById('btn-save-water-bodies')!.onclick = () => onSaveWaterBodies();
+    document.getElementById('btn-delete-water-body')!.onclick = () => onDeleteWaterBody();
+    selectWaterBody.onchange = () => {
+        const idx = parseInt(selectWaterBody.value);
+        if (!isNaN(idx)) onWaterBodySelected(idx);
+    };
+    inpWaterId.addEventListener('input', () => {
+        const idx = parseInt(selectWaterBody.value);
+        if (!isNaN(idx) && editorCallbacks.onWaterBodyChanged) {
+            const zone = (window as any).__waterBodies?.[idx];
+            if (zone) zone.id = inpWaterId.value;
+        }
+    });
+    inpWaterWidth.addEventListener('input', () => {
+        const idx = parseInt(selectWaterBody.value);
+        if (!isNaN(idx) && editorCallbacks.onWaterBodyChanged) {
+            const zone = (window as any).__waterBodies?.[idx];
+            if (zone) zone.width = parseFloat(inpWaterWidth.value) || 10;
+            editorCallbacks.onWaterBodyChanged(idx);
+        }
+    });
+    inpWaterDepth.addEventListener('input', () => {
+        const idx = parseInt(selectWaterBody.value);
+        if (!isNaN(idx) && editorCallbacks.onWaterBodyChanged) {
+            const zone = (window as any).__waterBodies?.[idx];
+            if (zone) zone.depth = parseFloat(inpWaterDepth.value) || 10;
+            editorCallbacks.onWaterBodyChanged(idx);
+        }
+    });
+    inpWaterY.addEventListener('input', () => {
+        const idx = parseInt(selectWaterBody.value);
+        if (!isNaN(idx) && editorCallbacks.onWaterBodyChanged) {
+            const zone = (window as any).__waterBodies?.[idx];
+            if (zone) zone.y = parseFloat(inpWaterY.value) || 10;
+            editorCallbacks.onWaterBodyChanged(idx);
+        }
+    });
+    inpWaterX.addEventListener('input', () => {
+        const idx = parseInt(selectWaterBody.value);
+        if (!isNaN(idx) && editorCallbacks.onWaterBodyChanged) {
+            const zone = (window as any).__waterBodies?.[idx];
+            if (zone) zone.x = parseFloat(inpWaterX.value) || 0;
+            editorCallbacks.onWaterBodyChanged(idx);
+        }
+    });
+    inpWaterZ.addEventListener('input', () => {
+        const idx = parseInt(selectWaterBody.value);
+        if (!isNaN(idx) && editorCallbacks.onWaterBodyChanged) {
+            const zone = (window as any).__waterBodies?.[idx];
+            if (zone) zone.z = parseFloat(inpWaterZ.value) || 0;
+            editorCallbacks.onWaterBodyChanged(idx);
+        }
+    });
+
     document.getElementById('tab-terrain')!.onclick = () => switchTab('terrain');
     document.getElementById('select-terrain-tool')!.onchange = () => {
         const tool = (document.getElementById('select-terrain-tool') as HTMLSelectElement).value;
+        const paintGroup = document.getElementById('paint-channel-group')!;
+        paintGroup.style.display = tool === 'paint' ? 'block' : 'none';
         editorCallbacks.onTerrainToolChanged?.(tool);
     };
     document.getElementById('range-terrain-radius')!.oninput = () => {
@@ -482,11 +599,15 @@ export function createEditorUI(
     document.getElementById('select-terrain-falloff')!.onchange = () => {
         editorCallbacks.onTerrainParamChanged?.();
     };
-    document.getElementById('btn-pick-height')!.onclick = () => {
-        editorCallbacks.onPickTerrainHeight?.();
-    };
     document.getElementById('btn-save-terrain')!.onclick = () => {
         editorCallbacks.onSaveTerrain?.();
+    };
+    document.getElementById('select-paint-channel')!.onchange = () => {
+        const channel = (document.getElementById('select-paint-channel') as HTMLSelectElement).value;
+        editorCallbacks.onPaintChannelChanged?.(channel);
+    };
+    document.getElementById('btn-save-splatmap')!.onclick = () => {
+        editorCallbacks.onSaveSplatmap?.();
     };
     selectMobZone.onchange = () => {
         const idx = parseInt(selectMobZone.value);
@@ -763,4 +884,45 @@ export function resetResourcePlacementButton() {
         btn.textContent = '📌 Разместить руду';
         btn.style.background = '';
     }
+}
+
+// --- Функции для водоёмов ---
+
+export let waterBodies: any[] = [];
+let currentWaterBodyIndex = -1;
+
+export function setWaterBodies(bodies: any[]) {
+    waterBodies = bodies;
+    (window as any).__waterBodies = bodies;
+    const select = document.getElementById('select-water-body') as HTMLSelectElement;
+    if (!select) return;
+    select.innerHTML = bodies.map((b, i) => `<option value="${i}">${b.id}</option>`).join('');
+    const props = document.getElementById('water-body-props')!;
+    props.style.display = bodies.length > 0 ? 'block' : 'none';
+    if (bodies.length > 0) {
+        const newIndex = currentWaterBodyIndex >= 0 && currentWaterBodyIndex < bodies.length ? currentWaterBodyIndex : 0;
+        select.selectedIndex = newIndex;
+        currentWaterBodyIndex = newIndex;
+        showWaterBodyProps(newIndex);
+    } else {
+        currentWaterBodyIndex = -1;
+    }
+}
+
+export function showWaterBodyProps(index: number) {
+    currentWaterBodyIndex = index;
+    const b = waterBodies[index];
+    if (!b) return;
+    const inpId = document.getElementById('inp-water-id') as HTMLInputElement;
+    const inpX = document.getElementById('inp-water-x') as HTMLInputElement;
+    const inpZ = document.getElementById('inp-water-z') as HTMLInputElement;
+    const inpY = document.getElementById('inp-water-y') as HTMLInputElement;
+    const inpW = document.getElementById('inp-water-width') as HTMLInputElement;
+    const inpD = document.getElementById('inp-water-depth') as HTMLInputElement;
+    if (inpId) inpId.value = b.id;
+    if (inpX) inpX.value = b.x?.toFixed(2);
+    if (inpZ) inpZ.value = b.z?.toFixed(2);
+    if (inpY) inpY.value = b.y?.toFixed(2);
+    if (inpW) inpW.value = b.width;
+    if (inpD) inpD.value = b.depth;
 }

@@ -18,6 +18,11 @@ let imageHeight = 0;
 let vertexHeightBuffer: Float32Array | null = null;
 let terrainSegments = 0;
 
+// Splatmap (256×256, RGBA) — DataTexture (без premultiplied alpha)
+const SPLATMAP_SIZE = 512;
+let splatData: Uint8Array | null = null;
+let splatTexture: THREE.DataTexture | null = null;
+
 let terrainReadyResolve: () => void;
 export const terrainReady = new Promise<void>((resolve) => {
     terrainReadyResolve = resolve;
@@ -97,60 +102,54 @@ export function updateTerrain(terrain: any) {
         geometry.attributes.position.needsUpdate = true;
         geometry.computeVertexNormals();
 
-        const textureGrass = loadTexture('/textures/grass.jpg');
-        const textureCliff = loadTexture('/textures/cliff.jpg');
-        const textureRock  = loadTexture('/textures/rock.jpg');
+        // Инициализируем сплатмап (256×256)
+        initSplatmap();
 
-        Promise.all([textureGrass, textureCliff, textureRock])
-            .then(([grass, cliff, rock]) => {
+        const textureGrass = loadTexture('/textures/grass.jpg');
+        const textureDirt  = loadTexture('/textures/cliff.jpg');
+        const textureRock  = loadTexture('/textures/rock.jpg');
+        const textureSand  = loadTexture('/textures/sand.jpg');
+
+        Promise.all([textureGrass, textureDirt, textureRock, textureSand])
+            .then(([grass, dirt, rock, sand]) => {
+                const tiling = 100.0;
                 const material = new THREE.ShaderMaterial({
                     uniforms: {
-                        grassTexture: { value: grass },
-                        cliffTexture: { value: cliff },
-                        rockTexture:  { value: rock },
-                        repeatGrass:  { value: 100.0 },
-                        repeatCliff:  { value: 100.0 },
-                        repeatRock:   { value: 100.0 },
-                        maxHeight:    { value: terrain.maxHeight },
-                        heightTransition: { value: 0.1 },
+                        tex0: { value: grass },
+                        tex1: { value: dirt },
+                        tex2: { value: rock },
+                        tex3: { value: sand },
+                        splatMap: { value: splatTexture },
+                        tiling: { value: tiling },
                     },
                     vertexShader: `
                         varying vec2 vUv;
-                        varying float vHeight;
-                        varying vec3 vNormal;
                         void main() {
                             vUv = uv;
-                            vec4 worldPos = modelMatrix * vec4(position, 1.0);
-                            vHeight = worldPos.y;
-                            vNormal = normalize(mat3(modelMatrix) * normal);
                             gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
                         }
                     `,
                     fragmentShader: `
                         varying vec2 vUv;
-                        varying float vHeight;
-                        varying vec3 vNormal;
-                        uniform sampler2D grassTexture;
-                        uniform sampler2D cliffTexture;
-                        uniform sampler2D rockTexture;
-                        uniform float repeatGrass;
-                        uniform float repeatCliff;
-                        uniform float repeatRock;
-                        uniform float maxHeight;
-                        uniform float heightTransition;
+                        uniform sampler2D tex0;
+                        uniform sampler2D tex1;
+                        uniform sampler2D tex2;
+                        uniform sampler2D tex3;
+                        uniform sampler2D splatMap;
+                        uniform float tiling;
 
                         void main() {
-                            float normalizedHeight = vHeight / maxHeight;
-                            float grassFactor = 1.0 - smoothstep(0.01 - heightTransition, 0.01 + heightTransition, normalizedHeight);
-                            float rockFactor  = smoothstep(0.2 - heightTransition, 0.2 + heightTransition, normalizedHeight);
-                            float cliffFactor = 1.0 - grassFactor - rockFactor;
-
-                            vec4 grassColor = texture2D(grassTexture, vUv * repeatGrass);
-                            vec4 cliffColor = texture2D(cliffTexture, vUv * repeatCliff);
-                            vec4 rockColor  = texture2D(rockTexture,  vUv * repeatRock);
-
-                            vec4 color = grassColor * grassFactor + cliffColor * cliffFactor + rockColor * rockFactor;
-                            gl_FragColor = color;
+                            vec4 splat = texture2D(splatMap, vUv);
+                            float total = splat.r + splat.g + splat.b + splat.a;
+                            if (total < 0.001) {
+                                gl_FragColor = vec4(0.15, 0.25, 0.1, 1.0);
+                                return;
+                            }
+                            vec4 color = texture2D(tex0, vUv * tiling) * splat.r
+                                       + texture2D(tex1, vUv * tiling) * splat.g
+                                       + texture2D(tex2, vUv * tiling) * splat.b
+                                       + texture2D(tex3, vUv * tiling) * splat.a;
+                            gl_FragColor = vec4(color.rgb / total, 1.0);
                         }
                     `,
                     side: THREE.FrontSide,
@@ -386,4 +385,120 @@ export function exportRawHeights(): Uint8Array {
         data[i] = Math.round((vertexHeightBuffer[i] / terrainMaxHeight) * 255);
     }
     return data;
+}
+
+// ---------- Splatmap ----------
+
+function initSplatmap() {
+    if (splatData) return;
+    const size = SPLATMAP_SIZE * SPLATMAP_SIZE * 4;
+    splatData = new Uint8Array(size) as unknown as Uint8Array;
+    // По умолчанию вся трава (R=255, остальные 0)
+    for (let i = 0; i < size; i += 4) {
+        splatData[i] = 255;
+    }
+    splatTexture = new THREE.DataTexture(splatData as any, SPLATMAP_SIZE, SPLATMAP_SIZE, THREE.RGBAFormat);
+    splatTexture.flipY = false;
+    splatTexture.needsUpdate = true;
+    // Загружаем существующий сплатмап с сервера
+    loadSplatmapFromServer();
+}
+
+function loadSplatmapFromServer() {
+    if (!splatData) return;
+    const baseUrl = SERVER_URL.replace(/\/+$/, '');
+    fetch(`${baseUrl}/textures/splatmap.raw?t=${Date.now()}`)
+        .then((res) => {
+            if (!res.ok) throw new Error('No splatmap file');
+            return res.arrayBuffer();
+        })
+        .then((buffer) => {
+            const loaded = new Uint8Array(buffer);
+            const len = Math.min(loaded.length, splatData!.length);
+            for (let i = 0; i < len; i++) splatData![i] = loaded[i];
+            if (splatTexture) splatTexture.needsUpdate = true;
+        })
+        .catch(() => {
+            // Нет файла — оставляем умолчание (вся трава)
+        });
+}
+
+export function applyPaintBrush(
+    worldX: number, worldZ: number,
+    channel: number, strength: number, radius: number,
+    falloff: string, erase: boolean
+) {
+    if (!splatData) return;
+    const halfW = terrainWidth / 2;
+    const halfD = terrainDepth / 2;
+    const u = (worldX + halfW) / terrainWidth;
+    const v = (worldZ + halfD) / terrainDepth;
+    if (u < 0 || u > 1 || v < 0 || v > 1) return;
+    const cx = u * SPLATMAP_SIZE;
+    const cy = (1 - v) * SPLATMAP_SIZE;
+    const pixelRadius = Math.max(1, radius / (terrainWidth / SPLATMAP_SIZE));
+
+    const data = splatData;
+
+    const minX = Math.max(0, Math.floor(cx - pixelRadius));
+    const maxX = Math.min(SPLATMAP_SIZE - 1, Math.ceil(cx + pixelRadius));
+    const minY = Math.max(0, Math.floor(cy - pixelRadius));
+    const maxY = Math.min(SPLATMAP_SIZE - 1, Math.ceil(cy + pixelRadius));
+
+    for (let py = minY; py <= maxY; py++) {
+        for (let px = minX; px <= maxX; px++) {
+            const dx = px - cx;
+            const dy = py - cy;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist > pixelRadius) continue;
+
+            let weight = 1;
+            if (falloff === 'gaussian') {
+                weight = Math.exp(-(dist * dist) / (pixelRadius * pixelRadius * 0.5));
+            } else if (falloff === 'linear') {
+                weight = 1 - dist / pixelRadius;
+            }
+
+            const idx = (py * SPLATMAP_SIZE + px) * 4;
+            const addVal = Math.round(strength * weight * 255);
+            if (erase) {
+                const oldVal = data[idx + channel];
+                data[idx + channel] = Math.max(0, oldVal - addVal);
+                const delta = oldVal - data[idx + channel];
+                if (delta > 0) {
+                    data[idx] = Math.min(255, data[idx] + delta);
+                }
+            } else {
+                data[idx + channel] = Math.min(255, data[idx + channel] + addVal);
+                for (let c = 0; c < 4; c++) {
+                    if (c !== channel) {
+                        data[idx + c] = Math.max(0, data[idx + c] - Math.round(addVal / 3));
+                    }
+                }
+            }
+        }
+    }
+
+    if (splatTexture) splatTexture.needsUpdate = true;
+}
+
+export function exportSplatmapToCanvas(): HTMLCanvasElement {
+    const c = document.createElement('canvas');
+    c.width = SPLATMAP_SIZE;
+    c.height = SPLATMAP_SIZE;
+    const ctx = c.getContext('2d')!;
+    if (splatData) {
+        const id = ctx.createImageData(SPLATMAP_SIZE, SPLATMAP_SIZE);
+        for (let i = 0; i < id.data.length; i++) {
+            id.data[i] = splatData[i];
+        }
+        ctx.putImageData(id, 0, 0);
+    }
+    return c;
+}
+
+export function getSplatTexture() { return splatTexture; }
+
+export function exportSplatmapRaw(): Uint8Array | null {
+    return splatData;
 }

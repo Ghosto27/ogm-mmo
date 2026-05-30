@@ -11,14 +11,17 @@ import {
     showResourceNodeProps, getResourceNodeTypeFromProps,
     getResourcePlacementType, resetResourcePlacementButton
 } from './EditorUI';
+import { setWaterBodies, showWaterBodyProps } from './EditorUI';
+import { spawnWaterBody, removeWaterBody, clearAllWater, getWaterBodyById } from '../render/WaterRenderer';
+import { getPaintChannelIndex } from './TerrainEditor';
 import { inputState, sprintKey } from '../input';
-import { terrainMesh, getTerrainHeightAtFast, getTerrainHeightAt, applyBrush, exportHeightmapToBlob, exportRawHeights, syncVertexBufferToMesh } from '../render/TerrainRenderer';
+import { terrainMesh, getTerrainHeightAtFast, getTerrainHeightAt, applyBrush, exportHeightmapToBlob, exportRawHeights, syncVertexBufferToMesh, applyPaintBrush, exportSplatmapToCanvas, exportSplatmapRaw } from '../render/TerrainRenderer';
 import { worldMeshes } from '../render/WorldRenderer';
 import { createModelClone, getModelBaseSize } from '../utils/modelLoader';
 import { getColliderConfig } from '../collisionConfig';
 import { pushUIMode, popUIMode } from '../cameraControls';
 import { setResourceNodesVisible } from '../render/ResourceNodeRenderer';
-import { isTerrainActive, setTerrainActive, updateBrushParams, showBrushPreview, hideBrushPreview, updateBrushPreviewPosition, raycastTerrain, isEditorMouseEvent, getBrushState, setOnApplyBrush } from './TerrainEditor';
+import { isTerrainActive, setTerrainActive, updateBrushParams, showBrushPreview, hideBrushPreview, updateBrushPreviewPosition, raycastTerrain, isEditorMouseEvent, getBrushState, setOnApplyBrush, createBrushPreview } from './TerrainEditor';
 
 let transformControls: TransformControls;
 let editorObjects: THREE.Object3D[] = [];
@@ -38,12 +41,18 @@ let mobZoneVisuals: THREE.LineLoop[] = [];
 let resourceEditorObjects: THREE.Object3D[] = [];
 let resourcePlacementMode = false;
 
+// --- Water body editing ---
+let waterBodiesList: any[] = [];
+let drawingWaterBody = false;
+let waterBodyStartPoint: THREE.Vector3 | null = null;
+let waterBodyPreview: THREE.Line | null = null;
+let waterBodyLines: THREE.Line[] = [];
+
 // --- Terrain editing ---
 let terrainBrushActive = false;
 let terrainBrushMouseDown = false;
 let terrainBrushInterval: ReturnType<typeof setInterval> | null = null;
 let shiftHeld = false;
-let pickingHeight = false;
 
 // ---------- свободная камера (оставлено без изменений) ----------
 let freeCameraEnabled = false;
@@ -64,18 +73,6 @@ function onMouseDownForEditor(e: MouseEvent) {
         mouseDragged = false;
         lastMouseX = e.clientX;
         lastMouseY = e.clientY;
-        // Pick terrain height for flatten
-        if (pickingHeight && terrainMesh && !isEditorMouseEvent(e.target)) {
-            pickingHeight = false;
-            const point = raycastTerrain(e.clientX, e.clientY, terrainMesh);
-            if (point) {
-                updateBrushParams({ targetHeight: point.y, tool: 'flatten' });
-                const toolSelect = document.getElementById('select-terrain-tool') as HTMLSelectElement;
-                if (toolSelect) toolSelect.value = 'flatten';
-                console.log('[TERRAIN] Высота захвачена:', point.y.toFixed(2));
-            }
-            return;
-        }
         // Start terrain brush (hold LMB = continuous)
         if (isTerrainActive() && terrainMesh && !isEditorMouseEvent(e.target)) {
             terrainBrushMouseDown = true;
@@ -83,17 +80,29 @@ function onMouseDownForEditor(e: MouseEvent) {
             if (point) {
                 const shiftDown = e.shiftKey;
                 const brush = getBrushState();
-                const effectiveTool = shiftDown ? 'lower' : brush.tool;
-                // Сохраняем позицию для интервала
-                updateBrushPreviewPosition(point.x, point.z);
-                applyBrush(point.x, point.z, { ...brush, tool: effectiveTool });
-                // Запускаем интервал для непрерывного применения кисти (20 раз/с)
-                if (terrainBrushInterval === null) {
-                    terrainBrushInterval = setInterval(() => {
-                        const b = getBrushState();
-                        const tool = shiftHeld ? 'lower' : b.tool;
-                        applyBrush(b.worldX, b.worldZ, { ...b, tool });
-                    }, 50);
+                if (brush.tool === 'paint') {
+                    const channel = getPaintChannelIndex();
+                    applyPaintBrush(point.x, point.z, channel, brush.strength, brush.radius, brush.falloff, shiftDown);
+                    updateBrushPreviewPosition(point.x, point.z);
+                    if (terrainBrushInterval === null) {
+                        terrainBrushInterval = setInterval(() => {
+                            const b = getBrushState();
+                            const c = getPaintChannelIndex();
+                            const s = shiftHeld;
+                            applyPaintBrush(b.worldX, b.worldZ, c, b.strength, b.radius, b.falloff, s);
+                        }, 50);
+                    }
+                } else {
+                    const effectiveTool = shiftDown ? 'lower' : brush.tool;
+                    updateBrushPreviewPosition(point.x, point.z);
+                    applyBrush(point.x, point.z, { ...brush, tool: effectiveTool });
+                    if (terrainBrushInterval === null) {
+                        terrainBrushInterval = setInterval(() => {
+                            const b = getBrushState();
+                            const tool = shiftHeld ? 'lower' : b.tool;
+                            applyBrush(b.worldX, b.worldZ, { ...b, tool });
+                        }, 50);
+                    }
                 }
             }
         }
@@ -283,6 +292,7 @@ async function onEditorClick(event: MouseEvent) {
     if (!freeCameraEnabled) return;
     if (event.button !== 0) return;
     if (mouseDragged) return;
+    if (drawingWaterBody) { handleWaterBodyClick(event); return; }
     if (zoneDrawing) { handleZoneClick(event); return; }
 
     const raycaster = new THREE.Raycaster();
@@ -613,10 +623,26 @@ export function initEditor() {
             const falloff = (document.getElementById('select-terrain-falloff') as HTMLSelectElement).value as any;
             updateBrushParams({ radius, strength, falloff });
         },
-        onPickTerrainHeight: () => {
-            // Will be activated on next click
-            pickingHeight = true;
+        onPaintChannelChanged: (channel) => {
+            updateBrushParams({ paintChannel: channel as any });
+            // Обновляем цвет превью кисти
+            createBrushPreview();
         },
+        onSaveSplatmap: onSaveSplatmap,
+
+        onTabWaterSelected: () => {
+            // Вкладка воды выбрана — достаточно просто показать
+        },
+        onNewWaterBody: startDrawingWaterBody,
+        onSaveWaterBodies: saveWaterBodies,
+        onDeleteWaterBody: deleteSelectedWaterBody,
+        onWaterBodySelected: (index: number) => {
+            showWaterBodyProps(index);
+        },
+        onWaterBodyChanged: (index: number) => {
+            updateWaterBodyLine(index);
+        },
+
     });
 
     // TransformControls
@@ -667,13 +693,13 @@ export function initEditor() {
     });
 
     window.addEventListener('keydown', async (e) => {
-        if (e.key === 'F10') {
-            e.preventDefault();
+        if (e.key === 'F2') {
             if (isEditorActive()) {
                 exitEditorMode();
             } else {
                 await enterEditorMode();
             }
+            return;
         }
         // Escape сбрасывает выделение и режим размещения
         if (e.key === 'Escape' && isEditorActive()) {
@@ -682,7 +708,7 @@ export function initEditor() {
             resetResourcePlacementButton();
             deselectObject();
         }
-    });
+    }, { capture: true });
 
     console.log('[EDITOR] Редактор инициализирован');
 }
@@ -754,6 +780,9 @@ async function enterEditorMode() {
     resourceEditorObjects = [];
     requestResourceNodes();
 
+    // Загружаем водоёмы
+    requestWaterBodies();
+
     console.log(`[EDITOR] Загружено ${editorObjects.length} объектов`);
 }
 
@@ -792,6 +821,17 @@ function exitEditorMode() {
         scene.remove(obj);
     }
     resourceEditorObjects = [];
+    
+    // Очистка линий водоёмов (но не самих мешей воды — они видны в игре)
+    for (const line of waterBodyLines) {
+        scene.remove(line);
+        line.geometry.dispose();
+        (line.material as THREE.Material).dispose();
+    }
+    waterBodyLines = [];
+    waterBodiesList = [];
+    drawingWaterBody = false;
+    waterBodyStartPoint = null;
     
     editorObjects = [];
     selectedObjects = [];
@@ -877,6 +917,163 @@ async function onSaveTerrain() {
         });
         console.log('[TERRAIN] Ландшафт отправлен на сервер');
     }
+}
+
+async function onSaveSplatmap() {
+    const raw = exportSplatmapRaw();
+    if (!raw) { console.warn('[SPLATMAP] Нет данных'); return; }
+    const arr: number[] = [];
+    for (let i = 0; i < raw.length; i++) arr.push(raw[i]);
+    if (room) {
+        room.send('saveSplatmap', { data: arr });
+        console.log('[SPLATMAP] Сплатмап отправлен на сервер');
+    }
+}
+
+// === Логика водоёмов ===
+
+function startDrawingWaterBody() {
+    drawingWaterBody = true;
+    waterBodyStartPoint = null;
+}
+
+function handleWaterBodyClick(event: MouseEvent) {
+    if (!terrainMesh) return;
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObject(terrainMesh);
+    if (intersects.length === 0) return;
+    const point = intersects[0].point;
+
+    if (!waterBodyStartPoint) {
+        waterBodyStartPoint = point.clone();
+        if (waterBodyPreview) {
+            scene.remove(waterBodyPreview);
+            waterBodyPreview.geometry.dispose();
+            (waterBodyPreview.material as THREE.Material).dispose();
+            waterBodyPreview = null;
+        }
+    } else {
+        const centerX = (waterBodyStartPoint.x + point.x) / 2;
+        const centerZ = (waterBodyStartPoint.z + point.z) / 2;
+        const width = Math.abs(point.x - waterBodyStartPoint.x);
+        const depth = Math.abs(point.z - waterBodyStartPoint.z);
+        const y = getTerrainHeightAtFast(centerX, centerZ);
+
+        const newBody = {
+            id: `water_${Date.now()}`,
+            x: centerX,
+            z: centerZ,
+            y,
+            width: Math.max(5, width),
+            depth: Math.max(5, depth),
+            rotationY: 0,
+        };
+
+        spawnWaterBody(newBody);
+        waterBodiesList.push(newBody);
+        setWaterBodies(waterBodiesList);
+        showWaterBodyProps(waterBodiesList.length - 1);
+        const line = drawWaterBodyRect(newBody);
+        waterBodyLines.push(line);
+
+        drawingWaterBody = false;
+        waterBodyStartPoint = null;
+        if (waterBodyPreview) {
+            scene.remove(waterBodyPreview);
+            waterBodyPreview.geometry.dispose();
+            (waterBodyPreview.material as THREE.Material).dispose();
+            waterBodyPreview = null;
+        }
+    }
+}
+
+function onEditorClickWater(event: MouseEvent) {
+    if (!drawingWaterBody) return;
+    event.preventDefault();
+    handleWaterBodyClick(event);
+}
+
+function drawWaterBodyRect(body: any): THREE.Line {
+    const halfW = body.width / 2;
+    const halfD = body.depth / 2;
+    const y = body.y + 0.2;
+    const points = [
+        new THREE.Vector3(body.x - halfW, y, body.z - halfD),
+        new THREE.Vector3(body.x + halfW, y, body.z - halfD),
+        new THREE.Vector3(body.x + halfW, y, body.z + halfD),
+        new THREE.Vector3(body.x - halfW, y, body.z + halfD),
+    ];
+    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+    const material = new THREE.LineBasicMaterial({ color: 0x4444ff });
+    const line = new THREE.LineLoop(geometry, material);
+    scene.add(line);
+    return line;
+}
+
+function updateWaterBodyLine(index: number) {
+    if (index < 0 || index >= waterBodiesList.length) return;
+    const body = waterBodiesList[index];
+    if (!body) return;
+    const oldLine = waterBodyLines[index];
+    if (oldLine) {
+        scene.remove(oldLine);
+        oldLine.geometry.dispose();
+        (oldLine.material as THREE.Material).dispose();
+    }
+    const newLine = drawWaterBodyRect(body);
+    waterBodyLines[index] = newLine;
+    const mesh = getWaterBodyById(body.id);
+    if (mesh) {
+        mesh.position.set(body.x, body.y, body.z);
+        const geo = new THREE.PlaneGeometry(body.width, body.depth);
+        geo.rotateX(-Math.PI / 2);
+        mesh.geometry.dispose();
+        mesh.geometry = geo;
+    }
+}
+
+function saveWaterBodies() {
+    if (room) {
+        room.send('saveWaterBodies', { bodies: waterBodiesList });
+    }
+}
+
+function deleteSelectedWaterBody() {
+    const select = document.getElementById('select-water-body') as HTMLSelectElement;
+    if (!select) return;
+    const idx = parseInt(select.value);
+    if (isNaN(idx) || idx < 0 || idx >= waterBodiesList.length) return;
+    const body = waterBodiesList[idx];
+    removeWaterBody(body.id);
+    scene.remove(waterBodyLines[idx]);
+    waterBodyLines[idx].geometry.dispose();
+    (waterBodyLines[idx].material as THREE.Material).dispose();
+    waterBodyLines.splice(idx, 1);
+    waterBodiesList.splice(idx, 1);
+    setWaterBodies(waterBodiesList);
+}
+
+export function applyWaterBodies(bodies: any[]) {
+    clearAllWater();
+    for (const line of waterBodyLines) {
+        scene.remove(line);
+        line.geometry.dispose();
+        (line.material as THREE.Material).dispose();
+    }
+    waterBodyLines = [];
+    waterBodiesList = bodies;
+    for (const body of bodies) {
+        spawnWaterBody(body);
+        if (isEditorActive()) {
+            const line = drawWaterBodyRect(body);
+            waterBodyLines.push(line);
+        }
+    }
+    setWaterBodies(bodies);
 }
 
 // === Логика зон растительности ===
@@ -1106,6 +1303,7 @@ function deleteSelectedMobZone() {
 }
 
 function requestMobZones() { room.send('getMobZones'); }
+function requestWaterBodies() { room.send('getWaterBodies'); }
 
 function startDrawingMobZone() {
     drawingMobZone = true;

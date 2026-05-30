@@ -3,8 +3,11 @@ import { scene } from '../scene';
 import { camera } from '../scene';
 import { getVertexHeightBuffer, getTerrainSegments, terrainWidth, terrainDepth } from '../render/TerrainRenderer';
 
-export type TerrainTool = 'raise' | 'lower' | 'flatten' | 'smooth';
+export type TerrainTool = 'raise' | 'lower' | 'flatten' | 'smooth' | 'paint';
 export type BrushFalloff = 'gaussian' | 'linear' | 'flat';
+
+export type PaintChannel = 'grass' | 'dirt' | 'rock' | 'sand';
+const CHANNEL_INDEX: Record<PaintChannel, number> = { grass: 0, dirt: 1, rock: 2, sand: 3 };
 
 export interface BrushState {
     active: boolean;
@@ -15,18 +18,24 @@ export interface BrushState {
     targetHeight: number;
     worldX: number;
     worldZ: number;
+    paintChannel: PaintChannel;
 }
 
 let brushState: BrushState = {
     active: false,
     tool: 'raise',
-    radius: 5,
+    radius: 10,
     strength: 0.5,
     falloff: 'gaussian',
     targetHeight: 0,
     worldX: 0,
     worldZ: 0,
+    paintChannel: 'grass',
 };
+
+export function getPaintChannelIndex(): number {
+    return CHANNEL_INDEX[brushState.paintChannel];
+}
 
 let brushPreview: THREE.Mesh | null = null;
 let isTerrainMode = false;
@@ -91,6 +100,13 @@ export function updateBrushParams(params: Partial<BrushState>) {
     Object.assign(brushState, params);
 }
 
+const CHANNEL_COLORS: Record<PaintChannel, number> = {
+    grass: 0x00ff00,
+    dirt: 0x8B4513,
+    rock: 0x808080,
+    sand: 0xEDC9AF,
+};
+
 export function createBrushPreview(): THREE.Mesh {
     if (!brushPreview) {
         const geo = new THREE.RingGeometry(0.88, 1.0, 48);
@@ -105,6 +121,13 @@ export function createBrushPreview(): THREE.Mesh {
         brushPreview.rotation.x = -Math.PI / 2;
         brushPreview.visible = false;
         scene.add(brushPreview);
+    }
+    // Обновляем цвет в зависимости от инструмента
+    const mat = brushPreview.material as THREE.MeshBasicMaterial;
+    if (brushState.tool === 'paint') {
+        mat.color.setHex(CHANNEL_COLORS[brushState.paintChannel]);
+    } else {
+        mat.color.setHex(0xffffff);
     }
     return brushPreview;
 }

@@ -668,6 +668,18 @@ function join(playerName: string) {
                 applyResourceNodes(data.nodes || []);
             }
         });
+
+        room.onMessage('waterBodiesData', (data: { bodies: any[] }) => {
+            const bodies = data.bodies || [];
+            import('./editor/Editor').then((editor) => {
+                if (editor.applyWaterBodies) {
+                    editor.applyWaterBodies(bodies);
+                }
+            });
+        });
+
+        // Загружаем водоёмы при старте (сразу после соединения)
+        room.send('getWaterBodies');
     }).catch(err => {
         console.error('[JOIN] Ошибка:', err);
         localStorage.removeItem('ogm_playerName');

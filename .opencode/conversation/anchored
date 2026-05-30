@@ -1,0 +1,19 @@
+## Goal
+Редактор ландшафта.
+
+## Active
+- **Редактор: F2** (F10 перехватывается Chrome). Кисть: RingGeometry+Mesh, `depthTest:false`, `conformRingToTerrain`.
+- **Фаза 2 — Splatmap:** DataTexture 512×512 RGBA (raw binary save/load). Grass/dirt/rock/sand по R/G/B/A. Покраска: +к каналу, −/3 с остальных. Стирание (Shift): −из канала, +delta в R (плавный переход в траву). Шейдер нормализует сумму.
+- **Превью кисти** — заполненное кольцо, не линия.
+
+## Architecture
+- Colyseus + Three.js, транзакционное сохранение (diff предметов, вычисляемые поля восстанавливаются).
+- Express.static('public') на сервере. WebSocket maxPayload увеличен до 10MB.
+- Террейн 129×129 вершин → PNG 2048 (pngjs nearest-neighbour). Brush setInterval(50ms), Shift→Lower.
+- Flatten по высоте центра кисти. Макс радиус 40.
+
+## Relevant (что может понадобиться в правках)
+- `TerrainEditor.ts` — brush state, raycastTerrain (fallback 1000u), create/show/hide/update/conformRingToTerrain.
+- `TerrainRenderer.ts` — `applyBrush()`, `exportRawHeights()`, `exportHeightmapToBlob()`, `loadHeightmap()`, `getVertexHeightBuffer()`, `getTerrainSegments()`, `terrainWidth`, `terrainDepth`.
+- `Editor.ts` — `terrainBrushInterval` (50ms), `shiftHeld`, `onSaveTerrain`.
+- `EditorUI.ts` — вкладка Ландшафт, radius slider max=40.

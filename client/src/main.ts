@@ -39,6 +39,7 @@ import { applyMovementWithCollisions, updateDynamicColliders, getAllColliders, P
 import { updateCollisionDebug } from './debug/collisionDebug';
 import { isCollisionDebugVisible } from './debug/debugState';
 import { initEditor, updateEditor } from './editor/Editor';
+import { updateWaterAnimation } from './render/WaterRenderer';
 import { initDragDrop } from './inventoryDnD';
 import { isEditorActive } from './editor/EditorState';
 
@@ -226,6 +227,9 @@ function loop() {
     if (playerPhysicalPos.lengthSq() === 0) {
         playerPhysicalPos.copy(localModel.position);
     }
+
+    // Анимация воды (всегда)
+    updateWaterAnimation(deltaTime);
 
     // =================== РЕЖИМ РЕДАКТОРА ===================
     if (isEditorActive()) {

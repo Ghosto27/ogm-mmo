@@ -129,47 +129,95 @@ Mesh vertices (129×129) ──редактор──→ raw heights [Uint8, 16K
 
 ---
 
-## Фаза 2 — Splatmap (покраска текстур)
+## Фаза 2 ✅ — Splatmap (покраска текстур) — РЕАЛИЗОВАНО
 
 ### 2.1 Шейдер
 
-- Заменить height-based (grass/cliff/rock по высоте) на splatmap-based
-- Splatmap: `CanvasTexture` 129×129, RGBA (R=grass, G=dirt, B=rock, A=sand)
-- Текстуры уже есть в client/public/textures/: `grass.jpg`, `cliff.jpg`, `rock.jpg`
+- Замена height-based (grass/cliff/rock по высоте) на splatmap-based
+- Splatmap: `DataTexture` 512×512, RGBA (R=grass, G=dirt (cliff.jpg), B=rock, A=sand)
+- `flipY = false` (PlaneGeometry UV v=0 при Z=+halfD)
+- Текстуры: `grass.jpg`, `cliff.jpg`, `rock.jpg`, `sand.jpg` из `client/public/textures/`
 
 ```glsl
 vec4 splat = texture2D(splatMap, vUv);
-gl_FragColor = texture2D(tex0, vUv * tiling) * splat.r
-             + texture2D(tex1, vUv * tiling) * splat.g
-             + texture2D(tex2, vUv * tiling) * splat.b
-             + texture2D(tex3, vUv * tiling) * splat.a;
+float total = splat.r + splat.g + splat.b + splat.a;
+if (total < 0.001) { gl_FragColor = vec4(0.15, 0.25, 0.1, 1.0); return; }
+vec4 color = texture2D(tex0, vUv * tiling) * splat.r
+           + texture2D(tex1, vUv * tiling) * splat.g
+           + texture2D(tex2, vUv * tiling) * splat.b
+           + texture2D(tex3, vUv * tiling) * splat.a;
+gl_FragColor = vec4(color.rgb / total, 1.0);
 ```
 
 ### 2.2 Инструмент покраски
 
-- Кисть: рейкаст → UV → круг в splatmap canvas цветом канала
-- Shift+ЛКМ = стирание
-- Save: PNG на сервер
+- Кисть: рейкаст → worldX/worldZ → UV → DataTexture pixel (cx,cy)
+- **Покраска (ЛКМ):** +addVal к каналу, −addVal/3 с остальных (falloff)
+- **Стирание (Shift+ЛКМ):** −addVal из канала, +actualDelta в R (трава), плавный переход
+- Инструмент в выпадающем списке: Raise / Lower / Flatten / Smooth / **Paint**
+- Селектор канала: Трава (R) / Земля (G) / Камень (B) / Песок (A) — показывается при Paint
+- Превью кисти: RingGeometry, цвет под канал (зелёный/коричневый/серый/бежевый)
+- Fallback при total=0: тёмно-зелёный (0.15, 0.25, 0.1)
 
-### 2.3 Инициализация
+### 2.3 Сохранение (Save)
 
-- Проверить `splatmap.png` на сервере
-- Если нет — инициализировать R=255 (вся трава)
+- **Save Splatmap:** сырые байты Uint8Array (512×512×4 = ~1MB) через `room.send('saveSplatmap', { data: [...] })`
+- Сервер: `Buffer.from(message.data)` → `server/public/textures/splatmap.raw` (raw binary, не PNG!)
+- Загрузка: `fetch(SERVER_URL + '/textures/splatmap.raw')` → `arrayBuffer` → `Uint8Array` → `splatData`
+- При отсутствии файла — инициализация R=255 (трава)
+
+### 2.4 UI вкладки «🌍 Ландшафт» (изменения)
+
+- Добавлен инструмент **Paint (Покраска)**
+- Селектор канала (показывается при выборе Paint)
+- Кнопка «🎨 Сохранить сплатмап»
+- Хинт: Shift+ЛКМ = стирание (Paint)
+- Кнопка «📍 Забрать высоту» удалена
+
+### 2.5 Файлы (изменённые/новые)
+
+| Файл | Изменения |
+|---|---|
+| `client/src/render/TerrainRenderer.ts` | Splatmap DataTexture, init/load/save/paint shader, `applyPaintBrush()`, `exportSplatmapRaw()` |
+| `client/src/editor/TerrainEditor.ts` | `paint` в TerrainTool, `paintChannel` в BrushState, цвет превью под канал |
+| `client/src/editor/EditorUI.ts` | Paint в дропдауне, селектор канала, кнопка Save Splatmap |
+| `client/src/editor/Editor.ts` | Paint-браш в интервале, `onSaveSplatmap()` (raw), `onPaintChannelChanged` |
+| `server/src/MyRoom.ts` | Handler `saveSplatmap` → raw binary → `splatmap.raw` |
 
 ---
 
-## Фаза 3 — Вода
+## Фаза 3 — Вода (прямоугольные водоёмы)
 
-- Инструмент «Водоём»: клик + растянуть прямоугольник
-- `three/addons/objects/Water.js` для reflective воды
-- Сохранение: `water_bodies.json`
+### 3.1 Водоём
 
----
+- `PlaneGeometry(width, depth)` с кастомным ShaderMaterial (синий полупрозрачный, UV-анимация)
+- Позиция XZ, высота Y (по умолчанию высота террейна в центре), rotationY
+- Меш добавляется в сцену отдельно, вне editor mode (виден всегда)
+- При входе/выходе из редактора — не удаляется (в отличие от ресурсных нод)
 
-## Фаза 4 — Дороги
+### 3.2 Инструмент в редакторе
 
-- Сплайновые дороги (CatmullRomCurve3) с авто-флаттернингом
-- Сохранение: `roads.json`
+- Отдельная вкладка «💧 Вода» (рядом с Ландшафтом)
+- Клик-драг как у зон растительности: первый клик — центр, второй — размер
+- После создания водоёма — можно выделить и редактировать через TransformControls (передвинуть, повернуть, изменить размер)
+- Кнопка «💾 Сохранить водоёмы»
+- Загрузка `water_bodies.json` при входе в редактор
+
+### 3.3 Сохранение
+
+- `water_bodies.json` на сервере
+- Хандлеры: `saveWaterBodies`, `getWaterBodies`
+- При загрузке комнаты — инициализация из файла
+
+### 3.4 Файлы (новые/изменённые)
+
+| Файл | Изменения |
+|---|---|
+| `client/src/render/WaterRenderer.ts` | **Новый** — WaterMesh (ShaderMaterial с UV-анимацией), управление списком водоёмов |
+| `client/src/editor/EditorUI.ts` | Вкладка «💧 Вода», кнопки Save, select |
+| `client/src/editor/Editor.ts` | Логика рисования водоёма, вызовы save/load |
+| `client/src/network.ts` | `room.onMessage("waterBodiesData", ...)` |
+| `server/src/MyRoom.ts` | Handlers `saveWaterBodies`, `getWaterBodies` + init из `water_bodies.json` |
 
 ---
 
@@ -182,13 +230,14 @@ gl_FragColor = texture2D(tex0, vUv * tiling) * splat.r
 | Размер мира | 2048 × 2048 |
 | MaxHeight | 200 |
 | Heightmap PNG | 2048 × 2048, grayscale |
+| Splatmap | DataTexture 512×512 RGBA, raw binary |
 
 ---
 
 ## Приоритет
 
-1. ✅ **Фаза 1** — Raise/Lower/Smooth/Flatten в F10 + Save → **готово**
-2. ⏳ **Фаза 2** — Splatmap-шейдер + покраска текстур
-3. **Фаза 3** — Вода
+1. ✅ **Фаза 1** — Raise/Lower/Smooth/Flatten в F2 + Save → **готово**
+2. ✅ **Фаза 2** — Splatmap-шейдер + покраска текстур (Paint tool) → **готово**
+3. ⏳ **Фаза 3** — Вода (прямоугольные водоёмы)
 4. **Фаза 4** — Дороги
 5. **Масштабирование** — увеличение segments/PNG по мере необходимости
