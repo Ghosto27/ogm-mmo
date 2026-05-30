@@ -498,7 +498,7 @@ function loop() {
         }
         _mapNpcs.length = _mapNpcsCount;
 
-        updateMinimap(localModel.position.x, localModel.position.z, localModel.rotation.y, _mapOthers, _mapMobs, _mapNpcs);
+        updateMinimap(localModel.position.x, localModel.position.y, localModel.position.z, localModel.rotation.y, _mapOthers, _mapMobs, _mapNpcs);
         updateWorldMap(localModel.position.x, localModel.position.z, localModel.rotation.y, _mapOthers, _mapMobs, _mapNpcs);
     }
 

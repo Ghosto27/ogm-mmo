@@ -1,0 +1,58 @@
+{
+  "npcs": [
+    {
+      "id": "knight_01",
+      "name": "Рыцарь",
+      "x": 0,
+      "z": -25,
+      "y": 102,
+      "availableQuestIds": ["kill_5_wolves", "kill_10_wolves"]
+    }
+  ],
+  "worldObjects": [
+    {
+      "id": "chest_01",
+      "modelName": "chest",
+      "x": 20,
+      "z": -35,
+      "y": 100.5,
+      "scaleX": 1.5,
+      "scaleY": 1,
+      "scaleZ": 1.5,
+      "color": "#8B4513"
+    },
+    {
+      "id": "furnace_01",
+      "modelName": "furnace",
+      "x": 5,
+      "z": -35,
+      "y": 100.5,
+      "scaleX": 2,
+      "scaleY": 1.5,
+      "scaleZ": 2,
+      "color": "#8B0000"
+    },
+    {
+      "id": "anvil_01",
+      "modelName": "anvil",
+      "x": 10,
+      "z": -35,
+      "y": 100.5,
+      "scaleX": 1,
+      "scaleY": 0.8,
+      "scaleZ": 1,
+      "color": "#444444"
+    },
+    {
+      "id": "merchant_01",
+      "modelName": "merchant",
+      "x": 15,
+      "z": -35,
+      "y": 100.5,
+      "scaleX": 1,
+      "scaleY": 1.5,
+      "scaleZ": 1,
+      "color": "#22AA22"
+    }
+  ]
+}

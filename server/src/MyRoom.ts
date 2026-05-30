@@ -467,77 +467,58 @@ export class MyRoom extends Room<MyRoomState> {
 
         const terrain = new WorldTerrain();
         terrain.heightmapPath = "/textures/heightmap.png";
-        terrain.width = 2048;
-        terrain.depth = 2048;
+        terrain.width = 4096;
+        terrain.depth = 4096;
         terrain.segments = 128;
         terrain.maxHeight = 200; // подбери под свою картинку
         this.state.terrain = terrain;
 
-        // Создаём тестового NPC – рыцаря
-        const knight = new NPC();
-        knight.id = "knight_01";
-        knight.name = "Рыцарь";
-        knight.x = 0;
-        knight.z = -25;
-        knight.y = 2;
-        knight.availableQuestIds.push("kill_5_wolves", "kill_10_wolves");
-        this.state.npcs.set(knight.id, knight);
-        console.log(`[NPC] Рыцарь появился на (${knight.x}, ${knight.z})`);
-
-        // Создаём банковский сундук
-        const chest = new WorldObject();
-        chest.id = "chest_01";
-        chest.modelName = "chest";
-        chest.x = 20;
-        chest.z = -35;
-        chest.y = 0;
-        chest.scaleX = 1.5;
-        chest.scaleY = 1;
-        chest.scaleZ = 1.5;
-        chest.color = "#8B4513";
-        this.state.worldObjects.set(chest.id, chest);
-        console.log(`[CHEST] Сундук появился на (${chest.x}, ${chest.z})`);
-
-        // Создаём станции крафта
-        const furnace = new WorldObject();
-        furnace.id = "furnace_01";
-        furnace.modelName = "furnace";
-        furnace.x = 5;
-        furnace.z = -35;
-        furnace.y = 0;
-        furnace.scaleX = 2;
-        furnace.scaleY = 1.5;
-        furnace.scaleZ = 2;
-        furnace.color = "#8B0000";
-        this.state.worldObjects.set(furnace.id, furnace);
-        console.log(`[FURNACE] Печь появилась на (${furnace.x}, ${furnace.z})`);
-
-        const anvil = new WorldObject();
-        anvil.id = "anvil_01";
-        anvil.modelName = "anvil";
-        anvil.x = 10;
-        anvil.z = -35;
-        anvil.y = 0;
-        anvil.scaleX = 1;
-        anvil.scaleY = 0.8;
-        anvil.scaleZ = 1;
-        anvil.color = "#444444";
-        this.state.worldObjects.set(anvil.id, anvil);
-        console.log(`[ANVIL] Наковальня появилась на (${anvil.x}, ${anvil.z})`);
-
-        // Создаём торговца
-        const merchant = new WorldObject();
-        merchant.id = "merchant_01";
-        merchant.modelName = "merchant";
-        merchant.x = 15;
-        merchant.z = -35;
-        merchant.y = 0;
-        merchant.scaleX = 1;
-        merchant.scaleY = 1.5;
-        merchant.scaleZ = 1;
-        merchant.color = "#22AA22";
-        this.state.worldObjects.set(merchant.id, merchant);
-        console.log(`[MERCHANT] Торговец появился на (${merchant.x}, ${merchant.z})`);
+        // Загружаем статичные объекты из файла (NPC, сундуки, станции крафта, торговцы)
+        try {
+            const staticFilePath = path.join(__dirname, '../data/static_objects.json');
+            if (fs.existsSync(staticFilePath)) {
+                const staticData = JSON.parse(fs.readFileSync(staticFilePath, 'utf-8'));
+                if (staticData.npcs) {
+                    for (const n of staticData.npcs) {
+                        const npc = new NPC();
+                        npc.id = n.id;
+                        npc.name = n.name;
+                        npc.x = n.x || 0;
+                        npc.y = n.y || 0;
+                        npc.z = n.z || 0;
+                        if (n.availableQuestIds) {
+                            npc.availableQuestIds.push(...n.availableQuestIds);
+                        }
+                        this.state.npcs.set(npc.id, npc);
+                        console.log(`[NPC] ${npc.name} появился на (${npc.x}, ${npc.z})`);
+                    }
+                }
+                if (staticData.worldObjects) {
+                    for (const o of staticData.worldObjects) {
+                        const wo = new WorldObject();
+                        wo.id = o.id;
+                        wo.modelName = o.modelName || 'cube';
+                        wo.x = o.x || 0;
+                        wo.y = o.y || 0;
+                        wo.z = o.z || 0;
+                        wo.scaleX = o.scaleX || 1;
+                        wo.scaleY = o.scaleY || 1;
+                        wo.scaleZ = o.scaleZ || 1;
+                        wo.color = (o.color || '#ffffff').startsWith('#') ? o.color : '#' + o.color;
+                        wo.rotationY = o.rotationY || 0;
+                        wo.rotationX = o.rotationX || 0;
+                        wo.rotationZ = o.rotationZ || 0;
+                        this.state.worldObjects.set(wo.id, wo);
+                        console.log(`[STATIC] ${o.modelName} (${o.id}) на (${o.x}, ${o.z})`);
+                    }
+                }
+                console.log('[STATIC] Статичные объекты загружены из static_objects.json');
+            } else {
+                console.warn('[STATIC] static_objects.json не найден, статичные объекты не созданы');
+            }
+        } catch (err) {
+            console.error('[STATIC] Ошибка загрузки static_objects.json:', err);
+        }
 
         // ===== DEBUG: God mode toggle =====
         this.onMessage("setGodMode", (client, message: { enabled: boolean }) => {
@@ -1833,7 +1814,7 @@ export class MyRoom extends Room<MyRoomState> {
                 const heights = message.heights;
 
                 // Создаём PNG 2048×2048
-                const dstSize = 2048;
+                const dstSize = 4096;
                 const png = new PNG({ width: dstSize, height: dstSize });
 
                 for (let dy = 0; dy < dstSize; dy++) {

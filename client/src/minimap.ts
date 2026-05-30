@@ -8,23 +8,7 @@ let canvas: HTMLCanvasElement;
 let ctx: CanvasRenderingContext2D;
 let coordsText: HTMLElement;
 
-// Вспомогательные функции для цвета
-function lerpColor(color1: string, color2: string, t: number): string {
-    const c1 = hexToRgb(color1);
-    const c2 = hexToRgb(color2);
-    const r = Math.round(c1.r + (c2.r - c1.r) * t);
-    const g = Math.round(c1.g + (c2.g - c1.g) * t);
-    const b = Math.round(c1.b + (c2.b - c1.b) * t);
-    return `rgb(${r},${g},${b})`;
-}
-function hexToRgb(hex: string) {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    return result ? {
-        r: parseInt(result[1], 16),
-        g: parseInt(result[2], 16),
-        b: parseInt(result[3], 16)
-    } : { r: 0, g: 0, b: 0 };
-}
+const COLOR_MAP_VERSION = 2;
 
 export function createMinimap() {
     canvas = document.createElement('canvas');
@@ -53,7 +37,7 @@ export function createMinimap() {
 }
 
 export function updateMinimap(
-    localX: number, localZ: number, localRotationY: number,
+    localX: number, localY: number, localZ: number, localRotationY: number,
     otherPlayersData: { x: number; z: number; rotationY: number; visible: boolean }[],
     mobsData: { x: number; z: number; visible: boolean }[],
     npcsData: { x: number; z: number; visible: boolean }[]
@@ -68,7 +52,7 @@ export function updateMinimap(
 
     // ---------- 1. Статическая карта высот ----------
     if (heightmapData && WORLD_SIZE > 0) {
-        const currentKey = `${WORLD_SIZE}_${terrainDepth}_${heightmapData.width}_${heightmapData.height}`;
+        const currentKey = `${COLOR_MAP_VERSION}_${WORLD_SIZE}_${terrainDepth}_${heightmapData.width}_${heightmapData.height}`;
         if (currentKey !== lastHeightmapKey || !fullMapCanvas) {
             fullMapCanvas = document.createElement('canvas');
             fullMapCanvas.width = heightmapData.width;
@@ -77,21 +61,28 @@ export function updateMinimap(
 
             const imgData = fullCtx.createImageData(heightmapData.width, heightmapData.height);
             for (let i = 0; i < heightmapData.data.length; i += 4) {
-                const r = heightmapData.data[i];
-                const normalized = r / 255;
-                let colorR, colorG, colorB;
-                if (normalized < 0.1) {
-                    colorR = 58; colorG = 157; colorB = 35;
-                } else if (normalized < 0.3) {
-                    const t = (normalized - 0.3) / 0.3;
-                    colorR = Math.round(139 + (194 - 139) * t);
-                    colorG = Math.round(191 + (178 - 191) * t);
-                    colorB = Math.round(58 + (128 - 58) * t);
-                } else {
-                    const t = (normalized - 0.6) / 0.4;
-                    colorR = Math.round(194 + (139 - 194) * t);
-                    colorG = Math.round(178 + (90 - 178) * t);
-                    colorB = Math.round(128 + (43 - 128) * t);
+                const h = heightmapData.data[i]; // 0-255, baseline ~128 (100m)
+                let colorR: number, colorG: number, colorB: number;
+                if (h < 64) { // 0-50m: deep depressions → dark blue
+                    const t = h / 64;
+                    colorR = Math.round(20 + (40 - 20) * t);
+                    colorG = Math.round(50 + (100 - 50) * t);
+                    colorB = Math.round(120 + (100 - 120) * t);
+                } else if (h < 128) { // 50-100m: blue-green → green
+                    const t = (h - 64) / 64;
+                    colorR = Math.round(40 + (90 - 40) * t);
+                    colorG = Math.round(100 + (170 - 100) * t);
+                    colorB = Math.round(100 + (70 - 100) * t);
+                } else if (h < 192) { // 100-150m: green → tan
+                    const t = (h - 128) / 64;
+                    colorR = Math.round(90 + (170 - 90) * t);
+                    colorG = Math.round(170 + (155 - 170) * t);
+                    colorB = Math.round(70 + (80 - 70) * t);
+                } else { // 150-200m: tan → gray
+                    const t = (h - 192) / 63;
+                    colorR = Math.round(170 + (210 - 170) * t);
+                    colorG = Math.round(155 + (190 - 155) * t);
+                    colorB = Math.round(80 + (110 - 80) * t);
                 }
                 imgData.data[i] = colorR;
                 imgData.data[i+1] = colorG;
@@ -243,6 +234,6 @@ export function updateMinimap(
     ctx.stroke();
 
     if (coordsText) {
-        coordsText.textContent = `X: ${localX.toFixed(1)}  Z: ${localZ.toFixed(1)}`;
+        coordsText.textContent = `X: ${localX.toFixed(1)}  Y: ${localY.toFixed(1)}  Z: ${localZ.toFixed(1)}`;
     }
 }

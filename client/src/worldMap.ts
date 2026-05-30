@@ -7,7 +7,7 @@ import {
 import { fullMapCanvas } from './minimap';
 
 // ---------- Константы ----------
-const MAX_DIMENSION = 1024;          // размер канваса в пикселях
+const MAX_DIMENSION = 768;          // размер канваса в пикселях
 const VIEW_SIZE = 1500;               // сколько игровых единиц видно на карте (как в миникарте)
 
 let canvas: HTMLCanvasElement;
