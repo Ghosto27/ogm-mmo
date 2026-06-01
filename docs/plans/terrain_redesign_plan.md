@@ -14,16 +14,16 @@
 ```
 Mesh vertices (129×129) ──редактор──→ raw heights [Uint8, 16KB]
           ↓                              ↓
-   видно сразу в игре              JSON → сервер → pngjs → 2048×2048 PNG
-                                                       ↓
-                                             express.static('public')
-                                                       ↓
-                                             клиент загружает с сервера
+   видно сразу в игре              JSON → сервер → pngjs → 4096×4096 PNG
+                                                        ↓
+                                              express.static('public')
+                                                        ↓
+                                              клиент загружает с сервера
 ```
 
-- **heightmap.png** (2048×2048) — единственный файл, заменяется целиком при Save
+- **heightmap.png** (4096×4096) — единственный файл, заменяется целиком при Save
 - **129×129 вершин** — меш (128 segments), редактируем напрямую
-- **Сохранение:** читаем Y вершин → Uint8Array → JSON → сервер → pngjs scale 129→2048 → `server/public/textures/heightmap.png`
+- **Сохранение:** читаем Y вершин → Uint8Array → JSON → сервер → pngjs scale 129→4096 → `server/public/textures/heightmap.png`
 - **Клиент** загружает heightmap с Colyseus-сервера (SERVER_URL + path), не с Vite
 - **maxPayload** WebSocket: 10MB (дефолт 4KB не хватало даже для 16К чисел)
 
@@ -55,15 +55,14 @@ Mesh vertices (129×129) ──редактор──→ raw heights [Uint8, 16K
 
 1. `exportRawHeights()` → Uint8Array (129×129)
 2. Отправка: `room.send('saveHeightmapRaw', { heights: [...], segments: 128, maxHeight: 200 })`
-3. Сервер: pngjs создаёт PNG 2048×2048 (nearest-neighbor scale 129→2048)
+3. Сервер: pngjs создаёт PNG 4096×4096 (nearest-neighbor scale 129→4096)
 4. Сохраняет в `server/public/textures/heightmap.png`
 5. Обновляет `WorldTerrain.heightmapPath` с `?t=timestamp` → schema sync
 6. Все клиенты перезагружают террейн с сервера
 
 **Важно:** координаты загрузки и сохранения согласованы:
-- Save: `sx = Math.floor(dx/2048 * 129)` — пиксели 0..15 → col 0, 16..31 → col 1
-- Load: `px = Math.min(Math.floor(col/128 * 2048), 2047)` — col 1 → px=16 ✓  
-  (а не `Math.floor(col/128 * 2047)` → px=15, как было до фикса)
+- Save: `sx = Math.floor(dx/4096 * 129)` — пиксели 0..31 → col 0, 32..63 → col 1
+- Load: `px = Math.min(Math.floor(col/128 * 4096), 4095)` — col 1 → px=32 ✓
 
 ### 1.4 UI вкладки «🌍 Ландшафт»
 
@@ -88,22 +87,32 @@ Mesh vertices (129×129) ──редактор──→ raw heights [Uint8, 16K
 
 ---
 
+## Параметры террейна
+
+| Параметр | Значение |
+|---|---|
+| Segments | 128 |
+| Вершин | 129 × 129 = 16641 |
+| Размер мира | 4096 × 4096 |
+| MaxHeight | 200 |
+| Heightmap PNG | 4096 × 4096, grayscale (базовый серый 128 → ~100м) |
+| Splatmap | DataTexture 512×512 RGBA, raw binary |
+
 ## Масштабирование (увеличение детализации)
 
-Текущие параметры: segments=128 (129×129 вершин), heightmap=2048×2048.
+Текущие параметры: segments=128 (129×129 вершин), heightmap=4096×4096.
 
 ### Уровни
 
 | Segments | Вершин | Размер массива | PNG | Пропускная способность на пиксель |
 |----------|--------|----------------|-----|-----------------------------------|
-| 128 (тек.) | 16641 | ~16 KB | 2048×2048 | ~15.9 px/vertex |
-| 256 | 66049 | ~66 KB | 4096×4096 | ~16 px/vertex |
-| 512 | 263169 | ~263 KB | 8192×8192 | ~16 px/vertex |
+| 128 (тек.) | 16641 | ~16 KB | 4096×4096 | ~31.8 px/vertex |
+| 256 | 66049 | ~66 KB | 8192×8192 | ~32 px/vertex |
 
 ### Что менять для каждого уровня
 
 **Простое (только размер PNG):**
-- `server/src/MyRoom.ts:1824` — `const dstSize = 2048` → нужный размер
+- `server/src/MyRoom.ts` — `const dstSize = 4096` → нужный размер
 - Начальный `heightmap.png` — заменить файлом нужного размера
 
 **Среднее (segments):**
@@ -114,7 +123,7 @@ Mesh vertices (129×129) ──редактор──→ raw heights [Uint8, 16K
 - **maxPayload** — 66 KB для 256, 263 KB для 512 — текущих 10MB хватит
 
 **Сложное (необходимые рефакторинги):**
-- `WorldTerrain.width` / `WorldTerrain.depth` — могут потребовать изменения размера мира (сейчас 2048×2048)
+- `WorldTerrain.width` / `WorldTerrain.depth` — увеличены до 4096×4096
 - `PlaneGeometry(terrain.width, terrain.depth, segments, segments)` — размер мира остаётся, меняется только сетка
 - `getTerrainHeightAtFast()` — билинейная интерполяция, адаптируется автоматически
 - `resource_nodes.json` — позиции объектов не зависят от сегментации
@@ -186,7 +195,7 @@ gl_FragColor = vec4(color.rgb / total, 1.0);
 
 ---
 
-## Фаза 3 — Вода (прямоугольные водоёмы)
+## Фаза 3 ✅ — Вода (прямоугольные водоёмы) — РЕАЛИЗОВАНО
 
 ### 3.1 Водоём
 
@@ -221,23 +230,10 @@ gl_FragColor = vec4(color.rgb / total, 1.0);
 
 ---
 
-## Параметры террейна
-
-| Параметр | Значение |
-|---|---|
-| Segments | 128 |
-| Вершин | 129 × 129 = 16641 |
-| Размер мира | 2048 × 2048 |
-| MaxHeight | 200 |
-| Heightmap PNG | 2048 × 2048, grayscale |
-| Splatmap | DataTexture 512×512 RGBA, raw binary |
-
----
-
 ## Приоритет
 
 1. ✅ **Фаза 1** — Raise/Lower/Smooth/Flatten в F2 + Save → **готово**
 2. ✅ **Фаза 2** — Splatmap-шейдер + покраска текстур (Paint tool) → **готово**
-3. ⏳ **Фаза 3** — Вода (прямоугольные водоёмы)
+3. ✅ **Фаза 3** — Вода (прямоугольные водоёмы) → **готово**
 4. **Фаза 4** — Дороги
-5. **Масштабирование** — увеличение segments/PNG по мере необходимости
+5. **Дополнительно** — Мир увеличен до 4096×4096, базовая высота ~100м, статика вынесена в `static_objects.json`, новая цветовая схема миникарты (синий для впадин, зелёный для нормы, серый для вершин)

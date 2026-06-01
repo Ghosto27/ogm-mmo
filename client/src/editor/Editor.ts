@@ -183,6 +183,8 @@ function moveCamera(deltaTime: number) {
     if (inputState.backward) camera.position.addScaledVector(forward, -speed);
     if (inputState.right) camera.position.addScaledVector(right, speed);
     if (inputState.left) camera.position.addScaledVector(right, -speed);
+    if (inputState.up) camera.position.y += speed;
+    if (inputState.down) camera.position.y -= speed;
 }
 
 function createPrimitive(type: 'cube' | 'cylinder', x: number, z: number): THREE.Mesh {

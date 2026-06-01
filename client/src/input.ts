@@ -17,6 +17,8 @@ export const inputState = {
     backward: false,
     left: false,
     right: false,
+    up: false,
+    down: false,
 };
 
 // ---------- КЛАВИШИ ----------
@@ -32,6 +34,8 @@ window.addEventListener('keydown', (e) => {
     if (normalized === 's' || normalized === 'arrowdown' || normalized === 'ы') inputState.backward = true;
     if (normalized === 'a' || normalized === 'arrowleft' || normalized === 'ф') inputState.left = true;
     if (normalized === 'd' || normalized === 'arrowright' || normalized === 'в') inputState.right = true;
+    if (normalized === 'q' || normalized === 'й') inputState.down = true;
+    if (normalized === 'e' || normalized === 'у') inputState.up = true;
 });
 window.addEventListener('keyup', (e) => {
     if (isChatActive()) return;
@@ -43,6 +47,8 @@ window.addEventListener('keyup', (e) => {
     if (normalized === 's' || normalized === 'arrowdown' || normalized === 'ы') inputState.backward = false;
     if (normalized === 'a' || normalized === 'arrowleft' || normalized === 'ф') inputState.left = false;
     if (normalized === 'd' || normalized === 'arrowright' || normalized === 'в') inputState.right = false;
+    if (normalized === 'q' || normalized === 'й') inputState.down = false;
+    if (normalized === 'e' || normalized === 'у') inputState.up = false;
 });
 
 export function getMovementInput(): { x: number; z: number } {
